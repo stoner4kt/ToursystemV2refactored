@@ -4,11 +4,12 @@ import React, { useState, useEffect } from 'react';
 import AuthContainer from '@/components/AuthContainer';
 import DriverDashboard from '@/components/DriverDashboard';
 import AdminDashboard from '@/components/AdminDashboard';
-import { Profile } from '@/lib/storage';
+import { Profile, syncAllFromSupabase } from '@/lib/storage';
 
 export default function HomePage() {
   const [currentUser, setCurrentUser] = useState<Profile | null>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [syncVersion, setSyncVersion] = useState(0);
 
   // Restore authenticated session on mount
   useEffect(() => {
@@ -26,6 +27,17 @@ export default function HomePage() {
     }, 0);
     return () => clearTimeout(timer);
   }, []);
+
+  // Handle data synchronization when user session is active
+  useEffect(() => {
+    if (currentUser) {
+      syncAllFromSupabase().then(() => {
+        setSyncVersion(v => v + 1);
+      }).catch(err => {
+        console.error("Background sync failed:", err);
+      });
+    }
+  }, [currentUser]);
 
   const handleLoginSuccess = (profile: Profile) => {
     setCurrentUser(profile);
@@ -55,9 +67,9 @@ export default function HomePage() {
     <main className="min-h-screen bg-slate-50">
       {currentUser ? (
         currentUser.role === 'admin' ? (
-          <AdminDashboard admin={currentUser} onLogout={handleLogout} />
+          <AdminDashboard key={`admin-${syncVersion}`} admin={currentUser} onLogout={handleLogout} />
         ) : (
-          <DriverDashboard driver={currentUser} onLogout={handleLogout} />
+          <DriverDashboard key={`driver-${syncVersion}`} driver={currentUser} onLogout={handleLogout} />
         )
       ) : (
         <AuthContainer onLoginSuccess={handleLoginSuccess} />

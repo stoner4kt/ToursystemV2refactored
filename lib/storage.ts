@@ -329,6 +329,87 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+// Global variable storage keys
+export const STORAGE_KEYS = {
+  PROFILES: 'inyathi_profiles',
+  VEHICLES: 'inyathi_vehicles',
+  RENTED_VEHICLES: 'inyathi_rented_vehicles',
+  BOOKINGS: 'inyathi_bookings',
+  INSPECTIONS: 'inyathi_inspections',
+  RECON_SHEETS: 'inyathi_recons',
+  TRANSFER_RECON_SHEETS: 'inyathi_transfer_recons',
+  INVITES: 'inyathi_invites',
+  LOGS: 'inyathi_logs',
+  DELETES: 'inyathi_deletes',
+  EXPENSES: 'inyathi_expenses',
+  FINES: 'inyathi_fines',
+  INCIDENTS: 'inyathi_incidents',
+  CHECKLISTS: 'inyathi_checklists',
+  AUTH_USER: 'inyathi_auth_user',
+  REGION: 'inyathi_region',
+  OTP_ENABLED: 'inyathi_otp_enabled'
+};
+
+export async function pushToSupabase(tableName: string, data: any, matchColumn: string, matchValue: any) {
+  if (!isSupabaseConfigured || !supabase) return;
+  try {
+    const { error } = await supabase.from(tableName).upsert(data, { onConflict: matchColumn });
+    if (error) {
+      // Fallback manual upsert
+      const { data: existing } = await supabase.from(tableName).select(matchColumn).eq(matchColumn, matchValue).maybeSingle();
+      if (existing) {
+        await supabase.from(tableName).update(data).eq(matchColumn, matchValue);
+      } else {
+        await supabase.from(tableName).insert([data]);
+      }
+    }
+  } catch (error) {
+    console.warn(`Error writing to Supabase table ${tableName}:`, error);
+  }
+}
+
+export async function deleteFromSupabase(tableName: string, matchColumn: string, matchValue: any) {
+  if (!isSupabaseConfigured || !supabase) return;
+  try {
+    await supabase.from(tableName).delete().eq(matchColumn, matchValue);
+  } catch (error) {
+    console.warn(`Error deleting from Supabase table ${tableName}:`, error);
+  }
+}
+
+export async function syncAllFromSupabase() {
+  if (!isSupabaseConfigured || !supabase) return;
+  try {
+    const tables = [
+      { name: 'profiles', key: STORAGE_KEYS.PROFILES },
+      { name: 'vehicles', key: STORAGE_KEYS.VEHICLES },
+      { name: 'rented_vehicles', key: STORAGE_KEYS.RENTED_VEHICLES },
+      { name: 'bookings', key: STORAGE_KEYS.BOOKINGS },
+      { name: 'inspections', key: STORAGE_KEYS.INSPECTIONS },
+      { name: 'recons', key: STORAGE_KEYS.RECON_SHEETS },
+      { name: 'transfer_recons', key: STORAGE_KEYS.TRANSFER_RECON_SHEETS },
+      { name: 'expenses', key: STORAGE_KEYS.EXPENSES },
+      { name: 'fines', key: STORAGE_KEYS.FINES },
+      { name: 'incidents', key: STORAGE_KEYS.INCIDENTS },
+      { name: 'checklists', key: STORAGE_KEYS.CHECKLISTS },
+      { name: 'delete_requests', key: STORAGE_KEYS.DELETES }
+    ];
+
+    for (const t of tables) {
+      try {
+        const { data, error } = await supabase.from(t.name).select('*');
+        if (!error && data) {
+          setLocalStorageItem(t.key, data);
+        }
+      } catch (e) {
+        console.warn(`Could not sync table ${t.name} from Supabase:`, e);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to sync data from Supabase:', error);
+  }
+}
+
 // Initial Seed Data for local storage fallback
 const SEED_PROFILES: Profile[] = [
   {
@@ -542,27 +623,6 @@ function setLocalStorageItem<T>(key: string, value: T): void {
   }
 }
 
-// Global variable storage in memory/local storage fallback mode
-const STORAGE_KEYS = {
-  PROFILES: 'inyathi_profiles',
-  VEHICLES: 'inyathi_vehicles',
-  RENTED_VEHICLES: 'inyathi_rented_vehicles',
-  BOOKINGS: 'inyathi_bookings',
-  INSPECTIONS: 'inyathi_inspections',
-  RECON_SHEETS: 'inyathi_recons',
-  TRANSFER_RECON_SHEETS: 'inyathi_transfer_recons',
-  INVITES: 'inyathi_invites',
-  LOGS: 'inyathi_logs',
-  DELETES: 'inyathi_deletes',
-  EXPENSES: 'inyathi_expenses',
-  FINES: 'inyathi_fines',
-  INCIDENTS: 'inyathi_incidents',
-  CHECKLISTS: 'inyathi_checklists',
-  AUTH_USER: 'inyathi_auth_user',
-  REGION: 'inyathi_region',
-  OTP_ENABLED: 'inyathi_otp_enabled'
-};
-
 // Initialize fallback local storage if needed
 export function initializeStorage() {
   if (typeof window === 'undefined') return;
@@ -692,70 +752,182 @@ export const authApi = {
   getCurrentUser: (): Profile | null => {
     return getLocalStorageItem<Profile | null>(STORAGE_KEYS.AUTH_USER, null);
   },
-  login: async (email: string, role: 'admin' | 'driver'): Promise<Profile> => {
+  login: async (email: string, password?: string, role?: 'admin' | 'driver'): Promise<Profile> => {
     initializeStorage();
-    const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
-    let user = profiles.find(p => p.email.toLowerCase() === email.toLowerCase() && p.role === role);
-    
-    if (!user) {
-      // Auto create mock if not exists for testing purposes
-      const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
-      user = {
-        driver_id: role === 'admin' ? `ADM-${shortId}` : `DRV-${shortId}`,
-        name: email.split('@')[0].toUpperCase(),
-        phone: '+27 82 555 1234',
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.toLowerCase(),
-        role: role,
+        password: password || '',
+      });
+      if (error) {
+        throw new Error(error.message || 'Supabase login failed');
+      }
+
+      let profile: Profile | null = null;
+      try {
+        const { data: profileData, error: profileErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', email.toLowerCase())
+          .maybeSingle();
+
+        if (profileData) {
+          profile = {
+            driver_id: profileData.driver_id || profileData.id || `DRV-${data.user?.id?.substring(0, 6).toUpperCase() || 'UNKNOWN'}`,
+            name: profileData.name || profileData.full_name || email.split('@')[0].toUpperCase(),
+            phone: profileData.phone || '+27 82 555 1234',
+            email: profileData.email || email.toLowerCase(),
+            role: profileData.role || role || 'driver',
+            is_active: profileData.is_active !== false,
+            location: profileData.location || 'Cape Town',
+            created_at: profileData.created_at || new Date().toISOString(),
+            updated_at: profileData.updated_at || new Date().toISOString(),
+          };
+        }
+      } catch (e) {
+        console.warn('Error fetching profiles from Supabase, using auth metadata fallback:', e);
+      }
+
+      if (!profile) {
+        profile = {
+          driver_id: `DRV-${data.user?.id?.substring(0, 6).toUpperCase() || 'UNKNOWN'}`,
+          name: email.split('@')[0].toUpperCase(),
+          phone: '+27 82 555 1234',
+          email: email.toLowerCase(),
+          role: role || 'driver',
+          is_active: true,
+          location: 'Cape Town',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      }
+
+      setLocalStorageItem(STORAGE_KEYS.AUTH_USER, profile);
+      const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
+      const idx = profiles.findIndex(p => p.email.toLowerCase() === email.toLowerCase());
+      if (idx !== -1) {
+        profiles[idx] = profile;
+      } else {
+        profiles.push(profile);
+      }
+      setLocalStorageItem(STORAGE_KEYS.PROFILES, profiles);
+      return profile;
+    } else {
+      const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
+      let user = profiles.find(p => p.email.toLowerCase() === email.toLowerCase() && (!role || p.role === role));
+      
+      if (!user) {
+        const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
+        user = {
+          driver_id: role === 'admin' ? `ADM-${shortId}` : `DRV-${shortId}`,
+          name: email.split('@')[0].toUpperCase(),
+          phone: '+27 82 555 1234',
+          email: email.toLowerCase(),
+          role: role || 'driver',
+          is_active: true,
+          location: 'Cape Town',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        profiles.push(user);
+        setLocalStorageItem(STORAGE_KEYS.PROFILES, profiles);
+      }
+      
+      setLocalStorageItem(STORAGE_KEYS.AUTH_USER, user);
+      return user;
+    }
+  },
+  logout: async () => {
+    if (isSupabaseConfigured && supabase) {
+      await supabase.auth.signOut();
+    }
+    if (typeof window !== 'undefined') {
+      window.localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+    }
+  },
+  signUpWithInvite: async (email: string, name: string, phone: string, password?: string): Promise<Profile> => {
+    initializeStorage();
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.toLowerCase(),
+        password: password || 'Inyathi123!',
+        options: {
+          data: {
+            name,
+            phone,
+            role: 'driver',
+          }
+        }
+      });
+      if (error) {
+        throw new Error(error.message || 'Supabase Auth Sign up failed');
+      }
+
+      const newProfile: Profile = {
+        driver_id: `DRV-${data.user?.id?.substring(0, 6).toUpperCase() || Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+        name: name,
+        phone: phone,
+        email: email.toLowerCase(),
+        role: 'driver',
         is_active: true,
         location: 'Cape Town',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-      profiles.push(user);
+
+      try {
+        await supabase.from('profiles').insert([{
+          id: data.user?.id,
+          driver_id: newProfile.driver_id,
+          name: newProfile.name,
+          phone: newProfile.phone,
+          email: newProfile.email,
+          role: newProfile.role,
+          is_active: true,
+          location: newProfile.location,
+        }]);
+      } catch (e) {
+        console.warn('Could not insert profile row in Supabase:', e);
+      }
+
+      setLocalStorageItem(STORAGE_KEYS.AUTH_USER, newProfile);
+      const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
+      profiles.push(newProfile);
       setLocalStorageItem(STORAGE_KEYS.PROFILES, profiles);
+      return newProfile;
+    } else {
+      const invites = getLocalStorageItem<DriverInvite[]>(STORAGE_KEYS.INVITES, []);
+      const inviteIdx = invites.findIndex(i => i.email.toLowerCase() === email.toLowerCase() && !i.used_at);
+      
+      if (inviteIdx === -1) {
+        throw new Error('No unused driver invite found for this email address.');
+      }
+      
+      const invite = invites[inviteIdx];
+      const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
+      const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const newProfile: Profile = {
+        driver_id: `DRV-${shortId}`,
+        name: name,
+        phone: phone,
+        email: email.toLowerCase(),
+        role: 'driver',
+        is_active: true,
+        location: invite.location,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      profiles.push(newProfile);
+      setLocalStorageItem(STORAGE_KEYS.PROFILES, profiles);
+      
+      invite.used_at = new Date().toISOString();
+      invites[inviteIdx] = invite;
+      setLocalStorageItem(STORAGE_KEYS.INVITES, invites);
+      
+      setLocalStorageItem(STORAGE_KEYS.AUTH_USER, newProfile);
+      return newProfile;
     }
-    
-    setLocalStorageItem(STORAGE_KEYS.AUTH_USER, user);
-    return user;
-  },
-  logout: () => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
-    }
-  },
-  signUpWithInvite: async (email: string, name: string, phone: string): Promise<Profile> => {
-    initializeStorage();
-    const invites = getLocalStorageItem<DriverInvite[]>(STORAGE_KEYS.INVITES, []);
-    const inviteIdx = invites.findIndex(i => i.email.toLowerCase() === email.toLowerCase() && !i.used_at);
-    
-    if (inviteIdx === -1) {
-      throw new Error('No unused driver invite found for this email address.');
-    }
-    
-    const invite = invites[inviteIdx];
-    const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
-    const shortId = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const newProfile: Profile = {
-      driver_id: `DRV-${shortId}`,
-      name: name,
-      phone: phone,
-      email: email.toLowerCase(),
-      role: 'driver',
-      is_active: true,
-      location: invite.location,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    profiles.push(newProfile);
-    setLocalStorageItem(STORAGE_KEYS.PROFILES, profiles);
-    
-    invite.used_at = new Date().toISOString();
-    invites[inviteIdx] = invite;
-    setLocalStorageItem(STORAGE_KEYS.INVITES, invites);
-    
-    setLocalStorageItem(STORAGE_KEYS.AUTH_USER, newProfile);
-    return newProfile;
   }
 };
 
@@ -783,18 +955,22 @@ export const fleetApi = {
   saveVehicle: (vehicle: Vehicle): Vehicle => {
     const list = getLocalStorageItem<Vehicle[]>(STORAGE_KEYS.VEHICLES, []);
     const idx = list.findIndex(v => v.registration_no === vehicle.registration_no);
+    const prepared = { ...vehicle, updated_at: new Date().toISOString() };
     if (idx !== -1) {
-      list[idx] = { ...vehicle, updated_at: new Date().toISOString() };
+      list[idx] = prepared;
     } else {
-      list.push({ ...vehicle, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+      prepared.created_at = new Date().toISOString();
+      list.push(prepared);
     }
     setLocalStorageItem(STORAGE_KEYS.VEHICLES, list);
-    return vehicle;
+    pushToSupabase('vehicles', prepared, 'registration_no', prepared.registration_no);
+    return prepared;
   },
   deleteVehicle: (regNo: string) => {
     const list = getLocalStorageItem<Vehicle[]>(STORAGE_KEYS.VEHICLES, []);
     const filtered = list.filter(v => v.registration_no !== regNo);
     setLocalStorageItem(STORAGE_KEYS.VEHICLES, filtered);
+    deleteFromSupabase('vehicles', 'registration_no', regNo);
   },
 
   // Rented Vehicles
@@ -811,12 +987,14 @@ export const fleetApi = {
       list.push(rv);
     }
     setLocalStorageItem(STORAGE_KEYS.RENTED_VEHICLES, list);
+    pushToSupabase('rented_vehicles', rv, 'id', rv.id);
     return rv;
   },
   deleteRentedVehicle: (id: string) => {
     const list = getLocalStorageItem<RentedVehicle[]>(STORAGE_KEYS.RENTED_VEHICLES, []);
     const filtered = list.filter(item => item.id !== id);
     setLocalStorageItem(STORAGE_KEYS.RENTED_VEHICLES, filtered);
+    deleteFromSupabase('rented_vehicles', 'id', id);
   }
 };
 
@@ -830,13 +1008,16 @@ export const driversApi = {
   saveDriver: (driver: Profile): Profile => {
     const list = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
     const idx = list.findIndex(p => p.driver_id === driver.driver_id);
+    const prepared = { ...driver, updated_at: new Date().toISOString() };
     if (idx !== -1) {
-      list[idx] = { ...driver, updated_at: new Date().toISOString() };
+      list[idx] = prepared;
     } else {
-      list.push({ ...driver, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
+      prepared.created_at = new Date().toISOString();
+      list.push(prepared);
     }
     setLocalStorageItem(STORAGE_KEYS.PROFILES, list);
-    return driver;
+    pushToSupabase('profiles', prepared, 'driver_id', prepared.driver_id);
+    return prepared;
   },
   // Invite a driver
   getInvites: (): DriverInvite[] => {
@@ -852,6 +1033,7 @@ export const driversApi = {
       list.push(invite);
     }
     setLocalStorageItem(STORAGE_KEYS.INVITES, list);
+    pushToSupabase('invites', invite, 'email', invite.email);
     return invite;
   }
 };
@@ -867,6 +1049,7 @@ export const bookingsApi = {
     const list = getLocalStorageItem<Booking[]>(STORAGE_KEYS.BOOKINGS, []);
     const idx = list.findIndex(b => b.invoice_no === booking.invoice_no);
     const now = new Date().toISOString();
+    let preparedBooking: Booking;
     
     if (idx !== -1) {
       const oldVal = list[idx];
@@ -885,22 +1068,25 @@ export const bookingsApi = {
       });
       setLocalStorageItem(STORAGE_KEYS.LOGS, editLogs);
 
-      list[idx] = {
+      preparedBooking = {
         ...booking,
         last_modified_at: now,
         modification_reason: reason,
         updated_at: now
       };
+      list[idx] = preparedBooking;
     } else {
-      list.push({
+      preparedBooking = {
         ...booking,
         maintenance_alert_sent: false,
         created_at: now,
         updated_at: now
-      });
+      };
+      list.push(preparedBooking);
     }
     setLocalStorageItem(STORAGE_KEYS.BOOKINGS, list);
-    return booking;
+    pushToSupabase('bookings', preparedBooking, 'invoice_no', preparedBooking.invoice_no);
+    return preparedBooking;
   },
   
   // Pending delete request flow
@@ -917,6 +1103,7 @@ export const bookingsApi = {
     };
     deletes.push(newRequest);
     setLocalStorageItem(STORAGE_KEYS.DELETES, deletes);
+    pushToSupabase('delete_requests', newRequest, 'id', newRequest.id);
     return newRequest;
   },
   getDeleteRequests: (): BookingDeleteRequest[] => {
@@ -935,6 +1122,7 @@ export const bookingsApi = {
     request.reviewed_at = new Date().toISOString();
     deletes[reqIdx] = request;
     setLocalStorageItem(STORAGE_KEYS.DELETES, deletes);
+    pushToSupabase('delete_requests', request, 'id', request.id);
 
     if (action === 'approved') {
       const bookings = getLocalStorageItem<Booking[]>(STORAGE_KEYS.BOOKINGS, []);
@@ -957,6 +1145,7 @@ export const bookingsApi = {
         // Remove booking from bookings
         bookings.splice(bIdx, 1);
         setLocalStorageItem(STORAGE_KEYS.BOOKINGS, bookings);
+        deleteFromSupabase('bookings', 'invoice_no', request.booking_id);
       }
     }
   },
@@ -990,13 +1179,16 @@ export const inspectionsApi = {
       list.push(inspection);
     }
     setLocalStorageItem(STORAGE_KEYS.INSPECTIONS, list);
+    pushToSupabase('inspections', inspection, 'id', inspection.id);
     
     // Update vehicle mileage
     const vehicles = getLocalStorageItem<Vehicle[]>(STORAGE_KEYS.VEHICLES, []);
     const vIdx = vehicles.findIndex(v => v.registration_no === inspection.vehicle_reg);
     if (vIdx !== -1 && inspection.mileage_at_inspection > vehicles[vIdx].current_mileage) {
-      vehicles[vIdx].current_mileage = inspection.mileage_at_inspection;
+      const updatedVehicle = { ...vehicles[vIdx], current_mileage: inspection.mileage_at_inspection };
+      vehicles[vIdx] = updatedVehicle;
       setLocalStorageItem(STORAGE_KEYS.VEHICLES, vehicles);
+      pushToSupabase('vehicles', updatedVehicle, 'registration_no', updatedVehicle.registration_no);
     }
     
     return inspection;
@@ -1014,21 +1206,24 @@ export const reconApi = {
     const list = getLocalStorageItem<ReconSheet[]>(STORAGE_KEYS.RECON_SHEETS, []);
     const idx = list.findIndex(r => r.id === recon.id);
     const now = new Date().toISOString();
-    
-    const preparedRecon = {
-      ...recon,
-      updated_at: now
-    };
+    let preparedRecon: ReconSheet;
     
     if (idx !== -1) {
+      preparedRecon = {
+        ...recon,
+        updated_at: now
+      };
       list[idx] = preparedRecon;
     } else {
-      list.push({
-        ...preparedRecon,
-        created_at: now
-      });
+      preparedRecon = {
+        ...recon,
+        created_at: now,
+        updated_at: now
+      };
+      list.push(preparedRecon);
     }
     setLocalStorageItem(STORAGE_KEYS.RECON_SHEETS, list);
+    pushToSupabase('recons', preparedRecon, 'id', preparedRecon.id);
     return preparedRecon;
   },
   requestEdit: (reconId: string, reason: string) => {
@@ -1039,6 +1234,7 @@ export const reconApi = {
       list[idx].edit_request_reason = reason;
       list[idx].updated_at = new Date().toISOString();
       setLocalStorageItem(STORAGE_KEYS.RECON_SHEETS, list);
+      pushToSupabase('recons', list[idx], 'id', reconId);
     }
   },
   reviewEditRequest: (reconId: string, action: 'approved' | 'rejected', adminNotes?: string) => {
@@ -1055,6 +1251,7 @@ export const reconApi = {
       recon.updated_at = new Date().toISOString();
       list[idx] = recon;
       setLocalStorageItem(STORAGE_KEYS.RECON_SHEETS, list);
+      pushToSupabase('recons', recon, 'id', reconId);
     }
   }
 };
@@ -1070,21 +1267,24 @@ export const transferReconApi = {
     const list = getLocalStorageItem<TransferReconSheet[]>(STORAGE_KEYS.TRANSFER_RECON_SHEETS, []);
     const idx = list.findIndex(r => r.id === recon.id);
     const now = new Date().toISOString();
-    
-    const preparedRecon = {
-      ...recon,
-      updated_at: now
-    };
+    let preparedRecon: TransferReconSheet;
     
     if (idx !== -1) {
+      preparedRecon = {
+        ...recon,
+        updated_at: now
+      };
       list[idx] = preparedRecon;
     } else {
-      list.push({
-        ...preparedRecon,
-        created_at: now
-      });
+      preparedRecon = {
+        ...recon,
+        created_at: now,
+        updated_at: now
+      };
+      list.push(preparedRecon);
     }
     setLocalStorageItem(STORAGE_KEYS.TRANSFER_RECON_SHEETS, list);
+    pushToSupabase('transfer_recons', preparedRecon, 'id', preparedRecon.id);
     return preparedRecon;
   },
   requestEdit: (reconId: string, reason: string) => {
@@ -1095,6 +1295,7 @@ export const transferReconApi = {
       list[idx].edit_request_reason = reason;
       list[idx].updated_at = new Date().toISOString();
       setLocalStorageItem(STORAGE_KEYS.TRANSFER_RECON_SHEETS, list);
+      pushToSupabase('transfer_recons', list[idx], 'id', reconId);
     }
   },
   reviewEditRequest: (reconId: string, action: 'approved' | 'rejected', adminNotes?: string) => {
@@ -1111,6 +1312,7 @@ export const transferReconApi = {
       recon.updated_at = new Date().toISOString();
       list[idx] = recon;
       setLocalStorageItem(STORAGE_KEYS.TRANSFER_RECON_SHEETS, list);
+      pushToSupabase('transfer_recons', recon, 'id', reconId);
     }
   }
 };
@@ -1135,19 +1337,19 @@ export const expensesApi = {
     if (idx !== -1) {
       list[idx] = prepared;
     } else {
-      list.push({
-        ...prepared,
-        id: expense.id || `exp-${Math.random().toString(36).substring(2, 9)}`,
-        created_at: now
-      });
+      prepared.id = expense.id || `exp-${Math.random().toString(36).substring(2, 9)}`;
+      prepared.created_at = now;
+      list.push(prepared);
     }
     setLocalStorageItem(STORAGE_KEYS.EXPENSES, list);
+    pushToSupabase('expenses', prepared, 'id', prepared.id);
     return prepared;
   },
   deleteExpense: (id: string) => {
     const list = getLocalStorageItem<VehicleExpense[]>(STORAGE_KEYS.EXPENSES, []);
     const filtered = list.filter(e => e.id !== id);
     setLocalStorageItem(STORAGE_KEYS.EXPENSES, filtered);
+    deleteFromSupabase('expenses', 'id', id);
   }
 };
 
@@ -1170,13 +1372,12 @@ export const trafficFinesApi = {
     if (idx !== -1) {
       list[idx] = prepared;
     } else {
-      list.push({
-        ...prepared,
-        id: fine.id || `fine-${Math.random().toString(36).substring(2, 9)}`,
-        created_at: now
-      });
+      prepared.id = fine.id || `fine-${Math.random().toString(36).substring(2, 9)}`;
+      prepared.created_at = now;
+      list.push(prepared);
     }
     setLocalStorageItem(STORAGE_KEYS.FINES, list);
+    pushToSupabase('fines', prepared, 'id', prepared.id);
     return prepared;
   },
   // Lookup driver active at fine_timestamp with vehicle_reg
@@ -1227,13 +1428,12 @@ export const incidentsApi = {
     if (idx !== -1) {
       list[idx] = prepared;
     } else {
-      list.push({
-        ...prepared,
-        id: incident.id || `inc-${Math.random().toString(36).substring(2, 9)}`,
-        created_at: now
-      });
+      prepared.id = incident.id || `inc-${Math.random().toString(36).substring(2, 9)}`;
+      prepared.created_at = now;
+      list.push(prepared);
     }
     setLocalStorageItem(STORAGE_KEYS.INCIDENTS, list);
+    pushToSupabase('incidents', prepared, 'id', prepared.id);
     return prepared;
   }
 };
@@ -1261,6 +1461,7 @@ export const checklistsApi = {
       list.push(prepared);
     }
     setLocalStorageItem(STORAGE_KEYS.CHECKLISTS, list);
+    pushToSupabase('checklists', prepared, 'id', prepared.id);
     return prepared;
   }
 };

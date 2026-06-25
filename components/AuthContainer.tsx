@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { KeyRound, ShieldAlert, Sparkles, User, Mail, Phone, ArrowRight, CheckCircle } from 'lucide-react';
-import { authApi, Profile } from '@/lib/storage';
+import { KeyRound, ShieldAlert, Sparkles, User, Mail, Phone, ArrowRight, CheckCircle, Lock } from 'lucide-react';
+import { authApi, Profile, isSupabaseConfigured } from '@/lib/storage';
 
 interface AuthContainerProps {
   onLoginSuccess: (profile: Profile) => void;
@@ -12,6 +12,8 @@ export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [role, setRole] = useState<'admin' | 'driver'>('admin');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [signupPassword, setSignupPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
@@ -26,8 +28,13 @@ export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
       return;
     }
 
+    if (isSupabaseConfigured && !password) {
+      setError('Password is required when Supabase is connected.');
+      return;
+    }
+
     try {
-      const profile = await authApi.login(email, role);
+      const profile = await authApi.login(email, password, role);
       onLoginSuccess(profile);
     } catch (err: any) {
       setError(err.message || 'Login failed.');
@@ -44,8 +51,13 @@ export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
       return;
     }
 
+    if (isSupabaseConfigured && !signupPassword) {
+      setError('Password is required for registration when Supabase is connected.');
+      return;
+    }
+
     try {
-      const profile = await authApi.signUpWithInvite(email, name, phone);
+      const profile = await authApi.signUpWithInvite(email, name, phone, signupPassword);
       setSuccess('Registration successful! Access granted.');
       setTimeout(() => {
         onLoginSuccess(profile);
@@ -59,6 +71,9 @@ export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
   const handleAutofill = (selectedEmail: string, selectedRole: 'admin' | 'driver') => {
     setEmail(selectedEmail);
     setRole(selectedRole);
+    if (!isSupabaseConfigured) {
+      setPassword('demo-mode-password');
+    }
   };
 
   return (
@@ -113,39 +128,6 @@ export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
           /* Sign In Form */
           <form onSubmit={handleLogin} className="space-y-4">
             
-            {/* Role Select */}
-            <div>
-              <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                Select Your Access Role
-              </label>
-              <div className="grid grid-cols-2 gap-2 mt-1.5">
-                <button
-                  type="button"
-                  onClick={() => setRole('admin')}
-                  className={`py-2 px-3 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                    role === 'admin'
-                      ? 'border-teal-500 bg-teal-500/10 text-teal-300 font-bold'
-                      : 'border-slate-700 text-slate-400 hover:text-slate-300 hover:bg-slate-700/20'
-                  }`}
-                >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  Administrator
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole('driver')}
-                  className={`py-2 px-3 border rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                    role === 'driver'
-                      ? 'border-teal-500 bg-teal-500/10 text-teal-300 font-bold'
-                      : 'border-slate-700 text-slate-400 hover:text-slate-300 hover:bg-slate-700/20'
-                  }`}
-                >
-                  <User className="w-3.5 h-3.5" />
-                  Fleet Driver
-                </button>
-              </div>
-            </div>
-
             {/* Email Field */}
             <div>
               <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
@@ -162,6 +144,29 @@ export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
                   className="w-full bg-slate-950 border border-slate-700/80 rounded-xl py-2.5 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-teal-500 placeholder-slate-600 transition-colors"
                 />
               </div>
+            </div>
+
+            {/* Password Field */}
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                Portal Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-500" />
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required={isSupabaseConfigured}
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl py-2.5 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-teal-500 placeholder-slate-600 transition-colors"
+                />
+              </div>
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                {isSupabaseConfigured 
+                  ? 'Required: Authenticates securely via your Supabase DB.' 
+                  : 'Enter password to authenticate.'}
+              </span>
             </div>
 
             {error && (
@@ -235,6 +240,29 @@ export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
               />
             </div>
 
+            {/* Password */}
+            <div>
+              <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                Register Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-2.5 w-4 h-4 text-slate-500" />
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={signupPassword}
+                  onChange={(e) => setSignupPassword(e.target.value)}
+                  required={isSupabaseConfigured}
+                  className="w-full bg-slate-950 border border-slate-700/80 rounded-xl py-2 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-teal-500 placeholder-slate-600 transition-colors"
+                />
+              </div>
+              <span className="text-[10px] text-slate-500 mt-1 block">
+                {isSupabaseConfigured 
+                  ? 'Required: Sets your password in the Supabase user database.' 
+                  : 'Optional in Offline sandbox mode.'}
+              </span>
+            </div>
+
             {error && (
               <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-center gap-2 text-xs text-rose-300 font-medium">
                 <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
@@ -257,32 +285,6 @@ export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
             </button>
           </form>
         )}
-
-        {/* Quick Autofill Pre-sets Panel */}
-        <div className="mt-8 border-t border-slate-700/60 pt-4">
-          <p className="text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-2.5 text-center flex items-center justify-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Quick Access Demo Accounts (1-Click)
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => handleAutofill('admin@inyathi.co.za', 'admin')}
-              className="bg-slate-950/60 hover:bg-slate-950 border border-slate-700/60 p-2 rounded-xl text-left transition-all"
-            >
-              <div className="text-[9px] font-black text-amber-400 uppercase">Chief Admin</div>
-              <div className="text-[9px] text-slate-400 truncate">admin@inyathi.co.za</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleAutofill('thabo@inyathi.co.za', 'driver')}
-              className="bg-slate-950/60 hover:bg-slate-950 border border-slate-700/60 p-2 rounded-xl text-left transition-all"
-            >
-              <div className="text-[9px] font-black text-teal-400 uppercase">Thabo (Driver)</div>
-              <div className="text-[9px] text-slate-400 truncate">thabo@inyathi.co.za</div>
-            </button>
-          </div>
-        </div>
 
       </div>
     </div>
