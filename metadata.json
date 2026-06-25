@@ -1,0 +1,6 @@
+{
+  "name": "INYATHI Fleet Management",
+  "description": "A comprehensive, production-ready professional fleet management PWA for managing bookings, owned/rented vehicles, driver inspections, weekly logs, and traffic fines.",
+  "requestFramePermissions": ["camera", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
