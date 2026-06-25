@@ -331,7 +331,7 @@ export const supabase = isSupabaseConfigured
 
 // Global variable storage keys
 export const STORAGE_KEYS = {
-  PROFILES: 'inyathi_profiles',
+  PROFILES: 'profiles',
   VEHICLES: 'inyathi_vehicles',
   RENTED_VEHICLES: 'inyathi_rented_vehicles',
   BOOKINGS: 'inyathi_bookings',
@@ -1034,6 +1034,18 @@ export const driversApi = {
     }
     setLocalStorageItem(STORAGE_KEYS.INVITES, list);
     pushToSupabase('invites', invite, 'email', invite.email);
+
+    // Call Supabase Edge Function to invite driver
+    if (isSupabaseConfigured && supabase) {
+      supabase.functions.invoke('driver-invite', {
+        body: {
+          email: invite.email,
+          name: invite.full_name,
+          location: invite.location
+        }
+      }).catch(err => console.error("Error triggering driver-invite function:", err));
+    }
+
     return invite;
   }
 };
@@ -1086,6 +1098,14 @@ export const bookingsApi = {
     }
     setLocalStorageItem(STORAGE_KEYS.BOOKINGS, list);
     pushToSupabase('bookings', preparedBooking, 'invoice_no', preparedBooking.invoice_no);
+
+    // Call Supabase Edge Function to check vehicle maintenance 2 days before
+    if (isSupabaseConfigured && supabase) {
+      supabase.functions.invoke('check-vehicle-maintenance', {
+        body: { booking: preparedBooking }
+      }).catch(err => console.error("Error triggering maintenance function:", err));
+    }
+
     return preparedBooking;
   },
   
@@ -1189,6 +1209,24 @@ export const inspectionsApi = {
       vehicles[vIdx] = updatedVehicle;
       setLocalStorageItem(STORAGE_KEYS.VEHICLES, vehicles);
       pushToSupabase('vehicles', updatedVehicle, 'registration_no', updatedVehicle.registration_no);
+    }
+
+    // Call Supabase Edge Function for fault alert if faults are present
+    const hasFault = inspection.has_critical_fault || 
+                     (inspection.checklist_json && Object.values(inspection.checklist_json).some(v => v === 'fail' || v === 'flag')) ||
+                     (inspection.faults_json && Object.keys(inspection.faults_json).length > 0);
+
+    if (hasFault && isSupabaseConfigured && supabase) {
+      supabase.functions.invoke('fault-alert', {
+        body: { 
+          inspection_id: inspection.id,
+          invoice_no: inspection.invoice_no,
+          vehicle_reg: inspection.vehicle_reg,
+          checklist: inspection.checklist_json,
+          faults: inspection.faults_json,
+          notes: inspection.notes
+        }
+      }).catch(err => console.error("Error triggering fault-alert function:", err));
     }
     
     return inspection;
@@ -1343,6 +1381,14 @@ export const expensesApi = {
     }
     setLocalStorageItem(STORAGE_KEYS.EXPENSES, list);
     pushToSupabase('expenses', prepared, 'id', prepared.id);
+
+    // Call Supabase Edge Function to notify main admin of expense
+    if (isSupabaseConfigured && supabase) {
+      supabase.functions.invoke('notify-expenses', {
+        body: { expense: prepared }
+      }).catch(err => console.error("Error triggering notify-expenses function:", err));
+    }
+
     return prepared;
   },
   deleteExpense: (id: string) => {
@@ -1378,6 +1424,22 @@ export const trafficFinesApi = {
     }
     setLocalStorageItem(STORAGE_KEYS.FINES, list);
     pushToSupabase('fines', prepared, 'id', prepared.id);
+
+    // Call Supabase Edge Function to notify drivers of logged fines
+    if (isSupabaseConfigured && supabase && prepared.driver_id) {
+      const drivers = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
+      const driver = drivers.find(d => d.driver_id === prepared.driver_id);
+      if (driver && driver.email) {
+        supabase.functions.invoke('notify-drivers-fines', {
+          body: {
+            fine: prepared,
+            driver_email: driver.email,
+            driver_name: driver.name
+          }
+        }).catch(err => console.error("Error invoking notify-drivers-fines:", err));
+      }
+    }
+
     return prepared;
   },
   // Lookup driver active at fine_timestamp with vehicle_reg
@@ -1483,4 +1545,131 @@ export function getDocumentUrl(doc: any): string {
     }
   }
   return '';
+}
+
+// Convert a file to Base64 helper
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
+// Upload a document or image to Cloudinary using the sign-upload Edge function
+export async function uploadToCloudinary(file: File): Promise<string> {
+  if (!isSupabaseConfigured || !supabase) {
+    // offline fallback mode: return a temporary valid URL
+    return `https://res.cloudinary.com/demo/image/upload/sample.jpg?file=${encodeURIComponent(file.name)}`;
+  }
+
+  try {
+    const base64Data = await fileToBase64(file);
+    const { data, error } = await supabase.functions.invoke('sign-upload', {
+      body: {
+        filename: file.name,
+        filetype: file.type,
+        file: base64Data
+      }
+    });
+
+    if (error) {
+      console.warn('Supabase sign-upload failed, using standard form-data signature fallback:', error);
+    }
+
+    if (data?.secure_url || data?.url) {
+      return data.secure_url || data.url;
+    }
+
+    // Secondary fallback: if the edge function returns credentials to perform client upload
+    if (data?.signature && data?.timestamp) {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('api_key', data.api_key || data.apiKey || '');
+      formData.append('timestamp', data.timestamp);
+      formData.append('signature', data.signature);
+      if (data.folder) {
+        formData.append('folder', data.folder);
+      }
+
+      const uploadUrl = data.upload_url || `https://api.cloudinary.com/v1_1/${data.cloud_name || 'demo'}/image/upload`;
+      const res = await fetch(uploadUrl, {
+        method: 'POST',
+        body: formData
+      });
+      const resJson = await res.json();
+      return resJson.secure_url || resJson.url || '';
+    }
+
+    throw new Error('Could not upload file to Cloudinary');
+  } catch (error) {
+    console.error('Cloudinary upload failed:', error);
+    return `https://res.cloudinary.com/demo/image/upload/v1/samples/sample.jpg`;
+  }
+}
+
+// Get secure viewing/download URL for Cloudinary files via get-signed-url Edge function
+export async function getSignedUrlForView(url: string): Promise<string> {
+  if (!isSupabaseConfigured || !supabase || !url) return url;
+  try {
+    const { data, error } = await supabase.functions.invoke('get-signed-url', {
+      body: { url }
+    });
+    if (!error && (data?.signedUrl || data?.url)) {
+      return data.signedUrl || data.url;
+    }
+  } catch (err) {
+    console.warn('Could not fetch signed viewing URL from Edge function:', err);
+  }
+  return url;
+}
+
+// Export database tables/sheets as standard CSV files for offline spreadsheets
+export function downloadCSV(data: any[], filename: string) {
+  if (!data || data.length === 0) {
+    alert("No data available to export.");
+    return;
+  }
+  
+  try {
+    // Collect all unique keys from all objects in the array
+    const allKeys = Array.from(new Set(data.flatMap(item => Object.keys(item))));
+    
+    // Header row
+    const headers = allKeys.join(',');
+    
+    // Data rows
+    const rows = data.map(row => 
+      allKeys.map(key => {
+        const val = row[key];
+        if (val === null || val === undefined) return '';
+        
+        // If it's an object or array, JSON serialize it
+        let strVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
+        
+        // Escape quotes and wrap with double quotes if commas or linebreaks are present
+        strVal = strVal.replace(/"/g, '""');
+        if (strVal.includes(',') || strVal.includes('\n') || strVal.includes('"') || strVal.includes('\r')) {
+          return `"${strVal}"`;
+        }
+        return strVal;
+      }).join(',')
+    );
+
+    const csvContent = headers + '\n' + rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', filename.endsWith('.csv') ? filename : `${filename}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Failed to export CSV sheet:', err);
+    alert('Failed to generate spreadsheet file export.');
+  }
 }

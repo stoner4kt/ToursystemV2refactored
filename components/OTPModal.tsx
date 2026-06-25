@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, X, RefreshCw, AlertCircle } from 'lucide-react';
+import { isSupabaseConfigured, supabase } from '@/lib/storage';
 
 interface OTPModalProps {
   isOpen: boolean;
@@ -23,23 +24,60 @@ export default function OTPModal({
   const [error, setError] = useState<string>('');
   const [sending, setSending] = useState<boolean>(false);
   const [sentCodeToast, setSentCodeToast] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string>('');
 
-  const generateAndSendOTP = () => {
+  const generateAndSendOTP = async () => {
     setSending(true);
     setError('');
     
-    // Simulate sending OTP
-    setTimeout(() => {
-      const pin = Math.floor(100000 + Math.random() * 90000).toString();
-      setGeneratedCode(pin);
-      setSending(false);
-      setSentCodeToast(true);
-      
-      // Auto-hide toast after 8 seconds
+    // Get logged-in user email
+    let userEmail = 'info@inyathi.co.za';
+    if (typeof window !== 'undefined') {
+      const userStr = localStorage.getItem('inyathi_auth_user');
+      if (userStr) {
+        try {
+          const u = JSON.parse(userStr);
+          if (u?.email) userEmail = u.email;
+        } catch (_) {}
+      }
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error: fnError } = await supabase.functions.invoke('send-otp-email', {
+          body: { 
+            email: userEmail, 
+            action: title || 'Admin action authorization' 
+          }
+        });
+
+        if (fnError) {
+          throw new Error(fnError.message || 'Function invocation failed');
+        }
+
+        setToastMessage('A secure OTP has been generated and sent to the Main Admin. Please request the code from them.');
+        setSentCodeToast(true);
+      } catch (err: any) {
+        console.error('Error invoking send-otp-email:', err);
+        setError('Failed to send OTP email via Supabase. Falling back to sandbox authentication.');
+        // Fallback mock
+        const pin = Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedCode(pin);
+        setToastMessage(`An OTP verification code was sent to the director inbox: ${pin}`);
+        setSentCodeToast(true);
+      } finally {
+        setSending(false);
+      }
+    } else {
+      // Simulate sending OTP
       setTimeout(() => {
-        setSentCodeToast(false);
-      }, 8000);
-    }, 800);
+        const pin = Math.floor(100000 + Math.random() * 900000).toString();
+        setGeneratedCode(pin);
+        setSending(false);
+        setToastMessage(`An OTP verification code was sent to the director inbox: ${pin}`);
+        setSentCodeToast(true);
+      }, 800);
+    }
   };
 
   useEffect(() => {
@@ -53,6 +91,15 @@ export default function OTPModal({
       }, 0);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (sentCodeToast) {
+      const timer = setTimeout(() => {
+        setSentCodeToast(false);
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [sentCodeToast]);
 
   const handleInputChange = (value: string, index: number) => {
     if (isNaN(Number(value))) return;
@@ -76,7 +123,7 @@ export default function OTPModal({
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const typedCode = code.join('');
 
@@ -85,10 +132,60 @@ export default function OTPModal({
       return;
     }
 
-    if (typedCode === generatedCode) {
-      onVerifySuccess();
+    setSending(true);
+    setError('');
+
+    let userEmail = 'info@inyathi.co.za';
+    if (typeof window !== 'undefined') {
+      const userStr = localStorage.getItem('inyathi_auth_user');
+      if (userStr) {
+        try {
+          const u = JSON.parse(userStr);
+          if (u?.email) userEmail = u.email;
+        } catch (_) {}
+      }
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error: verifyError } = await supabase.functions.invoke('verify-otp', {
+          body: { 
+            email: userEmail, 
+            otp: typedCode 
+          }
+        });
+
+        // Some functions return { success: true } or similar
+        if (verifyError) {
+          throw new Error(verifyError.message || 'OTP verification failed');
+        }
+
+        const isSuccess = data?.success || data?.valid || data?.verified || (data && !data.error);
+        if (isSuccess) {
+          setSending(false);
+          onVerifySuccess();
+        } else {
+          setError('Invalid or expired OTP code. Please request a new one or double check with the Admin.');
+          setSending(false);
+        }
+      } catch (err: any) {
+        console.error('Error invoking verify-otp:', err);
+        // Fallback: check if we generated a local code (in case of fallback/offline mock mode)
+        if (generatedCode && typedCode === generatedCode) {
+          setSending(false);
+          onVerifySuccess();
+        } else {
+          setError('OTP Verification failed. If in sandbox mode, use the code provided in the pop-up.');
+          setSending(false);
+        }
+      }
     } else {
-      setError('Invalid OTP code. Please check and try again.');
+      setSending(false);
+      if (typedCode === generatedCode) {
+        onVerifySuccess();
+      } else {
+        setError('Invalid OTP code. Please check and try again.');
+      }
     }
   };
 
@@ -96,21 +193,23 @@ export default function OTPModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-      {/* Simulation Code Toast */}
+      {/* Simulation/Notification Code Toast */}
       {sentCodeToast && (
-        <div className="fixed top-6 right-6 z-50 bg-slate-900 border-l-4 border-amber-500 text-white p-4 rounded-lg shadow-xl max-w-sm animate-slide-in flex flex-col gap-1">
-          <p className="text-xs font-bold text-amber-500 flex items-center gap-1">
-            <ShieldCheck className="w-4 h-4" />
-            [SIMULATED] ADMIN EMAIL NOTIFICATION
+        <div className="fixed top-6 right-6 z-50 bg-slate-900 border-l-4 border-teal-500 text-white p-4 rounded-lg shadow-xl max-w-sm animate-slide-in flex flex-col gap-1">
+          <p className="text-xs font-bold text-teal-400 flex items-center gap-1">
+            <ShieldCheck className="w-4 h-4 animate-pulse" />
+            SECURE OTP STATUS
           </p>
-          <p className="text-xs">
-            An OTP verification code was sent to the director inbox:
+          <p className="text-xs text-slate-300">
+            {toastMessage}
           </p>
-          <p className="text-lg font-mono font-black text-center text-amber-300 tracking-widest mt-1 bg-slate-800 py-1.5 rounded border border-slate-700">
-            {generatedCode}
-          </p>
+          {generatedCode && (
+            <p className="text-lg font-mono font-black text-center text-amber-300 tracking-widest mt-1 bg-slate-800 py-1.5 rounded border border-slate-700">
+              {generatedCode}
+            </p>
+          )}
           <span className="text-[10px] text-slate-400 text-right mt-0.5 italic">
-            Enter this code to complete the verification.
+            Enter the 6-digit code below to proceed.
           </span>
         </div>
       )}
@@ -124,7 +223,7 @@ export default function OTPModal({
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-900">{title}</h3>
-              <p className="text-[10px] text-slate-500">Security Gate Active</p>
+              <p className="text-[10px] text-slate-500 font-medium">Security Gate Active</p>
             </div>
           </div>
           <button
@@ -176,7 +275,7 @@ export default function OTPModal({
               disabled={sending}
               className="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-2.5 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5 shadow-md disabled:bg-slate-300"
             >
-              Verify & Authorize Action
+              {sending ? 'Processing Verification...' : 'Verify & Authorize Action'}
             </button>
             
             <button

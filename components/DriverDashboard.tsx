@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ClipboardCheck, Calendar, FileText, User, LogOut, Briefcase, 
-  Plus, Trash2, Camera, Compass, PlusCircle, Sparkles, CheckCircle, Clock, AlertTriangle, FileUp
+  Plus, Trash2, Camera, Compass, PlusCircle, Sparkles, CheckCircle, Clock, AlertTriangle, FileUp, RefreshCw
 } from 'lucide-react';
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, VehicleChecklist, TrafficFine,
-  bookingsApi, fleetApi, inspectionsApi, reconApi, transferReconApi, expensesApi, incidentsApi, checklistsApi, trafficFinesApi, getDocumentUrl
+  bookingsApi, fleetApi, inspectionsApi, reconApi, transferReconApi, expensesApi, incidentsApi, checklistsApi, trafficFinesApi, getDocumentUrl,
+  uploadToCloudinary, getSignedUrlForView, downloadCSV
 } from '@/lib/storage';
 import SignaturePad from './SignaturePad';
 import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF } from '@/lib/pdf';
@@ -119,6 +120,57 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
   });
   const [driverChecklists, setDriverChecklists] = useState<VehicleChecklist[]>([]);
   const [driverFines, setDriverFines] = useState<TrafficFine[]>([]);
+
+  // Cloudinary real upload states
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [expenseUrl, setExpenseUrl] = useState('');
+  const [uploadingIncident, setUploadingIncident] = useState(false);
+  const [incidentUrl, setIncidentUrl] = useState('');
+  const [uploadingVaultDoc, setUploadingVaultDoc] = useState(false);
+  const [vaultDocs, setVaultDocs] = useState<{name: string, url: string}[]>([]);
+
+  const handleExpenseFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingFile(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      setExpenseUrl(url);
+    } catch (err) {
+      alert("Failed to upload document to Cloudinary");
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleIncidentFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingIncident(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      setIncidentUrl(url);
+    } catch (err) {
+      alert("Failed to upload incident file to Cloudinary");
+    } finally {
+      setUploadingIncident(false);
+    }
+  };
+
+  const handleVaultFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingVaultDoc(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      setVaultDocs(prev => [...prev, { name: file.name, url }]);
+      alert("✅ Document successfully uploaded to your secure Vault!");
+    } catch (err) {
+      alert("Failed to upload document to secure Vault");
+    } finally {
+      setUploadingVaultDoc(false);
+    }
+  };
 
   const refreshData = useCallback(() => {
     const allBookings = bookingsApi.getBookings();
@@ -440,8 +492,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
       description: expenseForm.description,
       amount,
       expense_date: expenseForm.expense_date,
-      document_urls: [],
-      photo_urls: [],
+      document_urls: expenseUrl ? [expenseUrl] : [],
+      photo_urls: expenseUrl ? [expenseUrl] : [],
       status: 'pending',
       submitted_at: new Date().toISOString(),
       alert_sent: false,
@@ -456,6 +508,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
       amount: '',
       expense_date: new Date().toISOString().substring(0, 10)
     });
+    setExpenseUrl('');
     alert('✅ Expense receipt uploaded and pending approval!');
   };
 
@@ -471,8 +524,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
       description: incidentForm.description,
       location: incidentForm.location,
       injuries: incidentForm.injuries,
-      photo_urls: [],
-      document_urls: [],
+      photo_urls: incidentUrl ? [incidentUrl] : [],
+      document_urls: incidentUrl ? [incidentUrl] : [],
       status: 'reported',
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -485,6 +538,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
       location: '',
       injuries: false
     });
+    setIncidentUrl('');
     alert('⚠️ Incident filed! Directors have been notified.');
   };
 
@@ -611,11 +665,38 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                     </div>
                   )}
 
+                  {b.booking_documents && b.booking_documents.length > 0 && (
+                    <div className="space-y-1 bg-slate-900/50 p-2 border border-slate-800 rounded">
+                      <span className="text-[9px] text-teal-400 font-bold block">Assigned Booking Documents:</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {b.booking_documents.map((doc, idx) => (
+                          <button
+                            key={idx}
+                            onClick={async () => {
+                              const signed = await getSignedUrlForView(doc.url);
+                              window.open(signed, '_blank');
+                            }}
+                            className="text-[9px] text-teal-400 font-black hover:underline bg-teal-950/20 px-1.5 py-0.5 rounded border border-teal-900 cursor-pointer"
+                          >
+                            📄 {doc.filename || `Document #${idx + 1}`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Operational actions: Itinerary, pre-trip, post-trip checks */}
                   <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
                     <button
-                      onClick={() => alert(`📋 ITINERARY FILE: [MOCK DOWNLOADING] ${b.tour_reference}_Itinerary.pdf`)}
-                      className="text-xs font-semibold py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-lg transition-colors border border-slate-700 text-center"
+                      onClick={async () => {
+                        if (b.itinerary_url) {
+                          const signedUrl = await getSignedUrlForView(b.itinerary_url);
+                          window.open(signedUrl, '_blank');
+                        } else {
+                          alert(`📋 No itinerary file has been uploaded for this booking yet.`);
+                        }
+                      }}
+                      className="text-xs font-semibold py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-lg transition-colors border border-slate-700 text-center cursor-pointer"
                     >
                       🗺️ View Itinerary
                     </button>
@@ -1398,10 +1479,30 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                   className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-white"
                 />
                 
-                {/* Simulated file selector */}
-                <div className="border border-dashed border-slate-700 bg-slate-900 p-2 text-center rounded flex flex-col items-center justify-center gap-1">
-                  <FileUp className="w-5.5 h-5.5 text-slate-500" />
-                  <span className="text-[10px] text-slate-400">Upload Slip Photo (Simulated Cloudinary preset)</span>
+                {/* Real Cloudinary file selector */}
+                <div className="border border-dashed border-slate-700 bg-slate-900 p-3 text-center rounded-xl flex flex-col items-center justify-center gap-2 relative">
+                  {uploadingFile ? (
+                    <div className="flex items-center gap-1.5 text-[10px] text-teal-400 font-bold justify-center">
+                      <RefreshCw className="w-4 h-4 animate-spin text-teal-400" /> Uploading to Cloudinary...
+                    </div>
+                  ) : expenseUrl ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <CheckCircle className="w-5 h-5 text-emerald-400" />
+                      <span className="text-[9px] text-emerald-400 font-extrabold truncate max-w-[200px]">Uploaded: {expenseUrl.split('/').pop()}</span>
+                      <button type="button" onClick={() => setExpenseUrl('')} className="text-[9px] text-rose-400 hover:underline">Remove</button>
+                    </div>
+                  ) : (
+                    <>
+                      <FileUp className="w-5 h-5 text-slate-400" />
+                      <span className="text-[9px] text-slate-400 block">Select Slip / Receipt File</span>
+                      <input 
+                        type="file" 
+                        accept="image/*,application/pdf"
+                        onChange={handleExpenseFileChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                    </>
+                  )}
                 </div>
 
                 <button
@@ -1547,6 +1648,32 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                   className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-white h-20"
                 />
 
+                {/* Real Cloudinary file selector for Incidents */}
+                <div className="border border-dashed border-slate-700 bg-slate-900 p-3 text-center rounded-xl flex flex-col items-center justify-center gap-2 relative">
+                  {uploadingIncident ? (
+                    <div className="flex items-center gap-1.5 text-[10px] text-teal-400 font-bold justify-center">
+                      <RefreshCw className="w-4 h-4 animate-spin text-teal-400" /> Uploading photo...
+                    </div>
+                  ) : incidentUrl ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <CheckCircle className="w-5 h-5 text-emerald-400" />
+                      <span className="text-[9px] text-emerald-400 font-extrabold truncate max-w-[200px]">Uploaded: {incidentUrl.split('/').pop()}</span>
+                      <button type="button" onClick={() => setIncidentUrl('')} className="text-[9px] text-rose-400 hover:underline">Remove</button>
+                    </div>
+                  ) : (
+                    <>
+                      <Camera className="w-5 h-5 text-slate-400" />
+                      <span className="text-[9px] text-slate-400 block">Select Incident Photo / Document</span>
+                      <input 
+                        type="file" 
+                        accept="image/*,application/pdf"
+                        onChange={handleIncidentFileChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                    </>
+                  )}
+                </div>
+
                 <button
                   type="submit"
                   className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-2 rounded-lg text-xs transition-colors shadow-md"
@@ -1570,7 +1697,52 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
               Aggregated repository of tour manifests, itineraries, signed compliance checks, and weekly payroll spreadsheets.
             </p>
 
+            {/* Compliance Document Uploader */}
+            <div className="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-3 shadow-md">
+              <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                <FileUp className="w-4 h-4 text-teal-400" />
+                Upload New Compliance / Manifest Document to Vault
+              </p>
+              <div className="border border-dashed border-slate-700 bg-slate-900 p-4 text-center rounded-xl flex flex-col items-center justify-center gap-2 relative">
+                {uploadingVaultDoc ? (
+                  <div className="flex items-center gap-1.5 text-[10px] text-teal-400 font-bold justify-center">
+                    <RefreshCw className="w-4 h-4 animate-spin text-teal-400" /> Uploading to secure vault...
+                  </div>
+                ) : (
+                  <>
+                    <FileUp className="w-6 h-6 text-slate-400" />
+                    <span className="text-[10px] text-slate-400 block font-medium">Drag & drop or Click to select document</span>
+                    <span className="text-[8px] text-slate-500 block">PDFs, PNG, JPG accepted</span>
+                    <input 
+                      type="file" 
+                      accept="image/*,application/pdf"
+                      onChange={handleVaultFileUpload}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                  </>
+                )}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 gap-2">
+              {/* Dynamic Vault Documents list */}
+              {vaultDocs.map((doc, index) => (
+                <div key={index} className="bg-slate-950 p-4 border border-slate-800 rounded-xl flex items-center justify-between shadow-lg">
+                  <div className="min-w-0 flex-1 mr-4">
+                    <p className="text-xs font-bold text-teal-400 truncate">{doc.name}</p>
+                    <p className="text-[9px] text-slate-500 font-mono truncate">{doc.url}</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const signedUrl = await getSignedUrlForView(doc.url);
+                      window.open(signedUrl, '_blank');
+                    }}
+                    className="text-xs font-bold text-teal-400 hover:underline border border-teal-800 px-3 py-1 rounded bg-teal-950/20 hover:bg-teal-950/40 transition-colors whitespace-nowrap"
+                  >
+                    Download
+                  </button>
+                </div>
+              ))}
               <div className="bg-slate-950 p-4 border border-slate-800 rounded-xl flex items-center justify-between">
                 <div>
                   <p className="text-xs font-bold text-white">Driver Contract Agreement</p>

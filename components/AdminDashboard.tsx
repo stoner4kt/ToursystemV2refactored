@@ -3,12 +3,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, 
-  Settings, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw
+  Settings, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle
 } from 'lucide-react';
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, BookingDeleteRequest,
   VehicleExpense, TrafficFine, IncidentReport, BookingEditLog, VehicleChecklist,
-  bookingsApi, fleetApi, driversApi, inspectionsApi, reconApi, transferReconApi, expensesApi, trafficFinesApi, incidentsApi, checklistsApi, authApi
+  bookingsApi, fleetApi, driversApi, inspectionsApi, reconApi, transferReconApi, expensesApi, trafficFinesApi, incidentsApi, checklistsApi, authApi,
+  downloadCSV, uploadToCloudinary, getSignedUrlForView
 } from '@/lib/storage';
 import CalendarGrid from './CalendarGrid';
 import OTPModal from './OTPModal';
@@ -57,6 +58,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   });
   const [editReason, setEditReason] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
+  const [uploadingBookingDoc, setUploadingBookingDoc] = useState(false);
+  const [uploadingItinerary, setUploadingItinerary] = useState(false);
 
   // General Admin Modals / Form entries
   const [showVehicleModal, setShowVehicleModal] = useState(false);
@@ -194,6 +197,51 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     setEditReason('');
     setIsEditMode(true);
     setShowBookingModal(true);
+  };
+
+  const handleBookingDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingBookingDoc(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      const newDoc = {
+        id: `DOC-${Date.now()}`,
+        url,
+        filename: file.name,
+        size: file.size,
+        uploaded_at: new Date().toISOString()
+      };
+      setBookingForm(prev => ({
+        ...prev,
+        booking_documents: [...(prev.booking_documents || []), newDoc]
+      }));
+      alert("✅ Booking document uploaded to Cloudinary!");
+    } catch (err) {
+      alert("Failed to upload booking document");
+    } finally {
+      setUploadingBookingDoc(false);
+    }
+  };
+
+  const handleItineraryUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingItinerary(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      setBookingForm(prev => ({
+        ...prev,
+        itinerary_url: url,
+        itinerary_filename: file.name,
+        itinerary_uploaded_at: new Date().toISOString()
+      }));
+      alert("✅ Itinerary uploaded to Cloudinary!");
+    } catch (err) {
+      alert("Failed to upload itinerary");
+    } finally {
+      setUploadingItinerary(false);
+    }
   };
 
   const saveBooking = () => {
@@ -630,12 +678,20 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <h2 className="text-base font-bold text-slate-900">Bookings Manifest Archive</h2>
-                <button
-                  onClick={() => handleOpenNewBooking()}
-                  className="bg-teal-600 text-white text-xs font-bold py-1.5 px-3 rounded-lg"
-                >
-                  Add Booking
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => downloadCSV(bookings, `bookings_manifest_${region.replace(' ', '_')}.csv`)}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-slate-300 flex items-center gap-1 transition-colors"
+                  >
+                    <Download className="w-4 h-4" /> Export Sheet
+                  </button>
+                  <button
+                    onClick={() => handleOpenNewBooking()}
+                    className="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 transition-colors"
+                  >
+                    Add Booking
+                  </button>
+                </div>
               </div>
 
               <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
@@ -665,7 +721,36 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                             <span className="block text-[10px] text-slate-400 font-medium">Ref: {b.tour_reference}</span>
                           </td>
                           <td className="p-3 font-bold text-slate-900">{b.client_name}</td>
-                          <td className="p-3 text-slate-600 font-medium max-w-[200px] truncate">{b.route}</td>
+                          <td className="p-3 text-slate-600 font-medium max-w-[200px]">
+                            <span className="truncate block">{b.route}</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {b.itinerary_url && (
+                                <button
+                                  onClick={async () => {
+                                    const signed = await getSignedUrlForView(b.itinerary_url!);
+                                    window.open(signed, '_blank');
+                                  }}
+                                  className="inline-flex items-center gap-0.5 text-[9px] bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 px-1 py-0.5 rounded font-black whitespace-nowrap cursor-pointer"
+                                >
+                                  <FileText className="w-2.5 h-2.5 text-teal-500" /> Itinerary
+                                </button>
+                              )}
+                              {b.booking_documents && b.booking_documents.length > 0 && (
+                                <button
+                                  onClick={async () => {
+                                    const firstDoc = b.booking_documents[0]?.url;
+                                    if (firstDoc) {
+                                      const signed = await getSignedUrlForView(firstDoc);
+                                      window.open(signed, '_blank');
+                                    }
+                                  }}
+                                  className="inline-flex items-center gap-0.5 text-[9px] bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 px-1 py-0.5 rounded font-black whitespace-nowrap cursor-pointer"
+                                >
+                                  <Eye className="w-2.5 h-2.5 text-slate-500" /> Docs ({b.booking_documents.length})
+                                </button>
+                              )}
+                            </div>
+                          </td>
                           <td className="p-3">
                             <span className="font-semibold block">{new Date(b.start_date).toLocaleDateString()}</span>
                             <span className="text-[10px] text-slate-400">{new Date(b.start_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -1235,9 +1320,29 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
             <div className="space-y-6">
               
               <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs space-y-4">
-                <div>
-                  <h2 className="text-base font-bold text-slate-900">Wages Reconciliation and Payroll Compiler</h2>
-                  <p className="text-xs text-slate-500">Compiles both Trip wage rates and completed passenger transfers rate payouts across dates for {region}.</p>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Wages Reconciliation and Payroll Compiler</h2>
+                    <p className="text-xs text-slate-500">Compiles both Trip wage rates and completed passenger transfers rate payouts across dates for {region}.</p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const payrollData = getCompiledWages().map(([driverId, details]) => ({
+                        driver_id: driverId,
+                        driver_name: details.driverName,
+                        sheets_reviewed: details.sheetsCount,
+                        trip_recon_wages: `R ${details.tripReconsAmount}`,
+                        transfers_payout: `R ${details.transfersAmount}`,
+                        total_net_payroll: `R ${details.total}`,
+                        period: `${wageStartDate} to ${wageEndDate}`,
+                        region: region
+                      }));
+                      downloadCSV(payrollData, `compiled_payroll_${region.replace(' ', '_')}_${wageStartDate}_to_${wageEndDate}.csv`);
+                    }}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-slate-300 flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                  >
+                    <Download className="w-4 h-4" /> Export Payroll Sheet
+                  </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-xs">
@@ -1505,7 +1610,15 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
           {/* ==================== EXPENSES LOG TAB ==================== */}
           {activeTab === 'expenses' && (
             <div className="space-y-4">
-              <h2 className="text-base font-bold text-slate-900">Vehicle Expenses and Damages approvals</h2>
+              <div className="flex justify-between items-center">
+                <h2 className="text-base font-bold text-slate-900">Vehicle Expenses and Damages approvals</h2>
+                <button
+                  onClick={() => downloadCSV(vehicleExpenses, 'vehicle_expenses_log.csv')}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-slate-300 flex items-center gap-1 transition-colors"
+                >
+                  <Download className="w-4 h-4" /> Export Expenses Sheet
+                </button>
+              </div>
 
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
                 <table className="w-full text-left text-xs">
@@ -1530,7 +1643,21 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                         <tr key={exp.id} className="hover:bg-slate-50/50">
                           <td className="p-3">
                             <span className="font-bold text-slate-900 block">{exp.description}</span>
-                            <span className="text-[10px] text-slate-400">Logged by: {exp.driver_id}</span>
+                            <span className="text-[10px] text-slate-400 block">Logged by: {exp.driver_id}</span>
+                            {((exp.document_urls && exp.document_urls.length > 0) || (exp.photo_urls && exp.photo_urls.length > 0)) && (
+                              <button
+                                onClick={async () => {
+                                  const url = exp.document_urls?.[0] || exp.photo_urls?.[0] || '';
+                                  if (url) {
+                                    const signed = await getSignedUrlForView(url);
+                                    window.open(signed, '_blank');
+                                  }
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] text-teal-600 hover:underline font-extrabold mt-1"
+                              >
+                                <Eye className="w-3 h-3" /> View Receipt Slip
+                              </button>
+                            )}
                           </td>
                           <td className="p-3 font-bold text-slate-700">{exp.vehicle_reg}</td>
                           <td className="p-3 text-slate-600 font-semibold">{exp.expense_type}</td>
@@ -1608,6 +1735,35 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                       <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-2.5 rounded border border-slate-150">
                         &quot;{inc.description}&quot;
                       </p>
+
+                      {((inc.photo_urls && inc.photo_urls.length > 0) || (inc.document_urls && inc.document_urls.length > 0)) && (
+                        <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
+                          {inc.photo_urls?.filter(Boolean).map((url, idx) => (
+                            <button
+                              key={idx}
+                              onClick={async () => {
+                                const signed = await getSignedUrlForView(url);
+                                window.open(signed, '_blank');
+                              }}
+                              className="inline-flex items-center gap-1 text-[10px] text-teal-600 hover:underline font-extrabold bg-teal-50 px-2 py-0.5 rounded border border-teal-200"
+                            >
+                              <Eye className="w-3 h-3 text-teal-500" /> Incident Photo #{idx + 1}
+                            </button>
+                          ))}
+                          {inc.document_urls?.filter(Boolean).map((url, idx) => (
+                            <button
+                              key={idx}
+                              onClick={async () => {
+                                const signed = await getSignedUrlForView(url);
+                                window.open(signed, '_blank');
+                              }}
+                              className="inline-flex items-center gap-1 text-[10px] text-teal-600 hover:underline font-extrabold bg-teal-50 px-2 py-0.5 rounded border border-teal-200"
+                            >
+                              <Eye className="w-3 h-3 text-teal-500" /> Incident Doc #{idx + 1}
+                            </button>
+                          ))}
+                        </div>
+                      )}
 
                       <div className="flex justify-between items-center pt-2 border-t border-slate-100">
                         <span className="text-[10px] text-slate-400">Filed: {new Date(inc.created_at).toLocaleString()}</span>
@@ -1837,6 +1993,79 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                     ))}
                   </select>
                 )}
+              </div>
+
+              {/* Document and Itinerary Upload */}
+              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded border border-slate-150">
+                <div>
+                  <span className="text-slate-500 font-bold block mb-1">Itinerary Document</span>
+                  {uploadingItinerary ? (
+                    <div className="text-[10px] text-teal-600 font-bold flex items-center gap-1">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Uploading itinerary...
+                    </div>
+                  ) : bookingForm.itinerary_url ? (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> Uploaded
+                      </div>
+                      <span className="text-[9px] text-slate-500 truncate max-w-[150px]" title={bookingForm.itinerary_filename || 'itinerary.pdf'}>
+                        {bookingForm.itinerary_filename || 'itinerary.pdf'}
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={() => setBookingForm(prev => ({ ...prev, itinerary_url: '', itinerary_filename: '', itinerary_uploaded_at: '' }))}
+                        className="text-[9px] text-rose-500 hover:underline text-left font-semibold"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative border border-dashed border-slate-300 bg-white p-2 rounded text-center cursor-pointer hover:border-slate-400">
+                      <span className="text-[10px] text-slate-500 block">Choose Itinerary File</span>
+                      <input 
+                        type="file" 
+                        accept="image/*,application/pdf"
+                        onChange={handleItineraryUpload}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <span className="text-slate-500 font-bold block mb-1">General Booking Document</span>
+                  {uploadingBookingDoc ? (
+                    <div className="text-[10px] text-teal-600 font-bold flex items-center gap-1">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Uploading document...
+                    </div>
+                  ) : bookingForm.booking_documents && bookingForm.booking_documents.length > 0 ? (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold">
+                        <CheckCircle className="w-3.5 h-3.5 text-emerald-500" /> {bookingForm.booking_documents.length} File(s)
+                      </div>
+                      <span className="text-[9px] text-slate-500 truncate max-w-[150px]" title={bookingForm.booking_documents[bookingForm.booking_documents.length - 1].filename}>
+                        {bookingForm.booking_documents[bookingForm.booking_documents.length - 1].filename}
+                      </span>
+                      <button 
+                        type="button" 
+                        onClick={() => setBookingForm(prev => ({ ...prev, booking_documents: [] }))}
+                        className="text-[9px] text-rose-500 hover:underline text-left font-semibold"
+                      >
+                        Clear All Documents
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative border border-dashed border-slate-300 bg-white p-2 rounded text-center cursor-pointer hover:border-slate-400">
+                      <span className="text-[10px] text-slate-500 block">Choose Document File</span>
+                      <input 
+                        type="file" 
+                        accept="image/*,application/pdf"
+                        onChange={handleBookingDocUpload}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Status and payment info */}
