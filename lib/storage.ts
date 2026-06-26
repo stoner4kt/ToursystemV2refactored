@@ -350,40 +350,232 @@ export const STORAGE_KEYS = {
   OTP_ENABLED: 'inyathi_otp_enabled'
 };
 
+export const TABLE_MAP: Record<string, string> = {
+  profiles: 'profiles',
+  vehicles: 'vehicles',
+  rented_vehicles: 'rented_vehicles',
+  bookings: 'bookings',
+  inspections: 'inspections',
+  recons: 'recon_sheets',
+  transfer_recons: 'transfer_recon_sheets',
+  expenses: 'vehicle_expenses',
+  fines: 'traffic_fines',
+  incidents: 'incident_reports',
+  delete_requests: 'booking_delete_requests',
+  invites: 'driver_invites',
+  logs: 'booking_edit_log',
+  checklists: 'vehicle_checklists'
+};
+
+export const TABLE_COLUMNS: Record<string, string[]> = {
+  profiles: ['id', 'driver_id', 'name', 'phone', 'role', 'is_active', 'created_at', 'updated_at'],
+  vehicles: ['id', 'registration_no', 'model', 'make', 'year', 'current_mileage', 'next_service_km', 'status', 'notes', 'created_at', 'updated_at'],
+  bookings: [
+    'id', 'invoice_no', 'client_name', 'route', 'start_date', 'end_date', 'assigned_driver_id',
+    'assigned_vehicle_reg', 'status', 'notes', 'created_at', 'updated_at', 'booking_documents',
+    'receipt_number', 'maintenance_alert_sent', 'maintenance_alert_sent_at', 'itinerary_url',
+    'itinerary_filename', 'itinerary_uploaded_at', 'last_modified_at', 'modification_reason',
+    'is_rented_vehicle', 'rented_vehicle_id', 'rented_vehicle_reg', 'rented_vehicle_model',
+    'location', 'start_time', 'end_time', 'rental_period'
+  ],
+  inspections: [
+    'id', 'invoice_no', 'vehicle_reg', 'driver_id', 'inspection_type', 'checklist_json',
+    'faults_json', 'media_urls', 'mileage_at_inspection', 'notes', 'has_critical_fault',
+    'alert_sent', 'created_at'
+  ],
+  recon_sheets: [
+    'id', 'driver_id', 'week_start', 'week_end', 'tour_reference', 'tour_vehicle', 'vehicle_reg',
+    'start_km', 'end_km', 'total_distance_km', 'trips_completed', 'total_hours', 'cost_lines_text',
+    'trip_budget', 'trip_cost', 'driver_food', 'flights_to', 'flights_from', 'driver_rate',
+    'accommodation', 'total_profit_loss', 'director_sign_off', 'vehicle_issues', 'accidents_incidents',
+    'traffic_violations', 'safety_concerns', 'maintenance_needed', 'fuel_consumption', 'tires_condition',
+    'fatigue_level', 'stress_level', 'health_issues', 'driver_notes', 'admin_review_notes',
+    'edit_request_status', 'edit_request_reason', 'edit_request_sent_at', 'edit_request_approved_by',
+    'edit_request_approved_at', 'edit_request_rejection_reason', 'status', 'submitted_at',
+    'reviewed_by', 'reviewed_at', 'created_at', 'updated_at', 'slip_image_urls'
+  ],
+  driver_invites: ['email', 'full_name', 'invited_by', 'invited_at', 'used_at', 'location'],
+  transfer_recon_sheets: [
+    'id', 'driver_id', 'week_start', 'week_end', 'transfers', 'status', 'submitted_at',
+    'reviewed_by', 'reviewed_at', 'created_at', 'updated_at'
+  ],
+  otp_verifications: [
+    'id', 'admin_id', 'resource_type', 'resource_id', 'otp_hash', 'created_at', 'expires_at',
+    'verified_at', 'attempts'
+  ],
+  booking_edit_log: [
+    'id', 'booking_id', 'admin_id', 'action', 'reason', 'old_values', 'new_values', 'approved_at',
+    'created_at'
+  ],
+  vehicle_expenses: [
+    'id', 'vehicle_reg', 'driver_id', 'logged_by_admin_id', 'expense_type', 'description', 'amount',
+    'expense_date', 'document_urls', 'photo_urls', 'status', 'submitted_at', 'reviewed_by',
+    'reviewed_at', 'rejection_reason', 'alert_sent', 'driver_notified_at', 'created_at', 'updated_at'
+  ],
+  rented_vehicles: [
+    'id', 'supplier', 'reg_no', 'make', 'model', 'start_date', 'end_date', 'daily_rate',
+    'supplier_ref', 'status', 'notes', 'created_at'
+  ],
+  traffic_fines: [
+    'id', 'booking_id', 'vehicle_reg', 'driver_id', 'fine_timestamp', 'fine_reference', 'location',
+    'description', 'amount', 'notification_email', 'email_sent', 'email_sent_at', 'notification_error',
+    'logged_by_admin_id', 'created_at', 'updated_at'
+  ],
+  booking_delete_requests: [
+    'id', 'booking_id', 'requested_by', 'reason', 'cancellation_type', 'status', 'rejection_reason',
+    'reviewed_by', 'reviewed_at', 'created_at'
+  ],
+  incident_reports: [
+    'id', 'booking_id', 'driver_id', 'vehicle_reg', 'incident_type', 'description', 'location',
+    'injuries', 'photo_urls', 'document_urls', 'status', 'admin_notes', 'reviewed_by', 'reviewed_at',
+    'created_at', 'updated_at'
+  ],
+  vehicle_checklists: [
+    'id', 'vehicle_reg', 'driver_id', 'checklist_date', 'exterior', 'interior', 'mechanical',
+    'fluids', 'tires', 'brakes', 'lights', 'safety_gear', 'notes', 'pdf_url', 'status',
+    'created_at', 'updated_at'
+  ]
+};
+
+export function filterPayloadForTable(dbTableName: string, payload: any): any {
+  if (!payload || typeof payload !== 'object') return payload;
+  const columns = TABLE_COLUMNS[dbTableName];
+  if (!columns) return payload;
+
+  if (Array.isArray(payload)) {
+    return payload.map(item => filterPayloadForTable(dbTableName, item));
+  }
+
+  const filtered: any = {};
+  for (const key of Object.keys(payload)) {
+    if (columns.includes(key)) {
+      filtered[key] = payload[key];
+    }
+  }
+  return filtered;
+}
+
+export function transformPayloadForPush(dbTableName: string, data: any): any {
+  if (!data) return data;
+  let prepared = { ...data };
+
+  if (dbTableName === 'vehicle_checklists') {
+    prepared = {
+      id: data.id,
+      driver_id: data.driver_id,
+      checklist_date: data.week_start || new Date().toISOString().split('T')[0],
+      exterior: data.checklist_data?.bodywork === 'ok' ? 'OK' : 'Needs Attention',
+      interior: 'OK',
+      mechanical: data.checklist_data?.horn === 'ok' ? 'OK' : 'Needs Attention',
+      fluids: data.checklist_data?.engine_oil === 'ok' ? 'OK' : 'Needs Attention',
+      tires: data.checklist_data?.tyres_pressure === 'ok' ? 'OK' : 'Needs Attention',
+      brakes: data.checklist_data?.brake_fluid === 'ok' ? 'OK' : 'Needs Attention',
+      lights: data.checklist_data?.lights_headlights === 'ok' ? 'OK' : 'Needs Attention',
+      safety_gear: 'OK',
+      notes: data.notes || '',
+      status: 'completed',
+      vehicle_reg: 'Unknown'
+    };
+  }
+
+  if (dbTableName === 'recon_sheets') {
+    const { cost_lines, ...rest } = data;
+    prepared = {
+      ...rest,
+      cost_lines_text: Array.isArray(cost_lines) ? JSON.stringify(cost_lines) : ''
+    };
+  }
+
+  return filterPayloadForTable(dbTableName, prepared);
+}
+
+export function transformPayloadForPull(dbTableName: string, data: any[]): any[] {
+  if (!Array.isArray(data)) return data;
+
+  if (dbTableName === 'vehicle_checklists') {
+    return data.map((row: any) => ({
+      id: row.id,
+      driver_id: row.driver_id,
+      week_start: row.checklist_date,
+      week_end: row.checklist_date,
+      status: row.status === 'completed' ? 'submitted' : 'draft',
+      mileage: row.mileage || 0,
+      notes: row.notes,
+      submitted_at: row.checklist_date,
+      created_at: row.created_at || new Date().toISOString(),
+      checklist_data: {
+        engine_oil: row.fluids === 'OK' ? 'ok' : 'action',
+        coolant: row.fluids === 'OK' ? 'ok' : 'action',
+        brake_fluid: row.brakes === 'OK' ? 'ok' : 'action',
+        windshield_washer: 'ok',
+        tyres_pressure: row.tires === 'OK' ? 'ok' : 'action',
+        tyres_tread: row.tires === 'OK' ? 'ok' : 'action',
+        lights_headlights: row.lights === 'OK' ? 'ok' : 'action',
+        lights_indicators: row.lights === 'OK' ? 'ok' : 'action',
+        lights_brake: row.lights === 'OK' ? 'ok' : 'action',
+        wipers: row.mechanical === 'OK' ? 'ok' : 'action',
+        horn: row.mechanical === 'OK' ? 'ok' : 'action',
+        bodywork: row.exterior === 'OK' ? 'ok' : 'action'
+      }
+    }));
+  }
+
+  if (dbTableName === 'recon_sheets') {
+    return data.map((row: any) => {
+      let cost_lines = [];
+      if (row.cost_lines_text) {
+        try {
+          cost_lines = JSON.parse(row.cost_lines_text);
+        } catch (e) {
+          cost_lines = [];
+        }
+      }
+      return {
+        ...row,
+        cost_lines
+      };
+    });
+  }
+
+  return data;
+}
+
 export async function pushToSupabase(tableName: string, data: any, matchColumn: string, matchValue: any) {
   if (!isSupabaseConfigured || !supabase) {
     console.log(`Supabase not configured or client null. Skipping push to ${tableName}.`);
     return;
   }
   try {
-    console.log(`[Supabase Push] Attempting upsert on '${tableName}' for matching ${matchColumn} = ${matchValue}`);
-    const { error } = await supabase.from(tableName).upsert(data, { onConflict: matchColumn });
+    const dbTableName = TABLE_MAP[tableName] || tableName;
+    const transformed = transformPayloadForPush(dbTableName, data);
+    console.log(`[Supabase Push] Attempting upsert on '${dbTableName}' for matching ${matchColumn} = ${matchValue}`);
+    const { error } = await supabase.from(dbTableName).upsert(transformed, { onConflict: matchColumn });
     if (error) {
-      console.warn(`[Supabase Push] Upsert failed for '${tableName}', trying manual fallback. Error:`, error.message || error);
+      console.warn(`[Supabase Push] Upsert failed for '${dbTableName}', trying manual fallback. Error:`, error.message || error);
       // Fallback manual upsert
-      const { data: existing, error: selectError } = await supabase.from(tableName).select(matchColumn).eq(matchColumn, matchValue).maybeSingle();
+      const { data: existing, error: selectError } = await supabase.from(dbTableName).select(matchColumn).eq(matchColumn, matchValue).maybeSingle();
       if (selectError) {
-        console.error(`[Supabase Push] Fallback select error on '${tableName}':`, selectError.message || selectError);
+        console.error(`[Supabase Push] Fallback select error on '${dbTableName}':`, selectError.message || selectError);
       }
       if (existing) {
-        console.log(`[Supabase Push] Row exists in '${tableName}', performing update.`);
-        const { error: updateError } = await supabase.from(tableName).update(data).eq(matchColumn, matchValue);
+        console.log(`[Supabase Push] Row exists in '${dbTableName}', performing update.`);
+        const { error: updateError } = await supabase.from(dbTableName).update(transformed).eq(matchColumn, matchValue);
         if (updateError) {
-          console.error(`[Supabase Push] Fallback update failed on '${tableName}':`, updateError.message || updateError);
+          console.error(`[Supabase Push] Fallback update failed on '${dbTableName}':`, updateError.message || updateError);
         } else {
-          console.log(`[Supabase Push] Fallback update succeeded on '${tableName}'.`);
+          console.log(`[Supabase Push] Fallback update succeeded on '${dbTableName}'.`);
         }
       } else {
-        console.log(`[Supabase Push] Row does not exist in '${tableName}', performing insert.`);
-        const { error: insertError } = await supabase.from(tableName).insert([data]);
+        console.log(`[Supabase Push] Row does not exist in '${dbTableName}', performing insert.`);
+        const { error: insertError } = await supabase.from(dbTableName).insert([transformed]);
         if (insertError) {
-          console.error(`[Supabase Push] Fallback insert failed on '${tableName}':`, insertError.message || insertError);
+          console.error(`[Supabase Push] Fallback insert failed on '${dbTableName}':`, insertError.message || insertError);
         } else {
-          console.log(`[Supabase Push] Fallback insert succeeded on '${tableName}'.`);
+          console.log(`[Supabase Push] Fallback insert succeeded on '${dbTableName}'.`);
         }
       }
     } else {
-      console.log(`[Supabase Push] Upsert succeeded on '${tableName}'.`);
+      console.log(`[Supabase Push] Upsert succeeded on '${dbTableName}'.`);
     }
   } catch (error: any) {
     console.error(`[Supabase Push] Exception writing to Supabase table ${tableName}:`, error.message || error);
@@ -393,7 +585,8 @@ export async function pushToSupabase(tableName: string, data: any, matchColumn: 
 export async function deleteFromSupabase(tableName: string, matchColumn: string, matchValue: any) {
   if (!isSupabaseConfigured || !supabase) return;
   try {
-    await supabase.from(tableName).delete().eq(matchColumn, matchValue);
+    const dbTableName = TABLE_MAP[tableName] || tableName;
+    await supabase.from(dbTableName).delete().eq(matchColumn, matchValue);
   } catch (error) {
     console.warn(`Error deleting from Supabase table ${tableName}:`, error);
   }
@@ -419,12 +612,14 @@ export async function syncAllFromSupabase() {
 
     for (const t of tables) {
       try {
-        const { data, error } = await supabase.from(t.name).select('*');
+        const dbTableName = TABLE_MAP[t.name] || t.name;
+        const { data, error } = await supabase.from(dbTableName).select('*');
         if (error) {
-          console.error(`[Supabase Sync] Error fetching table '${t.name}':`, error.message || error);
+          console.error(`[Supabase Sync] Error fetching table '${dbTableName}':`, error.message || error);
         } else if (data) {
-          console.log(`[Supabase Sync] Successfully synchronized ${data.length} rows from table '${t.name}'.`);
-          setLocalStorageItem(t.key, data);
+          const transformed = transformPayloadForPull(dbTableName, data);
+          console.log(`[Supabase Sync] Successfully synchronized ${transformed.length} rows from table '${dbTableName}' into ${t.key}.`);
+          setLocalStorageItem(t.key, transformed);
         }
       } catch (e: any) {
         console.warn(`[Supabase Sync] Exception when syncing table ${t.name}:`, e.message || e);
@@ -901,7 +1096,7 @@ export const authApi = {
       };
 
       try {
-        await supabase.from('profiles').insert([{
+        const profilePayload = filterPayloadForTable('profiles', {
           id: data.user?.id,
           driver_id: newProfile.driver_id,
           name: newProfile.name,
@@ -910,7 +1105,10 @@ export const authApi = {
           role: newProfile.role,
           is_active: true,
           location: newProfile.location,
-        }]);
+          created_at: newProfile.created_at,
+          updated_at: newProfile.updated_at
+        });
+        await supabase.from('profiles').insert([profilePayload]);
       } catch (e) {
         console.warn('Could not insert profile row in Supabase:', e);
       }
