@@ -134,8 +134,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     if (!file) return;
     setUploadingFile(true);
     try {
-      const url = await uploadToCloudinary(file);
-      setExpenseUrl(url);
+      const uploadResult = await uploadToCloudinary(file, 'expenses');
+      setExpenseUrl(uploadResult.url);
     } catch (err) {
       alert("Failed to upload document to Cloudinary");
     } finally {
@@ -148,8 +148,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     if (!file) return;
     setUploadingIncident(true);
     try {
-      const url = await uploadToCloudinary(file);
-      setIncidentUrl(url);
+      const uploadResult = await uploadToCloudinary(file, 'incidents');
+      setIncidentUrl(uploadResult.url);
     } catch (err) {
       alert("Failed to upload incident file to Cloudinary");
     } finally {
@@ -162,8 +162,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     if (!file) return;
     setUploadingVaultDoc(true);
     try {
-      const url = await uploadToCloudinary(file);
-      setVaultDocs(prev => [...prev, { name: file.name, url }]);
+      const uploadResult = await uploadToCloudinary(file, 'driver-documents');
+      setVaultDocs(prev => [...prev, { name: file.name, url: uploadResult.url }]);
       alert("✅ Document successfully uploaded to your secure Vault!");
     } catch (err) {
       alert("Failed to upload document to secure Vault");

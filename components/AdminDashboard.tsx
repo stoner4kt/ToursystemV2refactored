@@ -204,10 +204,12 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     if (!file) return;
     setUploadingBookingDoc(true);
     try {
-      const url = await uploadToCloudinary(file);
+      const uploadResult = await uploadToCloudinary(file, 'booking-documents');
       const newDoc = {
         id: `DOC-${Date.now()}`,
-        url,
+        url: uploadResult.url,
+        public_id: uploadResult.public_id,
+        resource_type: uploadResult.resource_type,
         filename: file.name,
         size: file.size,
         uploaded_at: new Date().toISOString()
@@ -229,10 +231,15 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     if (!file) return;
     setUploadingItinerary(true);
     try {
-      const url = await uploadToCloudinary(file);
+      const uploadResult = await uploadToCloudinary(file, 'booking-itinerary');
       setBookingForm(prev => ({
         ...prev,
-        itinerary_url: url,
+        itinerary_url: JSON.stringify({
+          public_id: uploadResult.public_id,
+          resource_type: uploadResult.resource_type,
+          filename: file.name,
+          url: uploadResult.url
+        }),
         itinerary_filename: file.name,
         itinerary_uploaded_at: new Date().toISOString()
       }));

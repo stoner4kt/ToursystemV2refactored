@@ -449,7 +449,21 @@ export function filterPayloadForTable(dbTableName: string, payload: any): any {
   const filtered: any = {};
   for (const key of Object.keys(payload)) {
     if (columns.includes(key)) {
-      filtered[key] = payload[key];
+      let val = payload[key];
+      
+      // If it is the primary key 'id', skip if it's empty so PG can auto-generate the UUID
+      if (key === 'id' && (val === undefined || val === null || val === '')) {
+        continue;
+      }
+
+      // Convert empty string to null for foreign key UUIDs to prevent PG syntax/validation errors
+      if (key.endsWith('_id') && !key.includes('driver_id') && val === '') {
+        val = null;
+      }
+
+      if (val !== undefined) {
+        filtered[key] = val;
+      }
     }
   }
   return filtered;
@@ -1781,71 +1795,149 @@ export function fileToBase64(file: File): Promise<string> {
 }
 
 // Upload a document or image to Cloudinary using the sign-upload Edge function
-export async function uploadToCloudinary(file: File): Promise<string> {
+export interface CloudinaryUploadResult {
+  url: string;
+  public_id: string;
+  resource_type: string;
+}
+
+export async function uploadToCloudinary(file: File, folder: string = 'inspections'): Promise<CloudinaryUploadResult> {
+  const defaultFallback: CloudinaryUploadResult = {
+    url: `https://res.cloudinary.com/demo/image/upload/v1/samples/sample.jpg`,
+    public_id: `samples/sample`,
+    resource_type: `image`
+  };
+
   if (!isSupabaseConfigured || !supabase) {
     // offline fallback mode: return a temporary valid URL
-    return `https://res.cloudinary.com/demo/image/upload/sample.jpg?file=${encodeURIComponent(file.name)}`;
+    return {
+      url: `https://res.cloudinary.com/demo/image/upload/sample.jpg?file=${encodeURIComponent(file.name)}`,
+      public_id: `sample`,
+      resource_type: `image`
+    };
   }
 
   try {
-    const base64Data = await fileToBase64(file);
-    const { data, error } = await supabase.functions.invoke('sign-upload', {
-      body: {
-        filename: file.name,
-        filetype: file.type,
-        file: base64Data
-      }
+    const fullFolder = folder.startsWith('inyathi/') ? folder : `inyathi/${folder}`;
+    
+    // Get a signed upload token from the edge function
+    const { data: sigData, error: sigError } = await supabase.functions.invoke('sign-upload', {
+      body: { folder: fullFolder }
     });
 
-    if (error) {
-      console.warn('Supabase sign-upload failed, using standard form-data signature fallback:', error);
+    if (sigError || !sigData) {
+      console.error('[uploadToCloudinary] sign-upload failed:', sigError);
+      throw new Error(sigError?.message || 'Could not generate upload signature.');
     }
 
-    if (data?.secure_url || data?.url) {
-      return data.secure_url || data.url;
+    const isRaw = file.type === 'application/pdf' ||
+      file.type.includes('word') || file.type.includes('excel') ||
+      file.type.includes('spreadsheet') || file.type.includes('ms-excel');
+    const resourceType = isRaw ? 'raw' : 'auto';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('api_key', String(sigData.api_key));
+    formData.append('timestamp', String(sigData.timestamp));
+    formData.append('signature', sigData.signature);
+    formData.append('upload_preset', sigData.upload_preset);
+    formData.append('folder', sigData.folder);
+    formData.append('type', sigData.type || 'upload');
+
+    const uploadUrl = `https://api.cloudinary.com/v1_1/${sigData.cloud_name}/${resourceType}/upload`;
+    const res = await fetch(uploadUrl, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    const json = await res.json();
+    if (!res.ok) {
+      console.error('[uploadToCloudinary] Cloudinary upload rejected:', json.error?.message || json);
+      throw new Error(json.error?.message || 'Cloudinary upload rejected the file.');
     }
 
-    // Secondary fallback: if the edge function returns credentials to perform client upload
-    if (data?.signature && data?.timestamp) {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('api_key', data.api_key || data.apiKey || '');
-      formData.append('timestamp', data.timestamp);
-      formData.append('signature', data.signature);
-      if (data.folder) {
-        formData.append('folder', data.folder);
-      }
-
-      const uploadUrl = data.upload_url || `https://api.cloudinary.com/v1_1/${data.cloud_name || 'demo'}/image/upload`;
-      const res = await fetch(uploadUrl, {
-        method: 'POST',
-        body: formData
-      });
-      const resJson = await res.json();
-      return resJson.secure_url || resJson.url || '';
-    }
-
-    throw new Error('Could not upload file to Cloudinary');
+    return {
+      url: json.secure_url || json.url,
+      public_id: json.public_id,
+      resource_type: resourceType === 'auto' ? 'image' : resourceType
+    };
   } catch (error) {
     console.error('Cloudinary upload failed:', error);
-    return `https://res.cloudinary.com/demo/image/upload/v1/samples/sample.jpg`;
+    return defaultFallback;
   }
 }
 
 // Get secure viewing/download URL for Cloudinary files via get-signed-url Edge function
-export async function getSignedUrlForView(url: string): Promise<string> {
-  if (!isSupabaseConfigured || !supabase || !url) return url;
+export async function getSignedUrlForView(input: string | any): Promise<string> {
+  if (!isSupabaseConfigured || !supabase || !input) {
+    return typeof input === 'object' ? input.url || '' : input || '';
+  }
   try {
-    const { data, error } = await supabase.functions.invoke('get-signed-url', {
-      body: { url }
-    });
-    if (!error && (data?.signedUrl || data?.url)) {
-      return data.signedUrl || data.url;
+    let publicId = '';
+    let resourceType = 'raw';
+    let fallbackUrl = '';
+
+    if (typeof input === 'object') {
+      publicId = input.public_id || input.publicId || '';
+      resourceType = input.resource_type || input.resourceType || 'raw';
+      fallbackUrl = input.url || input.secure_url || '';
+    } else if (typeof input === 'string') {
+      fallbackUrl = input;
+      if (input.trim().startsWith('{')) {
+        try {
+          const parsed = JSON.parse(input);
+          if (parsed.public_id || parsed.publicId) {
+            publicId = parsed.public_id || parsed.publicId;
+            resourceType = parsed.resource_type || parsed.resourceType || 'raw';
+            fallbackUrl = parsed.url || parsed.secure_url || fallbackUrl;
+          }
+        } catch (_) {}
+      }
     }
+
+    if (!publicId && typeof fallbackUrl === 'string' && fallbackUrl.includes('cloudinary.com')) {
+      const parts = fallbackUrl.split('/');
+      const uploadIdx = parts.indexOf('upload');
+      if (uploadIdx !== -1 && uploadIdx + 2 < parts.length) {
+        const resTypeCandidate = parts[uploadIdx - 1];
+        if (['image', 'video', 'raw'].includes(resTypeCandidate)) {
+          resourceType = resTypeCandidate;
+        } else {
+          resourceType = 'auto';
+        }
+
+        let publicIdParts = parts.slice(uploadIdx + 2);
+        if (parts[uploadIdx + 1].match(/^v\d+$/)) {
+          publicIdParts = parts.slice(uploadIdx + 2);
+        } else {
+          publicIdParts = parts.slice(uploadIdx + 1);
+        }
+
+        let fullPublicId = publicIdParts.join('/');
+        if (resourceType === 'image' || resourceType === 'video') {
+          const dotIdx = fullPublicId.lastIndexOf('.');
+          if (dotIdx !== -1) {
+            fullPublicId = fullPublicId.substring(0, dotIdx);
+          }
+        }
+        publicId = fullPublicId;
+      }
+    }
+
+    if (publicId) {
+      const { data, error } = await supabase.functions.invoke('get-signed-url', {
+        body: { publicId, resourceType }
+      });
+      if (!error && data?.signedUrl) {
+        return data.signedUrl;
+      }
+    }
+
+    return fallbackUrl || (typeof input === 'string' ? input : '');
   } catch (err) {
     console.warn('Could not fetch signed viewing URL from Edge function:', err);
   }
-  return url;
+  return typeof input === 'object' ? input.url || '' : input || '';
 }
 
 // Export database tables/sheets as standard CSV files for offline spreadsheets
