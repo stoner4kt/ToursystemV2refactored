@@ -1187,7 +1187,7 @@ export const authApi = {
           created_at: newProfile.created_at,
           updated_at: newProfile.updated_at
         });
-        await supabase.from('profiles').insert([profilePayload]);
+        await supabase.from('profiles').upsert(profilePayload);
       } catch (e) {
         console.warn('Could not insert profile row in Supabase:', e);
       }

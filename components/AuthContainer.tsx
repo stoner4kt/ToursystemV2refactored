@@ -9,9 +9,27 @@ interface AuthContainerProps {
 }
 
 export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
-  const [role, setRole] = useState<'admin' | 'driver'>('admin');
-  const [email, setEmail] = useState('');
+  const [activeTab, setActiveTab] = useState<'login' | 'signup'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('email') || params.get('signup') === 'true' ? 'signup' : 'login';
+    }
+    return 'login';
+  });
+  const [role, setRole] = useState<'admin' | 'driver'>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('email') ? 'driver' : 'admin';
+    }
+    return 'admin';
+  });
+  const [email, setEmail] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('email') || '';
+    }
+    return '';
+  });
   const [password, setPassword] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [name, setName] = useState('');

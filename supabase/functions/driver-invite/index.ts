@@ -90,7 +90,7 @@ serve(async (req: Request) => {
     if (inviteRowError) return json({ error: inviteRowError.message || 'Unable to save driver invite.' }, 500);
 
     const siteUrl = getSiteUrl(req);
-    const redirectTo = `${siteUrl}/driver-signup.html?email=${encodeURIComponent(normalizedEmail)}`;
+    const redirectTo = `${siteUrl}/?signup=true&email=${encodeURIComponent(normalizedEmail)}`;
 
     const { error: authInviteError } = await adminClient.auth.admin.inviteUserByEmail(normalizedEmail, {
       data: { full_name: normalizedName, role: 'driver' },
