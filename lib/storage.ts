@@ -368,20 +368,23 @@ export const TABLE_MAP: Record<string, string> = {
 };
 
 export const TABLE_COLUMNS: Record<string, string[]> = {
-  profiles: ['id', 'driver_id', 'name', 'phone', 'role', 'is_active', 'created_at', 'updated_at'],
-  vehicles: ['id', 'registration_no', 'model', 'make', 'year', 'current_mileage', 'next_service_km', 'status', 'notes', 'created_at', 'updated_at'],
+  profiles: ['id', 'driver_id', 'name', 'phone', 'role', 'is_active', 'created_at', 'updated_at', 'email', 'location'],
+  vehicles: ['id', 'registration_no', 'model', 'make', 'year', 'current_mileage', 'next_service_km', 'status', 'notes', 'assigned_driver_id', 'created_at', 'updated_at', 'color', 'location'],
   bookings: [
-    'id', 'invoice_no', 'client_name', 'route', 'start_date', 'end_date', 'assigned_driver_id',
-    'assigned_vehicle_reg', 'status', 'notes', 'created_at', 'updated_at', 'booking_documents',
-    'receipt_number', 'maintenance_alert_sent', 'maintenance_alert_sent_at', 'itinerary_url',
-    'itinerary_filename', 'itinerary_uploaded_at', 'last_modified_at', 'modification_reason',
-    'is_rented_vehicle', 'rented_vehicle_id', 'rented_vehicle_reg', 'rented_vehicle_model',
-    'location', 'start_time', 'end_time', 'rental_period'
+    'id', 'invoice_no', 'client_name', 'tour_reference', 'start_date', 'end_date', 'assigned_driver_id',
+    'assigned_vehicle_reg', 'status', 'notes', 'created_at', 'updated_at', 'payment_status',
+    'is_locked', 'pre_trip_inspection_id', 'post_trip_inspection_id', 'completed_by', 'completed_at',
+    'booking_documents', 'receipt_number', 'receipt_uploaded_at', 'itinerary_url', 'itinerary_filename',
+    'itinerary_uploaded_by', 'itinerary_uploaded_at', 'locked_at', 'locked_reason', 'last_modified_by',
+    'last_modified_at', 'modification_reason', 'maintenance_alert_sent', 'maintenance_alert_sent_at',
+    'start_time', 'end_time', 'rental_period', 'is_rented_vehicle', 'rented_vehicle_id',
+    'rented_vehicle_reg', 'rented_vehicle_model', 'location'
   ],
   inspections: [
     'id', 'invoice_no', 'vehicle_reg', 'driver_id', 'inspection_type', 'checklist_json',
     'faults_json', 'media_urls', 'mileage_at_inspection', 'notes', 'has_critical_fault',
-    'alert_sent', 'created_at'
+    'alert_sent', 'created_at', 'client_signature', 'driver_signature', 'submitted_at',
+    'pdf_urls', 'is_rented_vehicle', 'rented_vehicle_model'
   ],
   recon_sheets: [
     'id', 'driver_id', 'week_start', 'week_end', 'tour_reference', 'tour_vehicle', 'vehicle_reg',
@@ -390,18 +393,21 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     'accommodation', 'total_profit_loss', 'director_sign_off', 'vehicle_issues', 'accidents_incidents',
     'traffic_violations', 'safety_concerns', 'maintenance_needed', 'fuel_consumption', 'tires_condition',
     'fatigue_level', 'stress_level', 'health_issues', 'driver_notes', 'admin_review_notes',
-    'edit_request_status', 'edit_request_reason', 'edit_request_sent_at', 'edit_request_approved_by',
-    'edit_request_approved_at', 'edit_request_rejection_reason', 'status', 'submitted_at',
-    'reviewed_by', 'reviewed_at', 'created_at', 'updated_at', 'slip_image_urls'
+    'status', 'submitted_at', 'reviewed_by', 'reviewed_at', 'created_at', 'updated_at',
+    'edit_request_status', 'edit_request_reason', 'edit_request_fields', 'edit_request_sent_at',
+    'edit_request_approved_by', 'edit_request_approved_at', 'edit_request_rejected_reason',
+    'edit_request_rejected_at', 'edit_request_rejection_reason', 'slip_image_urls'
   ],
   driver_invites: ['email', 'full_name', 'invited_by', 'invited_at', 'used_at', 'location'],
   transfer_recon_sheets: [
     'id', 'driver_id', 'week_start', 'week_end', 'transfers', 'status', 'submitted_at',
-    'reviewed_by', 'reviewed_at', 'created_at', 'updated_at'
+    'reviewed_by', 'reviewed_at', 'created_at', 'updated_at',
+    'edit_request_status', 'edit_request_reason', 'edit_request_sent_at', 'edit_request_approved_by',
+    'edit_request_approved_at', 'edit_request_rejection_reason'
   ],
   otp_verifications: [
-    'id', 'admin_id', 'resource_type', 'resource_id', 'otp_hash', 'created_at', 'expires_at',
-    'verified_at', 'attempts'
+    'id', 'admin_id', 'resource_type', 'resource_id', 'otp_hash', 'otp_plain', 'created_at', 'expires_at',
+    'verified_at', 'attempts', 'locked_until'
   ],
   booking_edit_log: [
     'id', 'booking_id', 'admin_id', 'action', 'reason', 'old_values', 'new_values', 'approved_at',
@@ -414,7 +420,7 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
   ],
   rented_vehicles: [
     'id', 'supplier', 'reg_no', 'make', 'model', 'start_date', 'end_date', 'daily_rate',
-    'supplier_ref', 'status', 'notes', 'created_at'
+    'supplier_ref', 'status', 'notes', 'created_at', 'assigned_booking_id', 'assigned_driver_id'
   ],
   traffic_fines: [
     'id', 'booking_id', 'vehicle_reg', 'driver_id', 'fine_timestamp', 'fine_reference', 'location',
@@ -426,9 +432,9 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     'reviewed_by', 'reviewed_at', 'created_at'
   ],
   incident_reports: [
-    'id', 'booking_id', 'driver_id', 'vehicle_reg', 'incident_type', 'description', 'location',
-    'injuries', 'photo_urls', 'document_urls', 'status', 'admin_notes', 'reviewed_by', 'reviewed_at',
-    'created_at', 'updated_at'
+    'id', 'booking_id', 'driver_id', 'vehicle_reg', 'incident_date', 'incident_type', 'description', 'location',
+    'injuries', 'police_report', 'damage_photos', 'pdf_url', 'status', 'admin_notes', 'reviewed_by', 'reviewed_at',
+    'created_at', 'updated_at', 'photo_urls', 'document_urls'
   ],
   vehicle_checklists: [
     'id', 'vehicle_reg', 'driver_id', 'checklist_date', 'exterior', 'interior', 'mechanical',
@@ -473,6 +479,13 @@ export function transformPayloadForPush(dbTableName: string, data: any): any {
   if (!data) return data;
   let prepared = { ...data };
 
+  if (dbTableName === 'bookings') {
+    prepared = {
+      ...prepared,
+      tour_reference: data.tour_reference || data.route || ''
+    };
+  }
+
   if (dbTableName === 'vehicle_checklists') {
     prepared = {
       id: data.id,
@@ -505,6 +518,13 @@ export function transformPayloadForPush(dbTableName: string, data: any): any {
 
 export function transformPayloadForPull(dbTableName: string, data: any[]): any[] {
   if (!Array.isArray(data)) return data;
+
+  if (dbTableName === 'bookings') {
+    return data.map((row: any) => ({
+      ...row,
+      route: row.tour_reference || row.route || ''
+    }));
+  }
 
   if (dbTableName === 'vehicle_checklists') {
     return data.map((row: any) => ({
@@ -1893,6 +1913,10 @@ export async function getSignedUrlForView(input: string | any): Promise<string> 
           }
         } catch (_) {}
       }
+    }
+
+    if (fallbackUrl && fallbackUrl.includes('cloudinary.com') && fallbackUrl.includes('/upload/')) {
+      return fallbackUrl;
     }
 
     if (!publicId && typeof fallbackUrl === 'string' && fallbackUrl.includes('cloudinary.com')) {
