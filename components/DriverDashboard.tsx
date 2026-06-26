@@ -1108,12 +1108,12 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                         </div>
                         <div>
                           <span className="block text-[8px] uppercase text-slate-500">Trip Expenses</span>
-                          <span className="font-bold text-slate-300">R {(rec.trip_budget - rec.total_profit_loss).toFixed(2)}</span>
+                          <span className="font-bold text-slate-300">R {(Number(rec.trip_budget || 0) - Number(rec.total_profit_loss || 0)).toFixed(2)}</span>
                         </div>
                         <div>
                           <span className="block text-[8px] uppercase text-slate-500">Net Return</span>
-                          <span className={`font-bold ${rec.total_profit_loss >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            R {rec.total_profit_loss.toFixed(2)}
+                          <span className={`font-bold ${Number(rec.total_profit_loss || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            R {Number(rec.total_profit_loss || 0).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -1379,7 +1379,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
 
                       <div className="flex justify-between items-center text-xs text-slate-300 bg-slate-900/60 p-2.5 rounded border border-slate-800">
                         <span>Passenger Transfers: <strong className="text-white">{ts.transfers.length}</strong></span>
-                        <span>Total Wage Earnings: <strong className="text-teal-400">R {ts.transfers.reduce((sum, curr) => sum + curr.amount, 0).toFixed(2)}</strong></span>
+                        <span>Total Wage Earnings: <strong className="text-teal-400">R {ts.transfers.reduce((sum, curr) => sum + Number(curr.amount || 0), 0).toFixed(2)}</strong></span>
                       </div>
 
                       <div className="flex gap-1.5 pt-1.5 justify-end">

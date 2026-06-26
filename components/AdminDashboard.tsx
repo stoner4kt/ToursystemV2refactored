@@ -341,7 +341,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       email: inviteEmail,
       full_name: inviteName,
       location: region,
-      invited_by: admin.driver_id,
+      invited_by: admin.id || admin.driver_id,
       invited_at: new Date().toISOString()
     });
 
@@ -509,8 +509,9 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
           if (!wageDetails[rec.driver_id]) {
             wageDetails[rec.driver_id] = { driverName: name, tripReconsAmount: 0, transfersAmount: 0, total: 0, sheetsCount: 0 };
           }
-          wageDetails[rec.driver_id].tripReconsAmount += rec.driver_rate;
-          wageDetails[rec.driver_id].total += rec.driver_rate;
+          const rate = Number(rec.driver_rate || 0);
+          wageDetails[rec.driver_id].tripReconsAmount += rate;
+          wageDetails[rec.driver_id].total += rate;
           wageDetails[rec.driver_id].sheetsCount += 1;
         }
       }
@@ -1131,20 +1132,20 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-slate-50 p-3 rounded-lg border border-slate-150">
                           <div>
                             <span className="text-slate-400 block text-[10px]">Trip Budget Allocation</span>
-                            <span className="font-black text-slate-800">R {rec.trip_budget.toFixed(2)}</span>
+                            <span className="font-black text-slate-800">R {Number(rec.trip_budget || 0).toFixed(2)}</span>
                           </div>
                           <div>
                             <span className="text-slate-400 block text-[10px]">Driver Food & Wage rate</span>
-                            <span className="font-bold text-slate-700">R {(rec.driver_food + rec.driver_rate).toFixed(2)}</span>
+                            <span className="font-bold text-slate-700">R {(Number(rec.driver_food || 0) + Number(rec.driver_rate || 0)).toFixed(2)}</span>
                           </div>
                           <div>
                             <span className="text-slate-400 block text-[10px]">Flights & Accommodation</span>
-                            <span className="font-bold text-slate-700">R {(rec.flights_to_from + rec.accommodation).toFixed(2)}</span>
+                            <span className="font-bold text-slate-700">R {(Number(rec.flights_to_from || 0) + Number(rec.accommodation || 0)).toFixed(2)}</span>
                           </div>
                           <div>
                             <span className="text-slate-400 block text-[10px]">Total Profit / Loss</span>
-                            <span className={`font-black ${rec.total_profit_loss >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              R {rec.total_profit_loss.toFixed(2)}
+                            <span className={`font-black ${Number(rec.total_profit_loss || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              R {Number(rec.total_profit_loss || 0).toFixed(2)}
                             </span>
                           </div>
                         </div>
@@ -1246,7 +1247,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
 
                         <div className="text-xs bg-slate-50 p-3 rounded-lg border border-slate-150 flex justify-between items-center">
                           <span className="text-slate-500">Total Wage rate earnings payout:</span>
-                          <span className="font-black text-teal-600 text-sm">R {totalWage.toFixed(2)}</span>
+                          <span className="font-black text-teal-600 text-sm">R {Number(totalWage || 0).toFixed(2)}</span>
                         </div>
 
                         {/* Audit transfers rows */}
@@ -1399,10 +1400,10 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                             <span className="text-[10px] text-slate-400">ID: {driverId}</span>
                           </td>
                           <td className="p-3 font-semibold text-slate-600">{details.sheetsCount} sheets signed off</td>
-                          <td className="p-3 font-bold text-slate-800">R {details.tripReconsAmount.toFixed(2)}</td>
-                          <td className="p-3 font-bold text-slate-800">R {details.transfersAmount.toFixed(2)}</td>
+                          <td className="p-3 font-bold text-slate-800">R {Number(details.tripReconsAmount || 0).toFixed(2)}</td>
+                          <td className="p-3 font-bold text-slate-800">R {Number(details.transfersAmount || 0).toFixed(2)}</td>
                           <td className="p-3 text-right font-black text-teal-600 text-sm">
-                            R {details.total.toFixed(2)}
+                            R {Number(details.total || 0).toFixed(2)}
                           </td>
                         </tr>
                       ))

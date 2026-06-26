@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 // Define TypeScript interfaces for our INYATHI Database Schema
 export interface Profile {
+  id?: string;
   driver_id: string; // DRV-XXXXXX
   name: string;
   phone: string;
@@ -457,14 +458,28 @@ export function filterPayloadForTable(dbTableName: string, payload: any): any {
     if (columns.includes(key)) {
       let val = payload[key];
       
-      // If it is the primary key 'id', skip if it's empty so PG can auto-generate the UUID
-      if (key === 'id' && (val === undefined || val === null || val === '')) {
-        continue;
+      // If it is the primary key 'id', skip if it's empty or invalid UUID so PG can auto-generate the UUID
+      if (key === 'id') {
+        if (val === undefined || val === null || val === '') {
+          continue;
+        }
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (typeof val === 'string' && !uuidRegex.test(val)) {
+          continue;
+        }
       }
 
-      // Convert empty string to null for foreign key UUIDs to prevent PG syntax/validation errors
-      if (key.endsWith('_id') && !key.includes('driver_id') && val === '') {
-        val = null;
+      // Convert empty string or invalid UUID to null for foreign key UUIDs to prevent PG syntax/validation errors
+      const isUuidForeignKey = key === 'completed_by' || key === 'reviewed_by' || key === 'invited_by' || key === 'requested_by' || key === 'logged_by_admin_id' || key === 'admin_id' || (key.endsWith('_id') && !key.includes('driver_id'));
+      if (isUuidForeignKey) {
+        if (val === '' || val === undefined || val === null) {
+          val = null;
+        } else {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (typeof val === 'string' && !uuidRegex.test(val)) {
+            val = null;
+          }
+        }
       }
 
       if (val !== undefined) {
@@ -506,9 +521,18 @@ export function transformPayloadForPush(dbTableName: string, data: any): any {
   }
 
   if (dbTableName === 'recon_sheets') {
-    const { cost_lines, ...rest } = data;
+    const { cost_lines, flights_to_from, ...rest } = data;
     prepared = {
       ...rest,
+      flights_to: String(flights_to_from || 0),
+      flights_from: '0',
+      trip_budget: String(data.trip_budget || 0),
+      trip_cost: String(data.trip_cost || 0),
+      driver_food: String(data.driver_food || 0),
+      driver_rate: String(data.driver_rate || 0),
+      accommodation: String(data.accommodation || 0),
+      total_profit_loss: String(data.total_profit_loss || 0),
+      director_sign_off: String(data.director_sign_off || false),
       cost_lines_text: Array.isArray(cost_lines) ? JSON.stringify(cost_lines) : ''
     };
   }
@@ -564,9 +588,27 @@ export function transformPayloadForPull(dbTableName: string, data: any[]): any[]
           cost_lines = [];
         }
       }
+      const fTo = Number(row.flights_to || 0);
+      const fFrom = Number(row.flights_from || 0);
+      const flights_to_from = fTo + fFrom;
       return {
         ...row,
-        cost_lines
+        cost_lines,
+        flights_to_from,
+        trip_budget: Number(row.trip_budget || 0),
+        trip_cost: Number(row.trip_cost || 0),
+        driver_food: Number(row.driver_food || 0),
+        driver_rate: Number(row.driver_rate || 0),
+        accommodation: Number(row.accommodation || 0),
+        total_profit_loss: Number(row.total_profit_loss || 0),
+        director_sign_off: row.director_sign_off === 'true' || row.director_sign_off === true,
+        start_km: Number(row.start_km || 0),
+        end_km: Number(row.end_km || 0),
+        total_distance_km: Number(row.total_distance_km || 0),
+        trips_completed: Number(row.trips_completed || 0),
+        total_hours: Number(row.total_hours || 0),
+        fatigue_level: Number(row.fatigue_level || 5),
+        stress_level: Number(row.stress_level || 5)
       };
     });
   }
@@ -1027,6 +1069,7 @@ export const authApi = {
 
         if (profileData) {
           profile = {
+            id: profileData.id || data.user?.id,
             driver_id: profileData.driver_id || profileData.id || `DRV-${data.user?.id?.substring(0, 6).toUpperCase() || 'UNKNOWN'}`,
             name: profileData.name || profileData.full_name || email.split('@')[0].toUpperCase(),
             phone: profileData.phone || '+27 82 555 1234',
@@ -1044,6 +1087,7 @@ export const authApi = {
 
       if (!profile) {
         profile = {
+          id: data.user?.id,
           driver_id: `DRV-${data.user?.id?.substring(0, 6).toUpperCase() || 'UNKNOWN'}`,
           name: email.split('@')[0].toUpperCase(),
           phone: '+27 82 555 1234',
@@ -1118,6 +1162,7 @@ export const authApi = {
       }
 
       const newProfile: Profile = {
+        id: data.user?.id,
         driver_id: `DRV-${data.user?.id?.substring(0, 6).toUpperCase() || Math.random().toString(36).substring(2, 8).toUpperCase()}`,
         name: name,
         phone: phone,
@@ -1294,13 +1339,14 @@ export const driversApi = {
 
     // Call Supabase Edge Function to invite driver
     if (isSupabaseConfigured && supabase) {
-      supabase.functions.invoke('driver-invite', {
-        body: {
-          email: invite.email,
-          name: invite.full_name,
-          location: invite.location
-        }
-      }).catch(err => console.error("Error triggering driver-invite function:", err));
+       supabase.functions.invoke('driver-invite', {
+         body: {
+           email: invite.email,
+           name: invite.full_name,
+           fullName: invite.full_name,
+           location: invite.location
+         }
+       }).catch(err => console.error("Error triggering driver-invite function:", err));
     }
 
     return invite;

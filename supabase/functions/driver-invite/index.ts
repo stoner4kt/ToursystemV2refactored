@@ -62,7 +62,10 @@ serve(async (req: Request) => {
     if (profileError && !isAdmin) return json({ error: `Unable to verify admin role (${profileError.message}).` }, 403);
     if (!isAdmin) return json({ error: 'Forbidden: admin account required.' }, 403);
 
-    const { email, fullName, location } = await req.json();
+    const body = await req.json();
+    const email = body.email;
+    const fullName = body.fullName || body.name;
+    const location = body.location;
     const normalizedEmail = String(email || '').trim().toLowerCase();
     const normalizedName = String(fullName || '').trim();
     const normalizedLocation = String(location || '').trim();
