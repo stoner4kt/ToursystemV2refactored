@@ -351,20 +351,42 @@ export const STORAGE_KEYS = {
 };
 
 export async function pushToSupabase(tableName: string, data: any, matchColumn: string, matchValue: any) {
-  if (!isSupabaseConfigured || !supabase) return;
+  if (!isSupabaseConfigured || !supabase) {
+    console.log(`Supabase not configured or client null. Skipping push to ${tableName}.`);
+    return;
+  }
   try {
+    console.log(`[Supabase Push] Attempting upsert on '${tableName}' for matching ${matchColumn} = ${matchValue}`);
     const { error } = await supabase.from(tableName).upsert(data, { onConflict: matchColumn });
     if (error) {
+      console.warn(`[Supabase Push] Upsert failed for '${tableName}', trying manual fallback. Error:`, error.message || error);
       // Fallback manual upsert
-      const { data: existing } = await supabase.from(tableName).select(matchColumn).eq(matchColumn, matchValue).maybeSingle();
-      if (existing) {
-        await supabase.from(tableName).update(data).eq(matchColumn, matchValue);
-      } else {
-        await supabase.from(tableName).insert([data]);
+      const { data: existing, error: selectError } = await supabase.from(tableName).select(matchColumn).eq(matchColumn, matchValue).maybeSingle();
+      if (selectError) {
+        console.error(`[Supabase Push] Fallback select error on '${tableName}':`, selectError.message || selectError);
       }
+      if (existing) {
+        console.log(`[Supabase Push] Row exists in '${tableName}', performing update.`);
+        const { error: updateError } = await supabase.from(tableName).update(data).eq(matchColumn, matchValue);
+        if (updateError) {
+          console.error(`[Supabase Push] Fallback update failed on '${tableName}':`, updateError.message || updateError);
+        } else {
+          console.log(`[Supabase Push] Fallback update succeeded on '${tableName}'.`);
+        }
+      } else {
+        console.log(`[Supabase Push] Row does not exist in '${tableName}', performing insert.`);
+        const { error: insertError } = await supabase.from(tableName).insert([data]);
+        if (insertError) {
+          console.error(`[Supabase Push] Fallback insert failed on '${tableName}':`, insertError.message || insertError);
+        } else {
+          console.log(`[Supabase Push] Fallback insert succeeded on '${tableName}'.`);
+        }
+      }
+    } else {
+      console.log(`[Supabase Push] Upsert succeeded on '${tableName}'.`);
     }
-  } catch (error) {
-    console.warn(`Error writing to Supabase table ${tableName}:`, error);
+  } catch (error: any) {
+    console.error(`[Supabase Push] Exception writing to Supabase table ${tableName}:`, error.message || error);
   }
 }
 
@@ -398,11 +420,14 @@ export async function syncAllFromSupabase() {
     for (const t of tables) {
       try {
         const { data, error } = await supabase.from(t.name).select('*');
-        if (!error && data) {
+        if (error) {
+          console.error(`[Supabase Sync] Error fetching table '${t.name}':`, error.message || error);
+        } else if (data) {
+          console.log(`[Supabase Sync] Successfully synchronized ${data.length} rows from table '${t.name}'.`);
           setLocalStorageItem(t.key, data);
         }
-      } catch (e) {
-        console.warn(`Could not sync table ${t.name} from Supabase:`, e);
+      } catch (e: any) {
+        console.warn(`[Supabase Sync] Exception when syncing table ${t.name}:`, e.message || e);
       }
     }
   } catch (error) {
