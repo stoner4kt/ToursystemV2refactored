@@ -1520,13 +1520,26 @@ export const inspectionsApi = {
                      (inspection.faults_json && Object.keys(inspection.faults_json).length > 0);
 
     if (hasFault && isSupabaseConfigured && supabase) {
+      // Format faults as an array of strings for the Edge function
+      const failedItems = Object.entries(inspection.checklist_json || {})
+        .filter(([_, v]) => v === 'fail' || v === 'flag')
+        .map(([item, v]) => `${item.replace(/_/g, ' ')} (${v.toUpperCase()})`);
+      const faultDescEntries = Object.entries(inspection.faults_json || {})
+        .filter(([_, desc]) => desc && desc.trim())
+        .map(([item, desc]) => `${item.replace(/_/g, ' ')}: ${desc}`);
+      const faultsArray = [...new Set([...failedItems, ...faultDescEntries])];
+      if (faultsArray.length === 0) {
+        faultsArray.push('Operational safety warning / fault flagged');
+      }
+
       supabase.functions.invoke('fault-alert', {
         body: { 
           inspection_id: inspection.id,
           invoice_no: inspection.invoice_no,
           vehicle_reg: inspection.vehicle_reg,
+          driver_id: inspection.driver_id,
           checklist: inspection.checklist_json,
-          faults: inspection.faults_json,
+          faults: faultsArray,
           notes: inspection.notes
         }
       }).catch(err => console.error("Error triggering fault-alert function:", err));

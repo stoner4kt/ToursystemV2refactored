@@ -36,6 +36,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
   const [inspectionMileage, setInspectionMileage] = useState<number>(0);
   const [inspectionSignature, setInspectionSignature] = useState('');
   const [inspectionsList, setInspectionsList] = useState<Inspection[]>([]);
+  const [inspectionMedia, setInspectionMedia] = useState<Record<string, string>>({});
+  const [uploadingMediaKeys, setUploadingMediaKeys] = useState<Record<string, boolean>>({});
 
   // Weekly Recon Form State
   const [recons, setRecons] = useState<ReconSheet[]>([]);
@@ -261,6 +263,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     setInspectionFaults({});
     setInspectionNotes('');
     setInspectionSignature('');
+    setInspectionMedia({});
+    setUploadingMediaKeys({});
     setShowInspectionModal(true);
   };
 
@@ -272,11 +276,33 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     setInspectionFaults(prev => ({ ...prev, [item]: desc }));
   };
 
+  const handleInspectionMediaUpload = async (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setUploadingMediaKeys(prev => ({ ...prev, [key]: true }));
+    try {
+      const uploadResult = await uploadToCloudinary(file, 'inspections');
+      setInspectionMedia(prev => ({ ...prev, [key]: uploadResult.url }));
+    } catch (err) {
+      alert("Failed to upload mechanical inspection proof photo");
+    } finally {
+      setUploadingMediaKeys(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
   const submitInspection = () => {
     if (!selectedBookingForInspection) return;
 
     // Check if critical faults were selected (any fail counts as critical)
     const hasCritical = Object.values(inspectionChecklist).some(rating => rating === 'fail');
+
+    // Check if any uploads are still pending
+    const isUploadingAny = Object.values(uploadingMediaKeys).some(Boolean);
+    if (isUploadingAny) {
+      alert("Please wait for your inspection photo uploads to complete before submitting.");
+      return;
+    }
 
     const newInspection: Inspection = {
       id: `ins-${Math.random().toString(36).substring(2, 9)}`,
@@ -286,7 +312,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
       inspection_type: inspectionType,
       checklist_json: inspectionChecklist,
       faults_json: inspectionFaults,
-      media_urls: {},
+      media_urls: inspectionMedia,
       mileage_at_inspection: inspectionMileage,
       notes: inspectionNotes,
       has_critical_fault: hasCritical,
@@ -1946,9 +1972,37 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                             onChange={(e) => handleInspectionFaultChange(checkKey, e.target.value)}
                             className="w-full bg-slate-900 border border-slate-800 rounded p-1 text-[10px] text-white"
                           />
-                          <div className="border border-dashed border-slate-800 bg-slate-900 p-1 rounded text-center cursor-pointer flex items-center justify-center gap-1">
-                            <Camera className="w-3.5 h-3.5 text-slate-500" />
-                            <span className="text-[9px] text-slate-400">Capture fault photo (Upload mock)</span>
+                          <div className="relative border border-dashed border-slate-800 hover:border-slate-700 bg-slate-900 p-1.5 rounded text-center cursor-pointer flex items-center justify-center gap-1.5 min-h-[32px] transition-colors overflow-hidden">
+                            {uploadingMediaKeys[checkKey] ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-400" />
+                                <span className="text-[9px] text-teal-400 font-bold">Uploading photo...</span>
+                              </>
+                            ) : inspectionMedia[checkKey] ? (
+                              <>
+                                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-[9px] text-emerald-400 font-bold truncate">Photo Attached ✓</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  capture="environment"
+                                  onChange={(e) => handleInspectionMediaUpload(checkKey, e)}
+                                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <Camera className="w-3.5 h-3.5 text-slate-500" />
+                                <span className="text-[9px] text-slate-400">Capture fault photo (Camera)</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  capture="environment"
+                                  onChange={(e) => handleInspectionMediaUpload(checkKey, e)}
+                                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                />
+                              </>
+                            )}
                           </div>
                         </div>
                       )}

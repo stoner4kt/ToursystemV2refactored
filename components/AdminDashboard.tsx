@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, 
-  Settings, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle
+  Settings, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera
 } from 'lucide-react';
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, BookingDeleteRequest,
@@ -21,7 +21,7 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'fleet' | 'rented' | 'drivers' | 'recons' | 'transfers' | 'wages' | 'fines' | 'expenses' | 'incidents' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'fleet' | 'rented' | 'drivers' | 'recons' | 'transfers' | 'wages' | 'fines' | 'expenses' | 'incidents' | 'inspections' | 'checklists' | 'settings'>('dashboard');
   const [region, setRegion] = useState<'Cape Town' | 'Joburg'>('Cape Town');
   const [otpEnabled, setOtpEnabled] = useState(false);
 
@@ -37,8 +37,45 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   const [vehicleExpenses, setVehicleExpenses] = useState<VehicleExpense[]>([]);
   const [incidentReports, setIncidentReports] = useState<IncidentReport[]>([]);
   const [inspections, setInspections] = useState<Inspection[]>([]);
+  const [selectedInspectionForModal, setSelectedInspectionForModal] = useState<Inspection | null>(null);
   const [checklists, setChecklists] = useState<VehicleChecklist[]>([]);
   const [deleteRequests, setDeleteRequests] = useState<BookingDeleteRequest[]>([]);
+
+  // Inspections and Checklists states
+  const [showLogInspectionModal, setShowLogInspectionModal] = useState(false);
+  const [selectedChecklistForModal, setSelectedChecklistForModal] = useState<VehicleChecklist | null>(null);
+  const [uploadingInspectionMedia, setUploadingInspectionMedia] = useState<Record<string, boolean>>({});
+  
+  const initialInspectionForm = {
+    invoice_no: '',
+    inspection_type: 'pre-trip' as 'pre-trip' | 'post-trip',
+    vehicle_reg: '',
+    driver_id: '',
+    mileage_at_inspection: 0,
+    notes: '',
+    checklist_json: {
+      engine_oil: 'pass' as const,
+      coolant: 'pass' as const,
+      brake_fluid: 'pass' as const,
+      windshield_washer: 'pass' as const,
+      tyres_pressure: 'pass' as const,
+      tyres_tread: 'pass' as const,
+      lights_headlights: 'pass' as const,
+      lights_indicators: 'pass' as const,
+      lights_brake: 'pass' as const,
+      wipers: 'pass' as const,
+      horn: 'pass' as const,
+      bodywork: 'pass' as const,
+    } as Record<string, 'pass' | 'flag' | 'fail'>,
+    faults_json: {} as Record<string, string>,
+    media_urls: {} as Record<string, string>,
+    has_critical_fault: false,
+  };
+  const [newInspectionForm, setNewInspectionForm] = useState(initialInspectionForm);
+
+  // Search/Filter states
+  const [complianceSearch, setComplianceSearch] = useState('');
+  const [checklistSearch, setChecklistSearch] = useState('');
 
   // OTP State
   const [showOtpModal, setShowOtpModal] = useState(false);
@@ -105,6 +142,80 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     setChecklists(checklistsApi.getChecklists());
     setDeleteRequests(bookingsApi.getDeleteRequests());
   }, [region]);
+
+  const handleAdminInspectionMediaUpload = async (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingInspectionMedia(prev => ({ ...prev, [key]: true }));
+    try {
+      const uploadResult = await uploadToCloudinary(file, 'inspections');
+      setNewInspectionForm(prev => {
+        const media = { ...prev.media_urls, [key]: uploadResult.url };
+        return { ...prev, media_urls: media };
+      });
+    } catch (err) {
+      alert("Failed to upload mechanical inspection proof photo");
+    } finally {
+      setUploadingInspectionMedia(prev => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const handleSaveInspection = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newInspectionForm.invoice_no) {
+      alert("Please select a booking invoice.");
+      return;
+    }
+    if (!newInspectionForm.vehicle_reg) {
+      alert("Please specify vehicle registration.");
+      return;
+    }
+    if (!newInspectionForm.driver_id) {
+      alert("Please select or specify a driver.");
+      return;
+    }
+    if (!newInspectionForm.mileage_at_inspection) {
+      alert("Please specify odometer mileage.");
+      return;
+    }
+
+    // Check if any uploads are still pending
+    const isUploadingAny = Object.values(uploadingInspectionMedia).some(Boolean);
+    if (isUploadingAny) {
+      alert("Please wait for all media photo uploads to finish before submitting.");
+      return;
+    }
+
+    const hasCritical = Object.values(newInspectionForm.checklist_json).some(status => status === 'fail');
+
+    const bookingObj = bookings.find(b => b.invoice_no === newInspectionForm.invoice_no);
+    const is_rented_vehicle = bookingObj ? !!bookingObj.is_rented_vehicle : false;
+
+    const createdInspection: Inspection = {
+      id: `ins-${Math.random().toString(36).substring(2, 9)}`,
+      invoice_no: newInspectionForm.invoice_no,
+      vehicle_reg: newInspectionForm.vehicle_reg,
+      driver_id: newInspectionForm.driver_id,
+      inspection_type: newInspectionForm.inspection_type,
+      checklist_json: newInspectionForm.checklist_json,
+      faults_json: newInspectionForm.faults_json,
+      media_urls: newInspectionForm.media_urls,
+      mileage_at_inspection: Number(newInspectionForm.mileage_at_inspection),
+      notes: newInspectionForm.notes,
+      has_critical_fault: hasCritical,
+      is_rented_vehicle,
+      signature_url: '✓ Digitally Certified by Admin',
+      alert_sent: false,
+      created_at: new Date().toISOString()
+    };
+
+    inspectionsApi.saveInspection(createdInspection);
+    setInspections(inspectionsApi.getInspections(region));
+    setShowLogInspectionModal(false);
+    setNewInspectionForm(initialInspectionForm);
+    alert("✅ Operational compliance check logged successfully.");
+  };
 
   // Init & refresh
   useEffect(() => {
@@ -605,6 +716,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                 { id: 'fleet', label: 'Owned Fleet', icon: Car },
                 { id: 'rented', label: 'Rented-In Vehicles', icon: Car },
                 { id: 'drivers', label: 'Manage Drivers', icon: Users },
+                { id: 'inspections', label: 'Compliance Checks', icon: ShieldCheck },
+                { id: 'checklists', label: 'Vehicle Checklists', icon: ClipboardCheck },
                 { id: 'recons', label: 'Trip Recons', icon: FileText },
                 { id: 'transfers', label: 'Transfer Recons', icon: FileText },
                 { id: 'wages', label: 'Wages & Payroll', icon: Landmark },
@@ -722,43 +835,71 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                         <td colSpan={8} className="p-6 text-center text-slate-400 italic">No bookings scheduled in this region.</td>
                       </tr>
                     ) : (
-                      bookings.map(b => (
-                        <tr key={b.invoice_no} className="hover:bg-slate-50/50">
-                          <td className="p-3">
-                            <span className="font-extrabold text-slate-800">{b.invoice_no}</span>
-                            <span className="block text-[10px] text-slate-400 font-medium">Ref: {b.tour_reference}</span>
-                          </td>
-                          <td className="p-3 font-bold text-slate-900">{b.client_name}</td>
-                          <td className="p-3 text-slate-600 font-medium max-w-[200px]">
-                            <span className="truncate block">{b.route}</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {b.itinerary_url && (
-                                <button
-                                  onClick={async () => {
-                                    const signed = await getSignedUrlForView(b.itinerary_url!);
-                                    window.open(signed, '_blank');
-                                  }}
-                                  className="inline-flex items-center gap-0.5 text-[9px] bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 px-1 py-0.5 rounded font-black whitespace-nowrap cursor-pointer"
-                                >
-                                  <FileText className="w-2.5 h-2.5 text-teal-500" /> Itinerary
-                                </button>
-                              )}
-                              {b.booking_documents && b.booking_documents.length > 0 && (
-                                <button
-                                  onClick={async () => {
-                                    const firstDoc = b.booking_documents[0]?.url;
-                                    if (firstDoc) {
-                                      const signed = await getSignedUrlForView(firstDoc);
+                      bookings.map(b => {
+                        const preTrip = inspections.find(ins => ins.invoice_no === b.invoice_no && ins.inspection_type === 'pre-trip');
+                        const postTrip = inspections.find(ins => ins.invoice_no === b.invoice_no && ins.inspection_type === 'post-trip');
+
+                        return (
+                          <tr key={b.invoice_no} className="hover:bg-slate-50/50">
+                            <td className="p-3">
+                              <span className="font-extrabold text-slate-800">{b.invoice_no}</span>
+                              <span className="block text-[10px] text-slate-400 font-medium">Ref: {b.tour_reference}</span>
+                            </td>
+                            <td className="p-3 font-bold text-slate-900">{b.client_name}</td>
+                            <td className="p-3 text-slate-600 font-medium max-w-[200px]">
+                              <span className="truncate block">{b.route}</span>
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {b.itinerary_url && (
+                                  <button
+                                    onClick={async () => {
+                                      const signed = await getSignedUrlForView(b.itinerary_url!);
                                       window.open(signed, '_blank');
-                                    }
-                                  }}
-                                  className="inline-flex items-center gap-0.5 text-[9px] bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 px-1 py-0.5 rounded font-black whitespace-nowrap cursor-pointer"
-                                >
-                                  <Eye className="w-2.5 h-2.5 text-slate-500" /> Docs ({b.booking_documents.length})
-                                </button>
-                              )}
-                            </div>
-                          </td>
+                                    }}
+                                    className="inline-flex items-center gap-0.5 text-[9px] bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 px-1 py-0.5 rounded font-black whitespace-nowrap cursor-pointer"
+                                  >
+                                    <FileText className="w-2.5 h-2.5 text-teal-500" /> Itinerary
+                                  </button>
+                                )}
+                                {b.booking_documents && b.booking_documents.length > 0 && (
+                                  <button
+                                    onClick={async () => {
+                                      const firstDoc = b.booking_documents[0]?.url;
+                                      if (firstDoc) {
+                                        const signed = await getSignedUrlForView(firstDoc);
+                                        window.open(signed, '_blank');
+                                      }
+                                    }}
+                                    className="inline-flex items-center gap-0.5 text-[9px] bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 px-1 py-0.5 rounded font-black whitespace-nowrap cursor-pointer"
+                                  >
+                                    <Eye className="w-2.5 h-2.5 text-slate-500" /> Docs ({b.booking_documents.length})
+                                  </button>
+                                )}
+                                {preTrip && (
+                                  <button
+                                    onClick={() => setSelectedInspectionForModal(preTrip)}
+                                    className={`inline-flex items-center gap-0.5 text-[9px] ${
+                                      preTrip.has_critical_fault 
+                                        ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' 
+                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                    } border px-1.5 py-0.5 rounded font-black whitespace-nowrap cursor-pointer`}
+                                  >
+                                    <Camera className="w-2.5 h-2.5" /> Pre-Trip
+                                  </button>
+                                )}
+                                {postTrip && (
+                                  <button
+                                    onClick={() => setSelectedInspectionForModal(postTrip)}
+                                    className={`inline-flex items-center gap-0.5 text-[9px] ${
+                                      postTrip.has_critical_fault 
+                                        ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' 
+                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                    } border px-1.5 py-0.5 rounded font-black whitespace-nowrap cursor-pointer`}
+                                  >
+                                    <Camera className="w-2.5 h-2.5" /> Post-Trip
+                                  </button>
+                                )}
+                              </div>
+                            </td>
                           <td className="p-3">
                             <span className="font-semibold block">{new Date(b.start_date).toLocaleDateString()}</span>
                             <span className="text-[10px] text-slate-400">{new Date(b.start_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -791,7 +932,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                             </button>
                           </td>
                         </tr>
-                      ))
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -1794,6 +1936,263 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
             </div>
           )}
 
+          {/* ==================== COMPLIANCE & INSPECTIONS TAB ==================== */}
+          {activeTab === 'inspections' && (
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Pre/Post-Trip Compliance Checks</h1>
+                  <p className="text-xs text-slate-500">Audit vehicle mechanical and safety inspections logged by drivers or log official inspections manually.</p>
+                </div>
+                <button
+                  onClick={() => setShowLogInspectionModal(true)}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow transition-colors shrink-0"
+                >
+                  ➕ Log Compliance Check
+                </button>
+              </div>
+
+              {/* Search & Stats Bar */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col md:flex-row gap-4 justify-between items-center">
+                <input
+                  type="text"
+                  placeholder="Filter by Registration, Driver, Invoice..."
+                  value={complianceSearch}
+                  onChange={(e) => setComplianceSearch(e.target.value)}
+                  className="w-full md:w-96 px-3 py-2 bg-white border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
+                />
+                
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="flex items-center gap-1.5 font-bold text-slate-600">
+                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full inline-block"></span>
+                    Compliant: {inspections.filter(i => !i.has_critical_fault).length}
+                  </span>
+                  <span className="flex items-center gap-1.5 font-bold text-slate-600">
+                    <span className="w-2.5 h-2.5 bg-rose-500 rounded-full inline-block"></span>
+                    With Faults: {inspections.filter(i => i.has_critical_fault).length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Table List */}
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-400">
+                        <th className="p-4">Date & Time</th>
+                        <th className="p-4">Type</th>
+                        <th className="p-4">Booking Ref</th>
+                        <th className="p-4">Vehicle</th>
+                        <th className="p-4">Driver</th>
+                        <th className="p-4">Odometer</th>
+                        <th className="p-4 text-center">Safety Status</th>
+                        <th className="p-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                      {inspections.filter(i => {
+                        const searchLower = complianceSearch.toLowerCase();
+                        const driverName = drivers.find(d => d.driver_id === i.driver_id)?.name || i.driver_id || '';
+                        return i.vehicle_reg.toLowerCase().includes(searchLower) ||
+                               i.invoice_no.toLowerCase().includes(searchLower) ||
+                               driverName.toLowerCase().includes(searchLower);
+                      }).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="p-8 text-center text-slate-400 text-xs">
+                            No compliance checks found matching search.
+                          </td>
+                        </tr>
+                      ) : (
+                        inspections.filter(i => {
+                          const searchLower = complianceSearch.toLowerCase();
+                          const driverName = drivers.find(d => d.driver_id === i.driver_id)?.name || i.driver_id || '';
+                          return i.vehicle_reg.toLowerCase().includes(searchLower) ||
+                                 i.invoice_no.toLowerCase().includes(searchLower) ||
+                                 driverName.toLowerCase().includes(searchLower);
+                        }).map(ins => {
+                          const driverName = drivers.find(d => d.driver_id === ins.driver_id)?.name || ins.driver_id;
+                          const hasWarns = ins.checklist_json && Object.values(ins.checklist_json).some(v => v === 'flag');
+                          
+                          return (
+                            <tr key={ins.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="p-4 font-mono text-[11px] text-slate-500">
+                                {new Date(ins.created_at).toLocaleString()}
+                              </td>
+                              <td className="p-4">
+                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                  ins.inspection_type === 'pre-trip' 
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                    : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                }`}>
+                                  {ins.inspection_type}
+                                </span>
+                              </td>
+                              <td className="p-4 font-bold text-slate-950">{ins.invoice_no}</td>
+                              <td className="p-4">
+                                <span className="font-bold text-slate-900 block">{ins.vehicle_reg}</span>
+                              </td>
+                              <td className="p-4 text-slate-600">{driverName}</td>
+                              <td className="p-4 font-mono text-slate-900">{ins.mileage_at_inspection.toLocaleString()} km</td>
+                              <td className="p-4 text-center">
+                                {ins.has_critical_fault ? (
+                                  <span className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                    🚨 CRITICAL FAULT
+                                  </span>
+                                ) : hasWarns ? (
+                                  <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                    ⚠️ WARNINGS
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                    ✓ COMPLIANT
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-4 text-right">
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    onClick={() => setSelectedInspectionForModal(ins)}
+                                    className="px-2.5 py-1 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    View Details
+                                  </button>
+                                  <button
+                                    onClick={() => downloadInspectionPDF(ins, driverName)}
+                                    className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    PDF
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ==================== WEEKLY CHECKLISTS TAB ==================== */}
+          {activeTab === 'checklists' && (
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Weekly Condition Checklists</h1>
+                <p className="text-xs text-slate-500">Periodic weekly inspections and vehicle reports uploaded by dispatching drivers.</p>
+              </div>
+
+              {/* Filter Bar */}
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col md:flex-row gap-4 justify-between items-center">
+                <input
+                  type="text"
+                  placeholder="Filter by Driver..."
+                  value={checklistSearch}
+                  onChange={(e) => setChecklistSearch(e.target.value)}
+                  className="w-full md:w-96 px-3 py-2 bg-white border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
+                />
+                <span className="text-xs font-bold text-slate-500">
+                  Total Logged Checklists: {checklists.length}
+                </span>
+              </div>
+
+              {/* Checklists Table */}
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-400">
+                        <th className="p-4">Week Range</th>
+                        <th className="p-4">Logged At</th>
+                        <th className="p-4">Driver</th>
+                        <th className="p-4">Odometer</th>
+                        <th className="p-4">Overall Status</th>
+                        <th className="p-4">Condition Summary</th>
+                        <th className="p-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                      {checklists.filter(c => {
+                        const searchLower = checklistSearch.toLowerCase();
+                        const driverName = drivers.find(d => d.driver_id === c.driver_id)?.name || c.driver_id || '';
+                        return driverName.toLowerCase().includes(searchLower);
+                      }).length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-slate-400 text-xs">
+                            No weekly checklists found matching search.
+                          </td>
+                        </tr>
+                      ) : (
+                        checklists.filter(c => {
+                          const searchLower = checklistSearch.toLowerCase();
+                          const driverName = drivers.find(d => d.driver_id === c.driver_id)?.name || c.driver_id || '';
+                          return driverName.toLowerCase().includes(searchLower);
+                        }).map(chk => {
+                          const driverName = drivers.find(d => d.driver_id === chk.driver_id)?.name || chk.driver_id;
+                          const hasIssues = Object.values(chk.checklist_data || {}).some(v => v === 'action' || v === 'low');
+                          const activeIssues = Object.entries(chk.checklist_data || {})
+                            .filter(([_, v]) => v === 'action' || v === 'low')
+                            .map(([k, _]) => k.replace(/_/g, ' '));
+                          
+                          return (
+                            <tr key={chk.id} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="p-4 font-bold text-slate-900">
+                                {chk.week_start} to {chk.week_end}
+                              </td>
+                              <td className="p-4 font-mono text-[11px] text-slate-500">
+                                {chk.submitted_at ? new Date(chk.submitted_at).toLocaleString() : 'N/A'}
+                              </td>
+                              <td className="p-4 text-slate-800 font-bold">{driverName}</td>
+                              <td className="p-4 font-mono text-slate-900">{(chk.mileage || 0).toLocaleString()} km</td>
+                              <td className="p-4">
+                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                                  chk.status === 'submitted'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-slate-100 text-slate-600 border-slate-300'
+                                }`}>
+                                  {chk.status}
+                                </span>
+                              </td>
+                              <td className="p-4 max-w-xs truncate">
+                                {hasIssues ? (
+                                  <span className="text-amber-600 font-bold flex items-center gap-1 text-[11px]" title={activeIssues.join(', ')}>
+                                    ⚠️ Issues: {activeIssues.length} ({activeIssues.slice(0, 2).join(', ')}{activeIssues.length > 2 ? '...' : ''})
+                                  </span>
+                                ) : (
+                                  <span className="text-emerald-600 font-bold flex items-center gap-1 text-[11px]">
+                                    ✓ Perfect Condition
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-4 text-right">
+                                <div className="flex justify-end gap-1.5">
+                                  <button
+                                    onClick={() => setSelectedChecklistForModal(chk)}
+                                    className="px-2.5 py-1 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    View Report
+                                  </button>
+                                  <button
+                                    onClick={() => downloadChecklistPDF(chk, driverName)}
+                                    className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                  >
+                                    PDF
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ==================== SECURITY SETTINGS TAB ==================== */}
           {activeTab === 'settings' && (
             <div className="space-y-6">
@@ -2316,6 +2715,529 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                 Record Rented Vehicle
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== OPERATIONAL COMPLIANCE INSPECTION VIEW MODAL ==================== */}
+      {selectedInspectionForModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">
+                  {selectedInspectionForModal.inspection_type} Compliance Check
+                </h3>
+                <p className="text-[10px] text-slate-400 font-medium">
+                  Logged on {new Date(selectedInspectionForModal.created_at).toLocaleString()}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedInspectionForModal(null)}
+                className="text-slate-400 hover:text-slate-600 font-extrabold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs bg-slate-50 p-3 rounded-lg border border-slate-100">
+              <div>
+                <span className="text-slate-400 block mb-0.5">Booking Invoice</span>
+                <span className="font-bold text-slate-800 block">{selectedInspectionForModal.invoice_no}</span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">Driver</span>
+                <span className="font-bold text-slate-800 block">
+                  {drivers.find(d => d.driver_id === selectedInspectionForModal.driver_id)?.name || selectedInspectionForModal.driver_id}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">Vehicle Registration</span>
+                <span className="font-bold text-slate-800 block">
+                  {selectedInspectionForModal.vehicle_reg}
+                  {selectedInspectionForModal.is_rented_vehicle && (
+                    <span className="ml-1.5 text-[9px] bg-amber-100 text-amber-850 px-1 py-0.2 rounded font-semibold border border-amber-200">Rented</span>
+                  )}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-400 block mb-0.5">Odometer Mileage</span>
+                <span className="font-bold text-slate-800 block">{selectedInspectionForModal.mileage_at_inspection} km</span>
+              </div>
+            </div>
+
+            {/* Checklist items */}
+            <div className="space-y-3.5">
+              <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-1">
+                10-Point core safety checks
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {Object.keys(selectedInspectionForModal.checklist_json).map((key) => {
+                  const status = selectedInspectionForModal.checklist_json[key];
+                  const faultDesc = selectedInspectionForModal.faults_json?.[key];
+                  const mediaUrl = selectedInspectionForModal.media_urls?.[key];
+
+                  return (
+                    <div key={key} className="border border-slate-150 rounded-lg p-2.5 flex flex-col justify-between bg-white hover:bg-slate-50/50 transition-colors">
+                      <div className="flex justify-between items-start gap-1.5">
+                        <span className="capitalize font-bold text-slate-700 text-xs">{key.replace(/_/g, ' ')}</span>
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
+                          status === 'pass' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          status === 'flag' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-rose-50 text-rose-700 border-rose-200'
+                        }`}>
+                          {status}
+                        </span>
+                      </div>
+
+                      {/* Fault Details / Image Attachment */}
+                      {(faultDesc || mediaUrl) && (
+                        <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
+                          {faultDesc && (
+                            <p className="text-[10px] text-slate-600 italic">
+                              <strong className="text-slate-800 font-bold not-italic">Fault:</strong> {faultDesc}
+                            </p>
+                          )}
+                          {mediaUrl && (
+                            <div className="mt-1">
+                              <span className="text-[9px] text-slate-400 font-semibold block mb-1">Attached Operational Evidence:</span>
+                              <div className="relative group rounded border border-slate-200 overflow-hidden bg-slate-50 max-w-[120px]">
+                                <img
+                                  src={mediaUrl}
+                                  alt={`${key} proof`}
+                                  className="w-full h-16 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                  onClick={async () => {
+                                    const signed = await getSignedUrlForView(mediaUrl);
+                                    window.open(signed, '_blank');
+                                  }}
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                                  <Eye className="w-3.5 h-3.5 text-white" />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* General notes */}
+            {selectedInspectionForModal.notes && (
+              <div className="text-xs bg-slate-50 p-3 rounded-lg border border-slate-100">
+                <span className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider block mb-1">General Observations</span>
+                <p className="text-slate-700 italic">{selectedInspectionForModal.notes}</p>
+              </div>
+            )}
+
+            {/* Signature view */}
+            {selectedInspectionForModal.signature_url && (
+              <div className="border border-slate-100 rounded-lg p-3 bg-slate-50/50">
+                <span className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider block mb-1">Driver Digital Sign-off</span>
+                <div className="flex items-center gap-4">
+                  {selectedInspectionForModal.signature_url.startsWith('data:image') ? (
+                    <img
+                      src={selectedInspectionForModal.signature_url}
+                      alt="Driver Signature"
+                      className="bg-white border border-slate-200 rounded max-w-[150px] h-12 object-contain"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded">
+                      ✓ Digitally Certified
+                    </span>
+                  )}
+                  <p className="text-[10px] text-slate-400 italic leading-relaxed">
+                    Certified that all 10-point mechanical safety checks were executed prior to dispatch/de-route.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2.5 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setSelectedInspectionForModal(null)}
+                className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold py-2 rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const driverName = drivers.find(d => d.driver_id === selectedInspectionForModal.driver_id)?.name || selectedInspectionForModal.driver_id || 'Driver';
+                  downloadInspectionPDF(selectedInspectionForModal, driverName);
+                }}
+                className="w-1/2 bg-teal-600 hover:bg-teal-500 text-white font-extrabold py-2 rounded-xl text-xs transition-colors flex items-center justify-center gap-1 shadow cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" /> Download PDF Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== ADMINISTRATIVE COMPLIANCE INSPECTION LOGGING MODAL ==================== */}
+      {showLogInspectionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Log Pre/Post-Trip Compliance Check</h3>
+                <p className="text-[10px] text-slate-400 font-medium">Manually log a physical vehicle and safety inspection for compliance tracking.</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowLogInspectionModal(false);
+                  setNewInspectionForm(initialInspectionForm);
+                }}
+                className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveInspection} className="space-y-4">
+              {/* Select Booking */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Link to Booking Invoice *</label>
+                  <select
+                    required
+                    value={newInspectionForm.invoice_no}
+                    onChange={(e) => {
+                      const selectedInv = e.target.value;
+                      const booking = bookings.find(b => b.invoice_no === selectedInv);
+                      if (booking) {
+                        setNewInspectionForm(prev => ({
+                          ...prev,
+                          invoice_no: selectedInv,
+                          vehicle_reg: booking.assigned_vehicle_reg || booking.rented_vehicle_reg || '',
+                          driver_id: booking.assigned_driver_id || '',
+                        }));
+                      } else {
+                        setNewInspectionForm(prev => ({
+                          ...prev,
+                          invoice_no: selectedInv,
+                        }));
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium"
+                  >
+                    <option value="">-- Select Booking --</option>
+                    {bookings.map(b => (
+                      <option key={b.invoice_no} value={b.invoice_no}>
+                        {b.invoice_no} — {b.client_name} ({b.assigned_vehicle_reg || b.rented_vehicle_reg || 'No Vehicle'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Inspection Type *</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewInspectionForm(prev => ({ ...prev, inspection_type: 'pre-trip' }))}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                        newInspectionForm.inspection_type === 'pre-trip'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300 shadow-xs'
+                          : 'bg-white text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      Pre-Trip Check
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewInspectionForm(prev => ({ ...prev, inspection_type: 'post-trip' }))}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                        newInspectionForm.inspection_type === 'post-trip'
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-300 shadow-xs'
+                          : 'bg-white text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      Post-Trip Check
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Vehicle Registration & Driver ID */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Vehicle Registration *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. CA 123-456"
+                    value={newInspectionForm.vehicle_reg}
+                    onChange={(e) => setNewInspectionForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Assigned Driver *</label>
+                  <select
+                    required
+                    value={newInspectionForm.driver_id}
+                    onChange={(e) => setNewInspectionForm(prev => ({ ...prev, driver_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium"
+                  >
+                    <option value="">-- Select Driver --</option>
+                    {drivers.map(d => (
+                      <option key={d.driver_id} value={d.driver_id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Odometer Mileage (km) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0}
+                    placeholder="Odometer reading"
+                    value={newInspectionForm.mileage_at_inspection || ''}
+                    onChange={(e) => setNewInspectionForm(prev => ({ ...prev, mileage_at_inspection: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              {/* 10-Point core checklist */}
+              <div className="border border-slate-100 rounded-xl p-4 bg-slate-50/50 space-y-3">
+                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">10-Point Safety Check Checklist</h4>
+                
+                <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
+                  {Object.keys(newInspectionForm.checklist_json).map((key) => {
+                    const status = newInspectionForm.checklist_json[key];
+                    const faultDesc = newInspectionForm.faults_json[key] || '';
+                    const mediaUrl = newInspectionForm.media_urls[key];
+                    const isUploading = uploadingInspectionMedia[key];
+
+                    return (
+                      <div key={key} className="p-3 bg-white border border-slate-100 rounded-lg flex flex-col gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-slate-800 capitalize">{key.replace(/_/g, ' ')}</span>
+                          
+                          <div className="flex items-center gap-1.5">
+                            {(['pass', 'flag', 'fail'] as const).map(option => (
+                              <button
+                                key={option}
+                                type="button"
+                                onClick={() => {
+                                  setNewInspectionForm(prev => ({
+                                    ...prev,
+                                    checklist_json: { ...prev.checklist_json, [key]: option }
+                                  }));
+                                }}
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-all border ${
+                                  status === option
+                                    ? option === 'pass'
+                                      ? 'bg-emerald-500 text-white border-emerald-600'
+                                      : option === 'flag'
+                                        ? 'bg-amber-500 text-white border-amber-600'
+                                        : 'bg-rose-500 text-white border-rose-600'
+                                    : 'bg-slate-50 text-slate-500 border-slate-200'
+                                }`}
+                              >
+                                {option}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Fault description or photo upload if not compliant */}
+                        {(status === 'flag' || status === 'fail') && (
+                          <div className="space-y-2 mt-1 border-t border-slate-50 pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Fault Description</label>
+                              <input
+                                type="text"
+                                placeholder="Describe the fault or warning issue..."
+                                value={faultDesc}
+                                onChange={(e) => {
+                                  setNewInspectionForm(prev => ({
+                                    ...prev,
+                                    faults_json: { ...prev.faults_json, [key]: e.target.value }
+                                  }));
+                                }}
+                                className="w-full px-2.5 py-1.5 border border-slate-200 text-xs rounded-md focus:outline-hidden font-medium"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Mechanical Proof Photo</label>
+                              <div className="flex items-center gap-2">
+                                <label className="flex-1 flex items-center justify-center gap-1 bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 border border-dashed border-slate-200 rounded-md text-[10px] font-bold cursor-pointer transition-colors">
+                                  <Camera className="w-3.5 h-3.5" />
+                                  {isUploading ? 'Uploading...' : mediaUrl ? 'Update Photo' : 'Capture Photo'}
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={(e) => handleAdminInspectionMediaUpload(key, e)}
+                                    disabled={isUploading}
+                                  />
+                                </label>
+
+                                {mediaUrl && (
+                                  <a href={mediaUrl} target="_blank" rel="noreferrer" className="shrink-0 bg-slate-100 p-1.5 rounded-md border border-slate-200 text-teal-600 hover:text-teal-800 transition-colors">
+                                    👁️
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Additional Observations / Notes</label>
+                <textarea
+                  placeholder="Provide any additional comments about the vehicle safety condition..."
+                  rows={2}
+                  value={newInspectionForm.notes}
+                  onChange={(e) => setNewInspectionForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
+                ></textarea>
+              </div>
+
+              <div className="flex gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLogInspectionModal(false);
+                    setNewInspectionForm(initialInspectionForm);
+                  }}
+                  className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold py-2 rounded-xl text-xs transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 bg-teal-600 hover:bg-teal-500 text-white font-extrabold py-2 rounded-xl text-xs transition-colors flex items-center justify-center gap-1 shadow cursor-pointer"
+                >
+                  Save Compliance Check
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== WEEKLY VEHICLE CHECKLIST VIEW MODAL ==================== */}
+      {selectedChecklistForModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Weekly Periodic Checklist Report</h3>
+                <p className="text-[10px] text-slate-400 font-medium">Logged on {selectedChecklistForModal.submitted_at ? new Date(selectedChecklistForModal.submitted_at).toLocaleString() : 'N/A'}</p>
+              </div>
+              <button
+                onClick={() => setSelectedChecklistForModal(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Quick Metadata */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+              <div>
+                <span className="text-[9px] text-slate-400 uppercase font-black block">Driver</span>
+                <span className="font-bold text-slate-800">
+                  {drivers.find(d => d.driver_id === selectedChecklistForModal.driver_id)?.name || selectedChecklistForModal.driver_id}
+                </span>
+              </div>
+              <div>
+                <span className="text-[9px] text-slate-400 uppercase font-black block">Odometer</span>
+                <span className="font-bold text-slate-800">{(selectedChecklistForModal.mileage || 0).toLocaleString()} km</span>
+              </div>
+              <div>
+                <span className="text-[9px] text-slate-400 uppercase font-black block">Week Range</span>
+                <span className="font-bold text-slate-800">{selectedChecklistForModal.week_start} to {selectedChecklistForModal.week_end}</span>
+              </div>
+              <div>
+                <span className="text-[9px] text-slate-400 uppercase font-black block">Status</span>
+                <span className="inline-block px-2.5 py-0.5 text-[9px] font-black uppercase rounded-full bg-emerald-100 text-emerald-800">
+                  {selectedChecklistForModal.status}
+                </span>
+              </div>
+            </div>
+
+            {/* Checklist items list */}
+            <div className="border border-slate-100 rounded-xl p-4 space-y-3">
+              <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">12-Point Periodic Checklist Audit</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
+                {Object.entries(selectedChecklistForModal.checklist_data || {}).map(([key, value]) => {
+                  const valStr = String(value).toLowerCase();
+                  return (
+                    <div key={key} className="p-2.5 bg-slate-50/50 rounded-lg flex justify-between items-center text-xs">
+                      <span className="capitalize font-semibold text-slate-700">{key.replace(/_/g, ' ')}</span>
+                      <span>
+                        {valStr === 'ok' ? (
+                          <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">
+                            ✓ OK
+                          </span>
+                        ) : valStr === 'low' ? (
+                          <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">
+                            ⚠️ LOW
+                          </span>
+                        ) : valStr === 'action' ? (
+                          <span className="bg-rose-100 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">
+                            🚨 ACTION REQUIRED
+                          </span>
+                        ) : (
+                          <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">
+                            {valStr}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Notes */}
+            {selectedChecklistForModal.notes && (
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs">
+                <span className="text-[9px] text-slate-400 uppercase font-black block mb-1">Driver Additional Observations</span>
+                <p className="text-slate-700 italic">{selectedChecklistForModal.notes}</p>
+              </div>
+            )}
+
+            <div className="flex gap-2.5 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setSelectedChecklistForModal(null)}
+                className="w-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold py-2 rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close Report
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const driverName = drivers.find(d => d.driver_id === selectedChecklistForModal.driver_id)?.name || selectedChecklistForModal.driver_id || 'Driver';
+                  downloadChecklistPDF(selectedChecklistForModal, driverName);
+                }}
+                className="w-1/2 bg-teal-600 hover:bg-teal-500 text-white font-extrabold py-2 rounded-xl text-xs transition-colors flex items-center justify-center gap-1 shadow cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5" /> Download PDF Report
+              </button>
+            </div>
           </div>
         </div>
       )}
