@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, 
-  Settings, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera
+  Settings, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera,
+  LayoutGrid, List, Search
 } from 'lucide-react';
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, BookingDeleteRequest,
@@ -76,6 +77,13 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   // Search/Filter states
   const [complianceSearch, setComplianceSearch] = useState('');
   const [checklistSearch, setChecklistSearch] = useState('');
+
+  // Inspections Dashboard states
+  const [inspectionViewMode, setInspectionViewMode] = useState<'grid' | 'table'>('grid');
+  const [inspectionTypeFilter, setInspectionTypeFilter] = useState<'all' | 'pre-trip' | 'post-trip'>('all');
+  const [inspectionStatusFilter, setInspectionStatusFilter] = useState<'all' | 'compliant' | 'warning' | 'critical'>('all');
+  const [inspectionLoggedByFilter, setInspectionLoggedByFilter] = useState<'all' | 'driver' | 'admin'>('all');
+  const [inspectionRegionFilter, setInspectionRegionFilter] = useState<'current' | 'all'>('current');
 
   // Admin logs state variables
   const [showLogIncidentModal, setShowLogIncidentModal] = useState(false);
@@ -177,7 +185,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     setTrafficFines(trafficFinesApi.getFines());
     setVehicleExpenses(expensesApi.getExpenses());
     setIncidentReports(incidentsApi.getIncidents());
-    setInspections(inspectionsApi.getInspections(region));
+    setInspections(inspectionsApi.getInspections());
     setChecklists(checklistsApi.getChecklists());
     setDeleteRequests(bookingsApi.getDeleteRequests());
   }, [region]);
@@ -250,7 +258,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     };
 
     inspectionsApi.saveInspection(createdInspection);
-    setInspections(inspectionsApi.getInspections(region));
+    setInspections(inspectionsApi.getInspections());
     setShowLogInspectionModal(false);
     setNewInspectionForm(initialInspectionForm);
     alert("✅ Operational compliance check logged successfully.");
@@ -2140,144 +2148,422 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
           )}
 
           {/* ==================== COMPLIANCE & INSPECTIONS TAB ==================== */}
-          {activeTab === 'inspections' && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Pre/Post-Trip Compliance Checks</h1>
-                  <p className="text-xs text-slate-500">Audit vehicle mechanical and safety inspections logged by drivers or log official inspections manually.</p>
-                </div>
-                <button
-                  onClick={() => setShowLogInspectionModal(true)}
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow transition-colors shrink-0"
-                >
-                  ➕ Log Compliance Check
-                </button>
-              </div>
+          {activeTab === 'inspections' && (() => {
+            const regionInspections = inspections.filter(ins => {
+              const b = bookings.find(item => item.invoice_no === ins.invoice_no);
+              if (inspectionRegionFilter === 'current') {
+                return b ? b.location === region : true;
+              }
+              return true;
+            });
 
-              {/* Search & Stats Bar */}
-              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col md:flex-row gap-4 justify-between items-center">
-                <input
-                  type="text"
-                  placeholder="Filter by Registration, Driver, Invoice..."
-                  value={complianceSearch}
-                  onChange={(e) => setComplianceSearch(e.target.value)}
-                  className="w-full md:w-96 px-3 py-2 bg-white border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
-                />
+            const totalCount = regionInspections.length;
+            const compliantCount = regionInspections.filter(i => !i.has_critical_fault && !(i.checklist_json && Object.values(i.checklist_json).some(v => v === 'flag'))).length;
+            const warningCount = regionInspections.filter(i => !i.has_critical_fault && (i.checklist_json && Object.values(i.checklist_json).some(v => v === 'flag'))).length;
+            const criticalCount = regionInspections.filter(i => i.has_critical_fault).length;
+
+            const displayedInspections = regionInspections.filter(ins => {
+              // Search
+              const searchLower = complianceSearch.toLowerCase();
+              const driverName = drivers.find(d => d.driver_id === ins.driver_id)?.name || ins.driver_id || '';
+              const matchesSearch = ins.vehicle_reg.toLowerCase().includes(searchLower) ||
+                                    ins.invoice_no.toLowerCase().includes(searchLower) ||
+                                    driverName.toLowerCase().includes(searchLower);
+              
+              // Type
+              const matchesType = inspectionTypeFilter === 'all' || ins.inspection_type === inspectionTypeFilter;
+              
+              // Status
+              const hasWarns = ins.checklist_json && Object.values(ins.checklist_json).some(v => v === 'flag');
+              const matchesStatus = inspectionStatusFilter === 'all' ||
+                (inspectionStatusFilter === 'compliant' && !ins.has_critical_fault && !hasWarns) ||
+                (inspectionStatusFilter === 'warning' && hasWarns && !ins.has_critical_fault) ||
+                (inspectionStatusFilter === 'critical' && ins.has_critical_fault);
                 
-                <div className="flex items-center gap-4 text-xs">
-                  <span className="flex items-center gap-1.5 font-bold text-slate-600">
-                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full inline-block"></span>
-                    Compliant: {inspections.filter(i => !i.has_critical_fault).length}
-                  </span>
-                  <span className="flex items-center gap-1.5 font-bold text-slate-600">
-                    <span className="w-2.5 h-2.5 bg-rose-500 rounded-full inline-block"></span>
-                    With Faults: {inspections.filter(i => i.has_critical_fault).length}
-                  </span>
-                </div>
-              </div>
+              // Logged By
+              const isLoggedByAdmin = ins.signature_url?.includes('Admin') || ins.driver_id === 'admin';
+              const matchesLoggedBy = inspectionLoggedByFilter === 'all' ||
+                (inspectionLoggedByFilter === 'admin' && isLoggedByAdmin) ||
+                (inspectionLoggedByFilter === 'driver' && !isLoggedByAdmin);
+                
+              return matchesSearch && matchesType && matchesStatus && matchesLoggedBy;
+            });
 
-              {/* Table List */}
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-400">
-                        <th className="p-4">Date & Time</th>
-                        <th className="p-4">Type</th>
-                        <th className="p-4">Booking Ref</th>
-                        <th className="p-4">Vehicle</th>
-                        <th className="p-4">Driver</th>
-                        <th className="p-4">Odometer</th>
-                        <th className="p-4 text-center">Safety Status</th>
-                        <th className="p-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
-                      {inspections.filter(i => {
-                        const searchLower = complianceSearch.toLowerCase();
-                        const driverName = drivers.find(d => d.driver_id === i.driver_id)?.name || i.driver_id || '';
-                        return i.vehicle_reg.toLowerCase().includes(searchLower) ||
-                               i.invoice_no.toLowerCase().includes(searchLower) ||
-                               driverName.toLowerCase().includes(searchLower);
-                      }).length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="p-8 text-center text-slate-400 text-xs">
-                            No compliance checks found matching search.
-                          </td>
-                        </tr>
-                      ) : (
-                        inspections.filter(i => {
-                          const searchLower = complianceSearch.toLowerCase();
-                          const driverName = drivers.find(d => d.driver_id === i.driver_id)?.name || i.driver_id || '';
-                          return i.vehicle_reg.toLowerCase().includes(searchLower) ||
-                                 i.invoice_no.toLowerCase().includes(searchLower) ||
-                                 driverName.toLowerCase().includes(searchLower);
-                        }).map(ins => {
-                          const driverName = drivers.find(d => d.driver_id === ins.driver_id)?.name || ins.driver_id;
-                          const hasWarns = ins.checklist_json && Object.values(ins.checklist_json).some(v => v === 'flag');
-                          
-                          return (
-                            <tr key={ins.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="p-4 font-mono text-[11px] text-slate-500">
-                                {new Date(ins.created_at).toLocaleString()}
-                              </td>
-                              <td className="p-4">
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+            return (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-xl font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
+                      <ShieldCheck className="w-6 h-6 text-teal-600" />
+                      Compliance & Safety Inspections
+                    </h1>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Audit vehicle mechanical and safety inspections logged by drivers or admins, and view detailed checklists.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowLogInspectionModal(true)}
+                    className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow-xs hover:shadow-md transition-all shrink-0 cursor-pointer"
+                  >
+                    ➕ Log Compliance Check
+                  </button>
+                </div>
+
+                {/* Stats Bento Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Audit Logs</span>
+                    <span className="text-2xl font-black text-slate-900 mt-1">{totalCount}</span>
+                    <span className="text-[9px] text-slate-500 mt-0.5">Across filtered boundaries</span>
+                  </div>
+                  <div className="bg-emerald-50/50 border border-emerald-100 rounded-xl p-4 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 font-bold">✓ Fully Compliant</span>
+                    <span className="text-2xl font-black text-emerald-700 mt-1">{compliantCount}</span>
+                    <span className="text-[9px] text-emerald-600 mt-0.5">100% mechanical pass</span>
+                  </div>
+                  <div className="bg-amber-50/50 border border-amber-100 rounded-xl p-4 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 font-bold">⚠️ Flagged Warnings</span>
+                    <span className="text-2xl font-black text-amber-700 mt-1">{warningCount}</span>
+                    <span className="text-[9px] text-amber-600 mt-0.5 font-medium">Minor cautions reported</span>
+                  </div>
+                  <div className="bg-rose-50/50 border border-rose-100 rounded-xl p-4 flex flex-col justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 font-bold">🚨 Critical Faults</span>
+                    <span className="text-2xl font-black text-rose-700 mt-1">{criticalCount}</span>
+                    <span className="text-[9px] text-rose-600 mt-0.5 font-medium">Needs immediate repair</span>
+                  </div>
+                </div>
+
+                {/* Interactive Controls Bar */}
+                <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs space-y-4">
+                  <div className="flex flex-col lg:flex-row gap-3 justify-between items-stretch lg:items-center">
+                    
+                    {/* Search & Main Filter inputs */}
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Search vehicle, driver, invoice..."
+                          value={complianceSearch}
+                          onChange={(e) => setComplianceSearch(e.target.value)}
+                          className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
+                        />
+                        <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" />
+                      </div>
+
+                      {/* Region filter */}
+                      <select
+                        value={inspectionRegionFilter}
+                        onChange={(e) => setInspectionRegionFilter(e.target.value as any)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium bg-white"
+                      >
+                        <option value="current">Region: Selected ({region})</option>
+                        <option value="all">Region: All Regions</option>
+                      </select>
+
+                      {/* Logged By filter */}
+                      <select
+                        value={inspectionLoggedByFilter}
+                        onChange={(e) => setInspectionLoggedByFilter(e.target.value as any)}
+                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium bg-white"
+                      >
+                        <option value="all">Logged By: All Sources</option>
+                        <option value="driver">Logged By: Drivers Only</option>
+                        <option value="admin">Logged By: Admins Only</option>
+                      </select>
+                    </div>
+
+                    {/* Secondary Dropdowns & View toggles */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <select
+                        value={inspectionTypeFilter}
+                        onChange={(e) => setInspectionTypeFilter(e.target.value as any)}
+                        className="px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium bg-white"
+                      >
+                        <option value="all">Type: All Checklists</option>
+                        <option value="pre-trip">Pre-Trip Check</option>
+                        <option value="post-trip">Post-Trip Check</option>
+                      </select>
+
+                      <select
+                        value={inspectionStatusFilter}
+                        onChange={(e) => setInspectionStatusFilter(e.target.value as any)}
+                        className="px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium bg-white"
+                      >
+                        <option value="all">Status: All Statuses</option>
+                        <option value="compliant">Compliant Only</option>
+                        <option value="warning">Warnings Only</option>
+                        <option value="critical">Critical Faults Only</option>
+                      </select>
+
+                      {/* Layout switcher */}
+                      <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setInspectionViewMode('grid')}
+                          className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                            inspectionViewMode === 'grid' 
+                              ? 'bg-white text-teal-600 shadow-xs' 
+                              : 'text-slate-400 hover:text-slate-600'
+                          }`}
+                          title="Card Dashboard View"
+                        >
+                          <LayoutGrid className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setInspectionViewMode('table')}
+                          className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                            inspectionViewMode === 'table' 
+                              ? 'bg-white text-teal-600 shadow-xs' 
+                              : 'text-slate-400 hover:text-slate-600'
+                          }`}
+                          title="Dense Table View"
+                        >
+                          <List className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dashboard grid or Table container */}
+                {displayedInspections.length === 0 ? (
+                  <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-xs">
+                    <p className="text-xs text-slate-400 font-medium italic">No safety compliance checks match the current filter parameters.</p>
+                  </div>
+                ) : inspectionViewMode === 'grid' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {displayedInspections.map(ins => {
+                      const driverName = drivers.find(d => d.driver_id === ins.driver_id)?.name || ins.driver_id;
+                      const hasWarns = ins.checklist_json && Object.values(ins.checklist_json).some(v => v === 'flag');
+                      const isLoggedByAdmin = ins.signature_url?.includes('Admin') || ins.driver_id === 'admin';
+
+                      return (
+                        <div 
+                          key={ins.id} 
+                          className="bg-white border border-slate-200 hover:border-teal-500/50 rounded-xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all"
+                        >
+                          <div className="space-y-4">
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className={`inline-block px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase border tracking-wider ${
                                   ins.inspection_type === 'pre-trip' 
-                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                                    : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                    : 'bg-indigo-50 text-indigo-700 border-indigo-200'
                                 }`}>
                                   {ins.inspection_type}
                                 </span>
-                              </td>
-                              <td className="p-4 font-bold text-slate-950">{ins.invoice_no}</td>
-                              <td className="p-4">
-                                <span className="font-bold text-slate-900 block">{ins.vehicle_reg}</span>
-                              </td>
-                              <td className="p-4 text-slate-600">{driverName}</td>
-                              <td className="p-4 font-mono text-slate-900">{ins.mileage_at_inspection.toLocaleString()} km</td>
-                              <td className="p-4 text-center">
-                                {ins.has_critical_fault ? (
-                                  <span className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                    🚨 CRITICAL FAULT
-                                  </span>
-                                ) : hasWarns ? (
-                                  <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                    ⚠️ WARNINGS
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                                    ✓ COMPLIANT
-                                  </span>
+                                <span className="text-[10px] bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full font-bold">
+                                  {isLoggedByAdmin ? 'Logged by Admin' : 'Logged by Driver'}
+                                </span>
+                              </div>
+                              
+                              {/* Safety Status badge */}
+                              {ins.has_critical_fault ? (
+                                <span className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-700 px-2 py-0.5 rounded-full text-[9px] font-bold">
+                                  🚨 CRITICAL FAULT
+                                </span>
+                              ) : hasWarns ? (
+                                <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-full text-[9px] font-bold">
+                                  ⚠️ WARNINGS
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full text-[9px] font-bold">
+                                  ✓ COMPLIANT
+                                </span>
+                              )}
+                            </div>
+
+                            <div>
+                              <div className="flex justify-between items-start">
+                                <h3 className="font-extrabold text-slate-900 text-sm">Invoice: {ins.invoice_no}</h3>
+                                <span className="text-[10px] text-slate-400 font-medium font-mono">{new Date(ins.created_at).toLocaleDateString()}</span>
+                              </div>
+                              <p className="text-slate-500 text-[10px] font-medium mt-1">
+                                Vehicle: <strong className="text-slate-800">{ins.vehicle_reg}</strong> 
+                                {ins.is_rented_vehicle && (
+                                  <span className="ml-1 px-1 bg-amber-50 text-amber-700 border border-amber-200 rounded text-[8px] font-bold">Rented</span>
                                 )}
-                              </td>
-                              <td className="p-4 text-right">
-                                <div className="flex justify-end gap-1.5">
-                                  <button
-                                    onClick={() => setSelectedInspectionForModal(ins)}
-                                    className="px-2.5 py-1 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
-                                  >
-                                    View Details
-                                  </button>
-                                  <button
-                                    onClick={() => downloadInspectionPDF(ins, driverName)}
-                                    className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
-                                  >
-                                    PDF
-                                  </button>
+                                {' '}• Driver Involved: <strong className="text-slate-800">{driverName}</strong>
+                              </p>
+                              <p className="text-slate-400 text-[9px] font-mono mt-0.5">
+                                Odometer Reading: {ins.mileage_at_inspection?.toLocaleString()} km
+                              </p>
+                            </div>
+
+                            {/* 10-Point safety checklist points summary */}
+                            {ins.checklist_json && (
+                              <div className="pt-2.5 border-t border-slate-100">
+                                <span className="text-[9px] text-slate-400 uppercase font-black block mb-1.5 tracking-wider">Safety Checklist Summary</span>
+                                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1">
+                                  {Object.entries(ins.checklist_json).map(([k, v]) => (
+                                    <div key={k} className="bg-slate-50 p-1 rounded border border-slate-100 text-center text-[9px]">
+                                      <p className="text-slate-500 capitalize truncate text-[7.5px] font-medium">{k.replace(/_/g, ' ')}</p>
+                                      <span className={`font-black text-[8px] uppercase ${
+                                        v === 'pass' ? 'text-emerald-600' : v === 'flag' ? 'text-amber-600' : 'text-rose-600'
+                                      }`}>
+                                        {v}
+                                      </span>
+                                    </div>
+                                  ))}
                                 </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                              </div>
+                            )}
+
+                            {/* Flagged Mechanical Faults & Warnings */}
+                            {ins.faults_json && Object.keys(ins.faults_json).length > 0 && (
+                              <div className="bg-rose-50/50 p-2.5 rounded-lg border border-rose-100 space-y-1">
+                                <span className="text-[9px] text-rose-700 uppercase font-bold block">Flagged Mechanical Faults & Warnings</span>
+                                {Object.entries(ins.faults_json).map(([item, desc]) => (
+                                  <div key={item} className="text-[10px] text-slate-700 flex justify-between items-start">
+                                    <span className="font-semibold capitalize text-rose-800 text-[9px]">{item.replace(/_/g, ' ')}:</span>
+                                    <span className="text-slate-500 italic text-right ml-2 text-[9px]">{desc}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Camera Evidence Photo Attachments */}
+                            {ins.media_urls && Object.keys(ins.media_urls).length > 0 && (
+                              <div className="pt-1.5">
+                                <span className="text-[9px] text-slate-400 uppercase font-black block mb-1">Attached Operational Evidence</span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {Object.entries(ins.media_urls).map(([key, url]) => (
+                                    <button
+                                      key={key}
+                                      onClick={async () => {
+                                        const signed = await getSignedUrlForView(url);
+                                        window.open(signed, '_blank');
+                                      }}
+                                      className="inline-flex items-center gap-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 px-2 py-1 rounded-md text-[9px] text-slate-600 font-bold transition-colors cursor-pointer"
+                                    >
+                                      <Camera className="w-2.5 h-2.5 text-teal-600" />
+                                      <span className="capitalize truncate max-w-[90px]">{key.replace(/_/g, ' ')}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Observations notes */}
+                            {ins.notes && (
+                              <div className="bg-slate-50/60 p-2 rounded-lg border border-slate-100">
+                                <span className="text-[8px] text-slate-400 uppercase font-bold block">General Observations Notes</span>
+                                <p className="text-slate-600 italic text-[10px] mt-0.5">&ldquo;{ins.notes}&rdquo;</p>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex gap-2 border-t border-slate-100 pt-3 mt-4">
+                            <button
+                              onClick={() => setSelectedInspectionForModal(ins)}
+                              className="flex-1 py-1.5 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 text-[10px] font-bold rounded-lg transition-colors cursor-pointer text-center"
+                            >
+                              View Details
+                            </button>
+                            <button
+                              onClick={() => downloadInspectionPDF(ins, driverName)}
+                              className="flex-1 py-1.5 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 text-[10px] font-bold rounded-lg transition-colors cursor-pointer text-center flex items-center justify-center gap-1"
+                            >
+                              <FileText className="w-3.5 h-3.5" /> PDF
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-400">
+                            <th className="p-4">Date & Time</th>
+                            <th className="p-4">Type</th>
+                            <th className="p-4">Booking Ref</th>
+                            <th className="p-4">Vehicle</th>
+                            <th className="p-4">Driver</th>
+                            <th className="p-4">Odometer</th>
+                            <th className="p-4">Source</th>
+                            <th className="p-4 text-center">Safety Status</th>
+                            <th className="p-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                          {displayedInspections.map(ins => {
+                            const driverName = drivers.find(d => d.driver_id === ins.driver_id)?.name || ins.driver_id;
+                            const hasWarns = ins.checklist_json && Object.values(ins.checklist_json).some(v => v === 'flag');
+                            const isLoggedByAdmin = ins.signature_url?.includes('Admin') || ins.driver_id === 'admin';
+
+                            return (
+                              <tr key={ins.id} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="p-4 font-mono text-[11px] text-slate-500">
+                                  {new Date(ins.created_at).toLocaleString()}
+                                </td>
+                                <td className="p-4">
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                    ins.inspection_type === 'pre-trip' 
+                                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                                      : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                  }`}>
+                                    {ins.inspection_type}
+                                  </span>
+                                </td>
+                                <td className="p-4 font-bold text-slate-950">{ins.invoice_no}</td>
+                                <td className="p-4">
+                                  <span className="font-bold text-slate-900 block">{ins.vehicle_reg}</span>
+                                </td>
+                                <td className="p-4 text-slate-600">{driverName}</td>
+                                <td className="p-4 font-mono text-slate-900">{ins.mileage_at_inspection?.toLocaleString()} km</td>
+                                <td className="p-4">
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${
+                                    isLoggedByAdmin ? 'bg-slate-100 text-slate-700 border border-slate-200' : 'bg-teal-50 text-teal-700 border border-teal-200'
+                                  }`}>
+                                    {isLoggedByAdmin ? 'Admin' : 'Driver'}
+                                  </span>
+                                </td>
+                                <td className="p-4 text-center">
+                                  {ins.has_critical_fault ? (
+                                    <span className="inline-flex items-center gap-1 bg-rose-50 border border-rose-200 text-rose-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                      🚨 CRITICAL FAULT
+                                    </span>
+                                  ) : hasWarns ? (
+                                    <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                      ⚠️ WARNINGS
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                                      ✓ COMPLIANT
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="p-4 text-right">
+                                  <div className="flex justify-end gap-1.5">
+                                    <button
+                                      onClick={() => setSelectedInspectionForModal(ins)}
+                                      className="px-2.5 py-1 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      View Details
+                                    </button>
+                                    <button
+                                      onClick={() => downloadInspectionPDF(ins, driverName)}
+                                      className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                    >
+                                      PDF
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ==================== WEEKLY CHECKLISTS TAB ==================== */}
           {activeTab === 'checklists' && (
