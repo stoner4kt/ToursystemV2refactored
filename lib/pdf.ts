@@ -333,13 +333,16 @@ export async function downloadTransferReconPDF(recon: TransferReconSheet, driver
         y = 800;
       }
 
-      page.drawText(tr.date, { x: 55, y, size: 8, font });
-      page.drawText(tr.passenger_name.substring(0, 18), { x: 120, y, size: 8, font });
+      page.drawText(tr.date || '', { x: 55, y, size: 8, font });
+      page.drawText((tr.passenger_name || tr.description || 'Transfer Entry').substring(0, 18), { x: 120, y, size: 8, font });
       
-      const routeText = `${tr.pickup_location} to ${tr.dropoff_location}`.substring(0, 28);
+      const routeText = (tr.vehicle_reg 
+        ? `${tr.vehicle_reg} (${tr.tla_type || 'L'})` 
+        : `${tr.pickup_location || 'N/A'} to ${tr.dropoff_location || 'N/A'}`
+      ).substring(0, 28);
       page.drawText(routeText, { x: 260, y, size: 8, font });
-      page.drawText(tr.invoice_or_tour_ref.substring(0, 12), { x: 420, y, size: 8, font });
-      page.drawText(`R ${tr.amount.toFixed(2)}`, { x: 500, y, size: 8, font });
+      page.drawText((tr.invoice_or_tour_ref || '').substring(0, 12), { x: 420, y, size: 8, font });
+      page.drawText(`R ${(tr.amount || 0).toFixed(2)}`, { x: 500, y, size: 8, font });
       
       totalAmount += tr.amount;
       y -= 16;
