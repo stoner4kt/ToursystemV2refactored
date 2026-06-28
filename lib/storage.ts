@@ -160,11 +160,16 @@ export interface ReconSheet {
 export interface TransferRow {
   id: string;
   date: string;
-  passenger_name: string;
-  pickup_location: string;
-  dropoff_location: string;
+  passenger_name?: string;
+  pickup_location?: string;
+  dropoff_location?: string;
   amount: number;
   invoice_or_tour_ref: string;
+  vehicle_reg?: string;
+  vehicle_name?: string;
+  tla_type?: 'T' | 'L' | 'A' | string;
+  description?: string;
+  notes?: string;
 }
 
 export interface TransferReconSheet {

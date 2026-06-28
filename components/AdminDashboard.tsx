@@ -1631,21 +1631,31 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                         </div>
 
                         {/* Audit transfers rows */}
-                        <div className="border border-slate-150 rounded overflow-hidden max-h-36 overflow-y-auto">
+                        <div className="border border-slate-150 rounded overflow-hidden max-h-56 overflow-y-auto">
                           <table className="w-full text-left text-[11px] bg-slate-50">
-                            <thead className="bg-slate-100 text-[9px] uppercase font-bold text-slate-500">
+                            <thead className="bg-slate-100 text-[9px] uppercase font-bold text-slate-500 border-b border-slate-200">
                               <tr>
-                                <th className="p-2">Passenger</th>
-                                <th className="p-2">Route</th>
+                                <th className="p-2">Vehicle Reg</th>
+                                <th className="p-2">Vehicle Name</th>
+                                <th className="p-2">Date</th>
+                                <th className="p-2">Ref Nr</th>
+                                <th className="p-2">T/L/A</th>
+                                <th className="p-2">Description / Route</th>
+                                <th className="p-2">Notes</th>
                                 <th className="p-2">Amount</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-150">
                               {rec.transfers.map((t, idx) => (
-                                <tr key={idx}>
-                                  <td className="p-2 font-bold text-slate-800">{t.passenger_name}</td>
-                                  <td className="p-2 text-slate-600">{t.pickup_location} → {t.dropoff_location}</td>
-                                  <td className="p-2 font-bold text-slate-800">R {t.amount}</td>
+                                <tr key={idx} className="hover:bg-slate-100/50">
+                                  <td className="p-2 font-bold text-slate-800">{t.vehicle_reg || 'N/A'}</td>
+                                  <td className="p-2 text-slate-600">{t.vehicle_name || 'N/A'}</td>
+                                  <td className="p-2 text-slate-600 font-mono">{t.date}</td>
+                                  <td className="p-2 text-slate-600 font-mono">{t.invoice_or_tour_ref}</td>
+                                  <td className="p-2 font-semibold text-slate-700">{t.tla_type || 'N/A'}</td>
+                                  <td className="p-2 text-slate-600">{t.description || (t.passenger_name && t.passenger_name !== 'N/A' ? t.passenger_name : `${t.pickup_location} → ${t.dropoff_location}`)}</td>
+                                  <td className="p-2 text-slate-500 italic">{t.notes || '—'}</td>
+                                  <td className="p-2 font-bold text-teal-600">R {t.amount}</td>
                                 </tr>
                               ))}
                             </tbody>

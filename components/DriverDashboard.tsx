@@ -90,12 +90,17 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     transfers: []
   });
   const [newTransferRow, setNewTransferRow] = useState({
+    vehicle_reg: '',
+    vehicle_name: '',
     date: '',
+    invoice_or_tour_ref: '',
+    tla_type: 'L = Long Transfer',
+    description: '',
+    notes: '',
     passenger_name: '',
     pickup_location: '',
     dropoff_location: '',
-    amount: '',
-    invoice_or_tour_ref: ''
+    amount: ''
   });
 
   // Logging Center State
@@ -440,32 +445,51 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     alert('📩 Edit request submitted to Administrator.');
   };
 
+  // Helper to get rate amount based on TLA Type
+  const getAmountForTlaType = (typeStr: string) => {
+    if (!typeStr) return 600;
+    const type = typeStr.toUpperCase();
+    if (type.startsWith('T')) return 1000; // T = Tour
+    if (type.startsWith('L')) return 600;  // L = Long Transfer
+    if (type.startsWith('A')) return 250;  // A = Area Transfer
+    return 250;
+  };
+
   // Transfer sheet helpers
   const handleAddTransferRow = () => {
-    if (!newTransferRow.passenger_name || !newTransferRow.amount) return;
-    const amount = Number(newTransferRow.amount);
-    if (isNaN(amount) || amount <= 0) return;
+    if (!newTransferRow.vehicle_reg || !newTransferRow.date || !newTransferRow.invoice_or_tour_ref) {
+      alert('Please fill in Vehicle Reg, Transfer Date, and Tour/Transfer Ref Nr.');
+      return;
+    }
+
+    const calculatedAmount = getAmountForTlaType(newTransferRow.tla_type);
 
     const newRow = {
       id: `tr-${Math.random().toString(36).substring(2, 6)}`,
       date: newTransferRow.date,
-      passenger_name: newTransferRow.passenger_name,
-      pickup_location: newTransferRow.pickup_location || 'Aerodrome',
-      dropoff_location: newTransferRow.dropoff_location || 'Hotel',
-      amount,
-      invoice_or_tour_ref: newTransferRow.invoice_or_tour_ref || 'TRF-MOCK'
+      vehicle_reg: newTransferRow.vehicle_reg,
+      vehicle_name: newTransferRow.vehicle_name || 'Vehicle',
+      invoice_or_tour_ref: newTransferRow.invoice_or_tour_ref,
+      tla_type: newTransferRow.tla_type,
+      description: newTransferRow.description || '',
+      notes: newTransferRow.notes || '',
+      amount: calculatedAmount,
+      // Compatibility fallback:
+      passenger_name: newTransferRow.description || 'Transfer Entry',
+      pickup_location: 'N/A',
+      dropoff_location: 'N/A'
     };
 
     const transfers = [...(transferForm.transfers || []), newRow];
     setTransferForm(prev => ({ ...prev, transfers }));
-    setNewTransferRow({
-      date: new Date().toISOString().substring(0, 10),
-      passenger_name: '',
-      pickup_location: '',
-      dropoff_location: '',
-      amount: '',
-      invoice_or_tour_ref: ''
-    });
+    
+    // Reset specific row details but keep vehicle & date for easy consecutive logging
+    setNewTransferRow(prev => ({
+      ...prev,
+      invoice_or_tour_ref: '',
+      description: '',
+      notes: ''
+    }));
   };
 
   const handleRemoveTransferRow = (id: string) => {
@@ -1461,229 +1485,567 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
         )}
 
         {/* ==================== TRANSFER RECON TAB ==================== */}
-        {activeTab === 'transfer' && (
-          <div className="space-y-4">
+        {activeTab === 'transfer' && (() => {
+          // Calculate current week Monday to Sunday
+          const getCurWeek = () => {
+            const today = new Date();
+            const day = today.getDay(); // 0 Sunday, 1 Monday...
+            const diff = today.getDate() - day + (day === 0 ? -6 : 1);
+            const mon = new Date(today.getFullYear(), today.getMonth(), diff);
+            const sun = new Date(mon.getTime() + 6 * 24 * 60 * 60 * 1000);
             
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold flex items-center gap-1.5">
-                <FileText className="w-5 h-5 text-teal-500" />
-                Transfer Payment Recons
-              </h2>
-              {!showNewTransferSheet && (
-                <button
-                  onClick={() => {
-                    setTransferForm({
-                      week_start: new Date().toISOString().substring(0, 10),
-                      week_end: new Date(Date.now() + 6 * 24 * 3600 * 1000).toISOString().substring(0, 10),
-                      transfers: []
-                    });
-                    setShowNewTransferSheet(true);
-                  }}
-                  className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Create Transfer Recon
-                </button>
-              )}
-            </div>
+            const pad = (n: number) => String(n).padStart(2, '0');
+            return {
+              week_start: `${mon.getFullYear()}-${pad(mon.getMonth() + 1)}-${pad(mon.getDate())}`,
+              week_end: `${sun.getFullYear()}-${pad(sun.getMonth() + 1)}-${pad(sun.getDate())}`
+            };
+          };
 
-            {showNewTransferSheet ? (
-              <div className="bg-slate-950/90 border border-slate-800 rounded-xl p-4 shadow-xl space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                  <h3 className="text-xs uppercase tracking-wider font-extrabold text-teal-400">Weekly transfers list</h3>
+          const currentWeekRange = getCurWeek();
+          const currentWeekSheet = transfersSheets.find(ts => ts.week_start === currentWeekRange.week_start);
+
+          // Format Date Range for display (e.g., "22 Jun 2026 — 28 Jun 2026")
+          const formatRangeDisplay = (startStr: string, endStr: string) => {
+            if (!startStr || !endStr) return '';
+            const fmt = (s: string) => {
+              const d = new Date(s);
+              if (isNaN(d.getTime())) return s;
+              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+              return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+            };
+            return `${fmt(startStr)} — ${fmt(endStr)}`;
+          };
+
+          // Active sheet we are displaying/editing at the top
+          // It can be either the current week's sheet (if exists) or a sheet being edited (showNewTransferSheet is true and transferForm is set)
+          const activeSheet = showNewTransferSheet ? transferForm : currentWeekSheet;
+          const isSheetEditable = activeSheet && activeSheet.status === 'draft';
+
+          return (
+            <div className="space-y-6">
+              
+              {/* Header Section */}
+              <div className="flex items-center justify-between">
+                <h2 className="text-base font-bold flex items-center gap-1.5 text-slate-800">
+                  <FileText className="w-5 h-5 text-teal-600" />
+                  Transfer Recon for Weekly Payment
+                </h2>
+                {!activeSheet && (
                   <button
-                    onClick={() => setShowNewTransferSheet(false)}
-                    className="text-slate-400 hover:text-white text-xs font-bold"
+                    onClick={() => {
+                      const newSheet: Partial<TransferReconSheet> = {
+                        id: `trf-${Math.random().toString(36).substring(2, 9)}`,
+                        driver_id: driver.driver_id,
+                        week_start: currentWeekRange.week_start,
+                        week_end: currentWeekRange.week_end,
+                        transfers: [],
+                        status: 'draft',
+                        edit_request_status: 'none',
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                      };
+                      setTransferForm(newSheet);
+                      setShowNewTransferSheet(true);
+                      // Set default vehicle from driver registered list
+                      if (vehicles.length > 0) {
+                        setNewTransferRow(prev => ({
+                          ...prev,
+                          vehicle_reg: vehicles[0].registration_no,
+                          vehicle_name: `${vehicles[0].make} ${vehicles[0].model}`,
+                          tla_type: 'L = Long Transfer',
+                          date: currentWeekRange.week_start
+                        }));
+                      } else {
+                        setNewTransferRow(prev => ({
+                          ...prev,
+                          tla_type: 'L = Long Transfer',
+                          date: currentWeekRange.week_start
+                        }));
+                      }
+                    }}
+                    className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold py-1.5 px-3 rounded-lg transition-colors flex items-center gap-1"
                   >
-                    Cancel
+                    <Plus className="w-3.5 h-3.5" />
+                    Create Transfer Sheet
                   </button>
-                </div>
+                )}
+              </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-slate-400">Week Start</label>
+              {/* Alert Warning Box */}
+              <div className="bg-amber-50/70 border border-amber-200 text-slate-700 rounded-xl p-4 text-[11px] leading-relaxed shadow-xs">
+                <p>
+                  All transfer information to be added here. Client reference numbers to be added to every date.{' '}
+                  <strong className="text-slate-900">
+                    NO salary will be paid if this form has not been completed and sent to the office by every Thursday.
+                  </strong>{' '}
+                  Payments will be done once form has been received and checked. NO immediate payments will be done.
+                </p>
+              </div>
+
+              {/* ACTIVE WEEK RECON SHEET FORM */}
+              {activeSheet ? (
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                      <h3 className="text-xs uppercase tracking-wider font-extrabold text-slate-500">Weekly Transfer Sheet</h3>
+                      <p className="text-sm font-bold text-slate-800 mt-1">
+                        {formatRangeDisplay(activeSheet.week_start || '', activeSheet.week_end || '')}
+                      </p>
+                    </div>
+                    <span className={`text-[10px] uppercase font-black px-2.5 py-1 rounded border ${
+                      activeSheet.status === 'submitted' || activeSheet.status === 'reviewed'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}>
+                      {activeSheet.status || 'draft'}
+                    </span>
+                  </div>
+
+                  {/* Driver Name input box */}
+                  <div className="max-w-md">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Driver Name</label>
                     <input
-                      type="date"
-                      value={transferForm.week_start}
-                      onChange={(e) => setTransferForm(prev => ({ ...prev, week_start: e.target.value }))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-xs text-white"
+                      type="text"
+                      readOnly
+                      value={driver.name}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-700 font-bold"
                     />
                   </div>
-                  <div>
-                    <label className="text-[10px] font-bold uppercase text-slate-400">Week End</label>
-                    <input
-                      type="date"
-                      value={transferForm.week_end}
-                      onChange={(e) => setTransferForm(prev => ({ ...prev, week_end: e.target.value }))}
-                      className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-xs text-white"
-                    />
-                  </div>
-                </div>
 
-                {/* Transfers rows itemizer */}
-                <div className="space-y-2">
-                  <h4 className="text-[10px] font-bold uppercase text-teal-400">Passenger Transfer log</h4>
-                  
-                  {/* Existing logged transfers */}
-                  {(transferForm.transfers || []).length > 0 && (
-                    <div className="space-y-1.5 bg-slate-900 p-2 rounded border border-slate-800 max-h-48 overflow-y-auto">
-                      {(transferForm.transfers || []).map((t) => (
-                        <div key={t.id} className="flex justify-between items-start text-xs border-b border-slate-800/60 pb-1.5">
-                          <div>
-                            <p className="font-extrabold text-white">{t.passenger_name}</p>
-                            <p className="text-[10px] text-slate-400">{t.date} • {t.pickup_location} → {t.dropoff_location}</p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-black text-teal-400">R {t.amount}</span>
-                            <button
-                              onClick={() => handleRemoveTransferRow(t.id)}
-                              className="text-rose-400 hover:text-rose-200"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                  {/* Submission Success Alert if locked */}
+                  {(activeSheet.status === 'submitted' || activeSheet.status === 'reviewed') && (
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-3.5 text-xs font-bold flex items-center gap-2">
+                      <span className="text-emerald-500 text-sm">✓</span> This transfer recon sheet has been submitted and is locked.
                     </div>
                   )}
 
-                  {/* Add New transfer row */}
-                  <div className="bg-slate-900 p-3 rounded-lg border border-slate-800 text-xs space-y-2">
-                    <p className="text-[9px] uppercase font-bold text-slate-400">Log Transfer Record</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="date"
-                        value={newTransferRow.date}
-                        onChange={(e) => setNewTransferRow(prev => ({ ...prev, date: e.target.value }))}
-                        className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-white"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Passenger Name"
-                        value={newTransferRow.passenger_name}
-                        onChange={(e) => setNewTransferRow(prev => ({ ...prev, passenger_name: e.target.value }))}
-                        className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-white"
-                      />
+                  {/* TRANSFER ENTRIES TABLE */}
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-[#0c3a60] text-white text-[10px] uppercase tracking-wider font-extrabold">
+                        <tr>
+                          <th className="p-3 w-[15%]">Vehicle Reg</th>
+                          <th className="p-3 w-[15%]">Vehicle Name</th>
+                          <th className="p-3 w-[12%]">Transfer Date</th>
+                          <th className="p-3 w-[15%]">Tour/Transfer Ref Nr *</th>
+                          <th className="p-3 w-[15%]">T/L/A Type</th>
+                          <th className="p-3 w-[15%]">Description</th>
+                          <th className="p-3 w-[13%]">Notes</th>
+                          {isSheetEditable && <th className="p-3 w-[5%] text-center">Action</th>}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {/* Render existing rows */}
+                        {(activeSheet.transfers || []).length === 0 ? (
+                          <tr>
+                            <td colSpan={isSheetEditable ? 8 : 7} className="p-6 text-center text-slate-400 italic text-xs bg-slate-50">
+                              No transfer rows added to this sheet yet.
+                            </td>
+                          </tr>
+                        ) : (
+                          (activeSheet.transfers || []).map((t) => (
+                            <tr key={t.id} className="hover:bg-slate-50 bg-white transition-colors">
+                              <td className="p-2">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={t.vehicle_reg || ''}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 font-bold"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={t.vehicle_name || ''}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 font-medium"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={t.date || ''}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 font-mono"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={t.invoice_or_tour_ref || ''}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 font-mono"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={t.tla_type || ''}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 font-medium"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={t.description || ''}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="text"
+                                  readOnly
+                                  value={t.notes || ''}
+                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600"
+                                />
+                              </td>
+                              {isSheetEditable && (
+                                <td className="p-2 text-center">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveTransferRow(t.id)}
+                                    className="text-rose-500 hover:text-rose-700 font-black p-1 hover:bg-rose-50 rounded transition-all"
+                                    title="Remove Entry"
+                                  >
+                                    ✕
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))
+                        )}
+
+                        {/* Inline Add New Row Form inside the table if sheet is editable */}
+                        {isSheetEditable && (
+                          <tr className="bg-teal-50/40 border-t-2 border-teal-100">
+                            <td className="p-2">
+                              <select
+                                value={newTransferRow.vehicle_reg}
+                                onChange={(e) => {
+                                  const reg = e.target.value;
+                                  const veh = vehicles.find(v => v.registration_no === reg);
+                                  setNewTransferRow(prev => ({
+                                    ...prev,
+                                    vehicle_reg: reg,
+                                    vehicle_name: veh ? `${veh.make} ${veh.model}` : ''
+                                  }));
+                                }}
+                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 font-bold focus:ring-1 focus:ring-teal-500"
+                              >
+                                <option value="">Select Reg</option>
+                                {vehicles.map(v => (
+                                  <option key={v.registration_no} value={v.registration_no}>{v.registration_no}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                placeholder="Vehicle Name"
+                                value={newTransferRow.vehicle_name}
+                                onChange={(e) => setNewTransferRow(prev => ({ ...prev, vehicle_name: e.target.value }))}
+                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-teal-500"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="date"
+                                value={newTransferRow.date}
+                                onChange={(e) => setNewTransferRow(prev => ({ ...prev, date: e.target.value }))}
+                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-teal-500"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                placeholder="INV-2026-X"
+                                value={newTransferRow.invoice_or_tour_ref}
+                                onChange={(e) => setNewTransferRow(prev => ({ ...prev, invoice_or_tour_ref: e.target.value }))}
+                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 font-mono focus:ring-1 focus:ring-teal-500"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <select
+                                value={newTransferRow.tla_type}
+                                onChange={(e) => setNewTransferRow(prev => ({ ...prev, tla_type: e.target.value }))}
+                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-teal-500"
+                              >
+                                <option value="L = Long Transfer">L = Long Transfer</option>
+                                <option value="T = Tour">T = Tour</option>
+                                <option value="A = Area Transfer">A = Area Transfer</option>
+                              </select>
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                placeholder="e.g. Cape Town Airport"
+                                value={newTransferRow.description}
+                                onChange={(e) => setNewTransferRow(prev => ({ ...prev, description: e.target.value }))}
+                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-teal-500"
+                              />
+                            </td>
+                            <td className="p-2">
+                              <input
+                                type="text"
+                                placeholder="Notes"
+                                value={newTransferRow.notes}
+                                onChange={(e) => setNewTransferRow(prev => ({ ...prev, notes: e.target.value }))}
+                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-teal-500"
+                              />
+                            </td>
+                            <td className="p-2 text-center">
+                              <button
+                                type="button"
+                                onClick={handleAddTransferRow}
+                                className="bg-teal-600 hover:bg-teal-500 text-white font-extrabold px-3 py-1 rounded shadow-xs transition-colors text-xs"
+                                title="Add Row"
+                              >
+                                Add
+                              </button>
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Summary of entries and action buttons */}
+                  <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-50 border border-slate-150 p-4 rounded-xl gap-3">
+                    <div className="text-xs text-slate-600">
+                      Entries in sheet: <strong className="text-slate-800">{(activeSheet.transfers || []).length}</strong> | 
+                      Calculated wage payout: <strong className="text-teal-600">R {(activeSheet.transfers || []).reduce((sum, curr) => sum + Number(curr.amount || 0), 0).toFixed(2)}</strong>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="text"
-                        placeholder="Pickup Location"
-                        value={newTransferRow.pickup_location}
-                        onChange={(e) => setNewTransferRow(prev => ({ ...prev, pickup_location: e.target.value }))}
-                        className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-white"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Dropoff Location"
-                        value={newTransferRow.dropoff_location}
-                        onChange={(e) => setNewTransferRow(prev => ({ ...prev, dropoff_location: e.target.value }))}
-                        className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-white"
-                      />
+
+                    <div className="flex items-center gap-2">
+                      {showNewTransferSheet && (
+                        <button
+                          onClick={() => {
+                            setShowNewTransferSheet(false);
+                            setTransferForm({ week_start: '', week_end: '', transfers: [] });
+                          }}
+                          className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-1.5 px-3.5 rounded-xl text-xs transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+
+                      {isSheetEditable && (
+                        <>
+                          <button
+                            onClick={() => handleSaveTransferSheet(false)}
+                            className="bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 px-3.5 rounded-xl text-xs transition-colors"
+                          >
+                            Save Draft
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (confirm('Are you sure you want to submit this sheet? Once submitted, it will be locked.')) {
+                                handleSaveTransferSheet(true);
+                              }
+                            }}
+                            className="bg-teal-600 hover:bg-teal-500 text-white font-black py-1.5 px-4 rounded-xl text-xs transition-colors shadow"
+                          >
+                            Submit Sheet
+                          </button>
+                        </>
+                      )}
+
+                      {(!isSheetEditable && activeSheet.id) && (
+                        <button
+                          onClick={() => downloadTransferReconPDF(activeSheet as TransferReconSheet, driver.name)}
+                          className="bg-teal-600 hover:bg-teal-500 text-white font-bold py-1.5 px-3.5 rounded-xl text-xs transition-colors flex items-center gap-1"
+                        >
+                          Download PDF Report
+                        </button>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="number"
-                        placeholder="ZAR Amount"
-                        value={newTransferRow.amount}
-                        onChange={(e) => setNewTransferRow(prev => ({ ...prev, amount: e.target.value }))}
-                        className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-white"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Tour Code Reference"
-                        value={newTransferRow.invoice_or_tour_ref}
-                        onChange={(e) => setNewTransferRow(prev => ({ ...prev, invoice_or_tour_ref: e.target.value }))}
-                        className="bg-slate-950 border border-slate-800 rounded p-1 text-xs text-white"
-                      />
-                    </div>
+                  </div>
+
+                </div>
+              ) : (
+                /* Empty week sheet banner if no sheet has been started */
+                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-3">
+                  <p className="text-slate-500 italic text-xs">
+                    You have not started a transfer recon sheet for the current week period:
+                  </p>
+                  <p className="text-sm font-bold text-slate-800 font-mono bg-slate-100 py-1 px-3 inline-block rounded-lg">
+                    {formatRangeDisplay(currentWeekRange.week_start, currentWeekRange.week_end)}
+                  </p>
+                  <div>
                     <button
-                      type="button"
-                      onClick={handleAddTransferRow}
-                      className="w-full text-center bg-slate-950 hover:bg-slate-800 py-1.5 rounded text-teal-400 font-bold flex items-center justify-center gap-1"
+                      onClick={() => {
+                        const newSheet: Partial<TransferReconSheet> = {
+                          id: `trf-${Math.random().toString(36).substring(2, 9)}`,
+                          driver_id: driver.driver_id,
+                          week_start: currentWeekRange.week_start,
+                          week_end: currentWeekRange.week_end,
+                          transfers: [],
+                          status: 'draft',
+                          edit_request_status: 'none',
+                          created_at: new Date().toISOString(),
+                          updated_at: new Date().toISOString()
+                        };
+                        setTransferForm(newSheet);
+                        setShowNewTransferSheet(true);
+                        // Default the fields
+                        if (vehicles.length > 0) {
+                          setNewTransferRow(prev => ({
+                            ...prev,
+                            vehicle_reg: vehicles[0].registration_no,
+                            vehicle_name: `${vehicles[0].make} ${vehicles[0].model}`,
+                            tla_type: 'L = Long Transfer',
+                            date: currentWeekRange.week_start
+                          }));
+                        } else {
+                          setNewTransferRow(prev => ({
+                            ...prev,
+                            tla_type: 'L = Long Transfer',
+                            date: currentWeekRange.week_start
+                          }));
+                        }
+                      }}
+                      className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-extrabold py-2 px-4 rounded-xl transition-all shadow-xs inline-flex items-center gap-1"
                     >
-                      <PlusCircle className="w-3.5 h-3.5" />
-                      Add to Weekly Sheet
+                      <Plus className="w-4 h-4" />
+                      Create Transfer Sheet
                     </button>
                   </div>
                 </div>
+              )}
 
-                <div className="flex gap-2 justify-end border-t border-slate-800 pt-3">
-                  <button
-                    onClick={() => handleSaveTransferSheet(false)}
-                    className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-1.5 px-3 rounded text-xs transition-colors"
-                  >
-                    Save Draft
-                  </button>
-                  <button
-                    onClick={() => handleSaveTransferSheet(true)}
-                    className="bg-teal-600 hover:bg-teal-500 text-white font-black py-1.5 px-4 rounded text-xs transition-colors shadow"
-                  >
-                    Submit Sheet
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {transfersSheets.length === 0 ? (
-                  <p className="text-xs text-slate-500 italic text-center py-6">No transfer sheets submitted yet.</p>
-                ) : (
-                  transfersSheets.map(ts => (
-                    <div key={ts.id} className="bg-slate-950/90 border border-slate-800 rounded-xl p-4 shadow flex flex-col gap-2">
-                      <div className="flex justify-between items-center">
-                        <p className="text-[11px] font-black text-slate-400">Week: {ts.week_start} - {ts.week_end}</p>
-                        <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded border ${
-                          ts.status === 'reviewed' ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/80' : 'bg-slate-800 text-slate-400 border-slate-700'
-                        }`}>
-                          {ts.status}
-                        </span>
-                      </div>
+              {/* PREVIOUS SUBMISSIONS SECTION */}
+              <div className="space-y-3 pt-4 border-t border-slate-150">
+                <h3 className="text-xs uppercase tracking-wider font-extrabold text-slate-500">Previous Submissions</h3>
+                
+                {(() => {
+                  const previousSheets = transfersSheets.filter(ts => ts.week_start !== currentWeekRange.week_start);
+                  
+                  if (previousSheets.length === 0) {
+                    return <p className="text-xs text-slate-400 italic py-3">No previous sheets found.</p>;
+                  }
 
-                      <div className="flex justify-between items-center text-xs text-slate-300 bg-slate-900/60 p-2.5 rounded border border-slate-800">
-                        <span>Passenger Transfers: <strong className="text-white">{ts.transfers.length}</strong></span>
-                        <span>Total Wage Earnings: <strong className="text-teal-400">R {ts.transfers.reduce((sum, curr) => sum + Number(curr.amount || 0), 0).toFixed(2)}</strong></span>
-                      </div>
+                  return (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {previousSheets.map(ts => {
+                        const totalWage = ts.transfers.reduce((sum, curr) => sum + Number(curr.amount || 0), 0);
+                        return (
+                          <div key={ts.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col justify-between gap-3">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-xs font-bold text-slate-800">
+                                  {formatRangeDisplay(ts.week_start, ts.week_end)}
+                                </p>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                  {ts.transfers.length} entries • Payout: <strong className="text-teal-600">R {totalWage.toFixed(2)}</strong>
+                                </p>
+                              </div>
+                              <span className={`text-[9px] uppercase font-black px-2 py-0.5 rounded border ${
+                                ts.status === 'reviewed' 
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                  : ts.status === 'submitted'
+                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                  : 'bg-slate-100 text-slate-600 border-slate-200'
+                              }`}>
+                                {ts.status}
+                              </span>
+                            </div>
 
-                      <div className="flex gap-1.5 pt-1.5 justify-end">
-                        <button
-                          onClick={() => downloadTransferReconPDF(ts, driver.name)}
-                          className="text-[10px] font-bold text-teal-400 hover:bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg transition-colors"
-                        >
-                          PDF Report
-                        </button>
-                        
-                        {ts.status === 'draft' && (
-                          <button
-                            onClick={() => {
-                              setTransferForm(ts);
-                              setShowNewTransferSheet(true);
-                            }}
-                            className="bg-teal-600 hover:bg-teal-500 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg transition-all"
-                          >
-                            Edit Sheet
-                          </button>
-                        )}
+                            {/* Edit authorization form request */}
+                            {activeReconForEditRequest === ts.id && (
+                              <form
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  if (editRequestReason) {
+                                    handleTransferEditRequest(ts.id, editRequestReason);
+                                    setEditRequestReason('');
+                                    setActiveReconForEditRequest(null);
+                                  }
+                                }}
+                                className="bg-amber-50/50 p-2 rounded-lg border border-amber-200 mt-2 space-y-2"
+                              >
+                                <p className="text-[9px] font-bold text-amber-800 uppercase">Reason for Edit Request</p>
+                                <input
+                                  type="text"
+                                  placeholder="Why do you need to edit this?"
+                                  value={editRequestReason}
+                                  onChange={(e) => setEditRequestReason(e.target.value)}
+                                  className="w-full bg-white border border-slate-200 rounded p-1 text-[11px] text-slate-800"
+                                  required
+                                />
+                                <div className="flex gap-1 justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveReconForEditRequest(null)}
+                                    className="text-[10px] text-slate-500 hover:text-slate-800 px-2 py-1"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="submit"
+                                    className="bg-amber-600 text-white font-bold text-[10px] px-2.5 py-1 rounded transition-colors"
+                                  >
+                                    Submit Request
+                                  </button>
+                                </div>
+                              </form>
+                            )}
 
-                        {ts.status === 'submitted' && ts.edit_request_status === 'none' && (
-                          <button
-                            onClick={() => {
-                              const reason = prompt('Please enter edit request reason:');
-                              if (reason) handleTransferEditRequest(ts.id, reason);
-                            }}
-                            className="text-[10px] font-bold text-amber-400 hover:bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg transition-colors"
-                          >
-                            Request Edit
-                          </button>
-                        )}
-                      </div>
+                            <div className="flex gap-2 justify-end border-t border-slate-100 pt-3">
+                              <button
+                                onClick={() => downloadTransferReconPDF(ts, driver.name)}
+                                className="text-[10px] font-bold text-teal-600 hover:bg-teal-50 border border-teal-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                              >
+                                PDF Report
+                              </button>
+                              
+                              {ts.status === 'draft' && (
+                                <button
+                                  onClick={() => {
+                                    setTransferForm(ts);
+                                    setShowNewTransferSheet(true);
+                                  }}
+                                  className="bg-teal-600 hover:bg-teal-500 text-white text-[10px] font-bold py-1.5 px-3 rounded-lg transition-all"
+                                >
+                                  Edit Draft
+                                </button>
+                              )}
+
+                              {ts.status === 'submitted' && ts.edit_request_status === 'none' && (
+                                <button
+                                  onClick={() => {
+                                    setActiveReconForEditRequest(ts.id);
+                                  }}
+                                  className="text-[10px] font-bold text-amber-600 hover:bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                                >
+                                  Request Edit
+                                </button>
+                              )}
+
+                              {ts.edit_request_status === 'pending' && (
+                                <span className="text-[10px] font-bold text-amber-500 bg-amber-50 border border-amber-100 px-2.5 py-1.5 rounded-lg">
+                                  ⏳ Edit Pending
+                                </span>
+                              )}
+
+                              {ts.edit_request_status === 'rejected' && (
+                                <span className="text-[10px] font-bold text-rose-500 bg-rose-50 border border-rose-100 px-2.5 py-1.5 rounded-lg" title={ts.edit_request_rejection_reason}>
+                                  ❌ Edit Rejected
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ))
-                )}
+                  );
+                })()}
               </div>
-            )}
 
-          </div>
-        )}
+            </div>
+          );
+        })()}
 
         {/* ==================== VEHICLE CHECKLISTS TAB ==================== */}
         {activeTab === 'checklists' && (
