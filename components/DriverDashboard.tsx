@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   ClipboardCheck, Calendar, FileText, User, LogOut, Briefcase, 
-  Plus, Trash2, Camera, Compass, PlusCircle, Sparkles, CheckCircle, Clock, AlertTriangle, FileUp, RefreshCw
+  Plus, Trash2, Camera, Compass, PlusCircle, Sparkles, CheckCircle, Clock, AlertTriangle, FileUp, RefreshCw,
+  Search, Menu, Wrench
 } from 'lucide-react';
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, VehicleChecklist, TrafficFine,
@@ -19,7 +20,10 @@ interface DriverDashboardProps {
 }
 
 export default function DriverDashboard({ driver, onLogout }: DriverDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'tasks' | 'recon' | 'transfer' | 'logging' | 'documents'>('tasks');
+  const [activeTab, setActiveTab] = useState<
+    'tasks' | 'inspections' | 'recon' | 'checklists' | 'incidents' | 'logging' | 'transfer' | 'documents' | 'fines'
+  >('tasks');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [assignedBookings, setAssignedBookings] = useState<Booking[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   
@@ -602,33 +606,143 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 pb-20 font-sans text-slate-100 selection:bg-teal-500 selection:text-white">
+    <div className="min-h-screen bg-slate-900 font-sans text-slate-100 selection:bg-teal-500 selection:text-white flex flex-col md:flex-row">
       
-      {/* Dynamic Header */}
-      <header className="bg-slate-950 border-b border-slate-800 p-4 sticky top-0 z-40 flex items-center justify-between">
+      {/* MOBILE HEADER BAR */}
+      <header className="md:hidden bg-slate-950 border-b border-slate-800 p-4 sticky top-0 z-40 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="bg-teal-600 p-1.5 rounded-lg text-white font-extrabold tracking-tight">IN</div>
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-900 rounded-lg transition-colors mr-1 cursor-pointer"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+          <div className="bg-teal-600 px-1.5 py-0.5 rounded text-white font-extrabold tracking-tight text-xs">IN</div>
           <div>
-            <h1 className="text-xs font-black tracking-widest text-slate-400">INYATHI PWA</h1>
-            <p className="text-sm font-bold text-teal-400">{driver.name}</p>
+            <h1 className="text-[10px] font-black tracking-widest text-slate-400 leading-none">INYATHI PWA</h1>
+            <p className="text-xs font-bold text-teal-400 leading-tight mt-0.5">{driver.name}</p>
           </div>
         </div>
         
         <div className="flex items-center gap-1">
-          <span className="text-[10px] font-bold bg-slate-800 px-2.5 py-1.5 rounded-full border border-slate-700 text-teal-300">
-            {driver.driver_id} • {driver.location}
+          <span className="text-[9px] font-bold bg-slate-800 px-2 py-1 rounded-full border border-slate-700 text-teal-300">
+            {driver.driver_id}
           </span>
           <button
             onClick={onLogout}
-            className="p-1.5 text-rose-400 hover:bg-slate-900 rounded-lg transition-colors"
+            className="p-1.5 text-rose-400 hover:bg-slate-900 rounded-lg transition-colors cursor-pointer"
             title="Log out"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      <main className="p-4 max-w-lg mx-auto">
+      {/* BACKDROP FOR MOBILE DRAWER */}
+      {isSidebarOpen && (
+        <div 
+          onClick={() => setIsSidebarOpen(false)}
+          className="md:hidden fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 transition-opacity"
+        />
+      )}
+
+      {/* RESPONSIVE LEFT SIDEBAR */}
+      <aside className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-[#0a1424] border-r border-slate-800/85 p-5 flex flex-col justify-between transition-transform duration-300 ease-in-out shrink-0
+        md:sticky md:top-0 md:h-screen md:translate-x-0
+        ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+      `}>
+        <div className="space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="bg-teal-600 w-8 h-8 rounded-lg text-white font-extrabold tracking-tight flex items-center justify-center text-sm shadow">IN</div>
+              <div>
+                <h2 className="text-xs font-black tracking-widest text-teal-400 uppercase leading-none">INYATHI</h2>
+                <p className="text-xs font-semibold text-slate-400 leading-none mt-1">{driver.name}</p>
+                <p className="text-[9px] font-bold uppercase text-slate-500 tracking-wider mt-0.5">DRIVER PORTAL</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setIsSidebarOpen(false)}
+              className="md:hidden text-slate-400 hover:text-white p-1 text-xs font-bold cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+
+          <nav className="space-y-1 overflow-y-auto max-h-[60vh] scrollbar-none">
+            {[
+              { id: 'tasks', label: 'My Tasks', icon: CheckCircle },
+              { id: 'inspections', label: 'Inspection Sheet', icon: Search },
+              { id: 'recon', label: 'Recon Sheet', icon: FileText },
+              { id: 'checklists', label: 'Vehicle Checklists', icon: ClipboardCheck },
+              { id: 'incidents', label: 'Incident Reports', icon: AlertTriangle },
+              { id: 'logging', label: 'Log Expense / Damage', icon: PlusCircle },
+              { id: 'transfer', label: 'Transfer Recon', icon: FileText },
+              { id: 'documents', label: 'My Documents', icon: Briefcase },
+              { id: 'fines', label: 'My Fines', icon: AlertTriangle },
+            ].map(item => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id as any);
+                    setIsSidebarOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                    isActive 
+                      ? 'bg-teal-600 text-white font-extrabold shadow-md' 
+                      : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {item.label}
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div className="border-t border-slate-800 pt-4 mt-auto">
+          <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/50 text-[10px] space-y-1 mb-3">
+            <div className="flex justify-between">
+              <span className="text-slate-500 font-bold">Driver ID:</span>
+              <strong className="text-teal-400">{driver.driver_id}</strong>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-500 font-bold">Region:</span>
+              <strong className="text-white">{driver.location}</strong>
+            </div>
+          </div>
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 py-2 text-xs font-extrabold bg-rose-950/20 hover:bg-rose-900/30 text-rose-400 border border-rose-900/40 rounded-lg transition-colors cursor-pointer"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      {/* MAIN VIEWPORT */}
+      <div className="flex-1 flex flex-col min-w-0">
+        
+        {/* DESKTOP-ONLY HEADER */}
+        <header className="hidden md:flex bg-slate-950 border-b border-slate-850 p-4 justify-between items-center z-10 sticky top-0">
+          <div>
+            <h1 className="text-xs font-black tracking-widest text-slate-500">INYATHI OPERATIONAL PORTAL</h1>
+            <p className="text-xs font-extrabold text-teal-400 uppercase mt-0.5">{activeTab.toUpperCase()} VIEW</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold bg-slate-900 px-3 py-1.5 rounded-full border border-slate-800 text-teal-400">
+              {driver.name} ({driver.driver_id}) • {driver.location}
+            </span>
+          </div>
+        </header>
+
+        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-5xl w-full mx-auto">
         
         {/* ==================== TASKS TAB ==================== */}
         {activeTab === 'tasks' && (
@@ -711,7 +825,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                     </div>
                   )}
 
-                  {/* Operational actions: Itinerary, pre-trip, post-trip checks */}
+                  {/* Operational actions: Itinerary, pre-trip, post-trip checks with pairing constraint */}
                   <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800">
                     <button
                       onClick={async () => {
@@ -722,53 +836,175 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                           alert(`📋 No itinerary file has been uploaded for this booking yet.`);
                         }
                       }}
-                      className="text-xs font-semibold py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-lg transition-colors border border-slate-700 text-center cursor-pointer"
+                      className="text-xs font-semibold py-2 bg-slate-800 hover:bg-slate-750 text-slate-200 rounded-lg transition-colors border border-slate-700 text-center cursor-pointer col-span-2"
                     >
                       🗺️ View Itinerary
                     </button>
-                    <button
-                      onClick={() => handleOpenInspection(b, 'pre-trip')}
-                      className="text-xs font-semibold py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-all shadow-md text-center"
-                    >
-                      🛡️ Pre-Trip Safety Check
-                    </button>
-                    <button
-                      onClick={() => handleOpenInspection(b, 'post-trip')}
-                      className="col-span-2 text-xs font-semibold py-2 bg-slate-900 hover:bg-slate-850 text-rose-400 hover:text-rose-300 border border-slate-800 rounded-lg transition-colors text-center"
-                    >
-                      ⚠️ Log Post-Trip Checklist
-                    </button>
+                    {(() => {
+                      const bookingIns = inspectionsList.filter(ins => ins.invoice_no === b.invoice_no);
+                      const hasPre = bookingIns.some(ins => ins.inspection_type === 'pre-trip');
+                      const hasPost = bookingIns.some(ins => ins.inspection_type === 'post-trip');
+
+                      return (
+                        <>
+                          {/* Pre-Trip Button */}
+                          {hasPre ? (
+                            <div className="text-xs font-bold py-2 bg-emerald-950/40 border border-emerald-900/60 text-emerald-400 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed">
+                              <CheckCircle className="w-4 h-4 text-emerald-400" /> Pre-Trip Logged
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => handleOpenInspection(b, 'pre-trip')}
+                              className="text-xs font-semibold py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-all shadow-md text-center cursor-pointer"
+                            >
+                              🛡️ Pre-Trip Safety Check
+                            </button>
+                          )}
+
+                          {/* Post-Trip Button */}
+                          {hasPost ? (
+                            <div className="text-xs font-bold py-2 bg-indigo-950/40 border border-indigo-900/60 text-indigo-400 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed">
+                              <CheckCircle className="w-4 h-4 text-indigo-400" /> Post-Trip Logged
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                if (!hasPre) {
+                                  alert("⚠️ Pre-Trip Safety Check is required before submitting the Post-Trip Safety Check.");
+                                  return;
+                                }
+                                handleOpenInspection(b, 'post-trip');
+                              }}
+                              className={`text-xs font-semibold py-2 rounded-lg transition-all text-center cursor-pointer ${
+                                hasPre
+                                  ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-md animate-pulse'
+                                  : 'bg-slate-800/80 text-slate-500 cursor-not-allowed border border-slate-700'
+                              }`}
+                            >
+                              ⚠️ Log Post-Trip Checklist
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               ))
             )}
+          </div>
+        )}
 
-            {/* Past Inspections Checklist */}
-            <div className="pt-4">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">My Inspections History</h3>
-              {inspectionsList.length === 0 ? (
-                <p className="text-[11px] text-slate-500 italic">No safety checks logged yet.</p>
-              ) : (
-                <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                  {inspectionsList.map(ins => (
-                    <div key={ins.id} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800 text-[11px] flex justify-between items-center">
+        {/* ==================== INSPECTION SHEET TAB ==================== */}
+        {activeTab === 'inspections' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold flex items-center gap-1.5">
+                <Search className="w-5 h-5 text-teal-500" />
+                Inspection Sheets logged by you
+              </h2>
+              <span className="text-xs font-bold text-slate-400">
+                {inspectionsList.length} Total Inspections
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Below is the comprehensive audit ledger of all physical vehicle safety check inspections you have submitted. Download official PDF reports of any logs for inspection compliance tracking.
+            </p>
+
+            {inspectionsList.length === 0 ? (
+              <div className="bg-slate-950 p-6 border border-slate-850 rounded-xl text-center">
+                <p className="text-xs text-slate-500 font-medium">No inspection sheets logged yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {inspectionsList.map(ins => (
+                  <div key={ins.id} className="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-3 shadow-lg text-xs">
+                    <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-extrabold text-white">{ins.inspection_type.toUpperCase()} • {ins.invoice_no}</p>
-                        <p className="text-slate-400 text-[10px]">
-                          {ins.vehicle_reg} • Mileage: {ins.mileage_at_inspection} km • {new Date(ins.created_at).toLocaleDateString()}
+                        <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase ${
+                          ins.inspection_type === 'pre-trip' 
+                            ? 'bg-teal-950 text-teal-300 border border-teal-900/60' 
+                            : 'bg-indigo-950 text-indigo-300 border border-indigo-900/60'
+                        }`}>
+                          {ins.inspection_type.toUpperCase()} CHECK
+                        </span>
+                        <h3 className="font-extrabold text-white mt-1.5">Invoice: {ins.invoice_no}</h3>
+                        <p className="text-slate-400 text-[10px] mt-0.5">
+                          Vehicle: <strong className="text-slate-200">{ins.vehicle_reg}</strong> • Mileage: {ins.mileage_at_inspection} km
                         </p>
                       </div>
                       <button
                         onClick={() => downloadInspectionPDF(ins, driver.name)}
-                        className="text-[10px] font-bold text-teal-400 hover:underline bg-teal-950/60 py-1 px-2 rounded border border-teal-800"
+                        className="text-xs font-black text-teal-400 hover:underline border border-teal-800/80 bg-teal-950/40 px-3 py-1 rounded-lg transition-all cursor-pointer"
                       >
-                        PDF
+                        Download PDF
                       </button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+
+                    {/* Display photos of any flagged/failed checks */}
+                    {ins.checklist_json && (
+                      <div className="pt-2 border-t border-slate-900/80">
+                        <span className="text-[9px] text-slate-500 uppercase font-black block mb-1">Safety Checklist Points</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                          {Object.entries(ins.checklist_json).map(([k, v]) => (
+                            <div key={k} className="bg-slate-900 p-1.5 rounded border border-slate-850 text-[10px] text-center">
+                              <p className="text-slate-400 capitalize truncate text-[9px]">{k.replace(/_/g, ' ')}</p>
+                              <span className={`font-bold text-[9px] uppercase ${
+                                v === 'pass' ? 'text-emerald-400' : v === 'flag' ? 'text-amber-400' : 'text-rose-400'
+                              }`}>
+                                {v}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {ins.faults_json && Object.keys(ins.faults_json).length > 0 && (
+                      <div className="bg-rose-950/20 p-2.5 rounded-lg border border-rose-900/30 space-y-1">
+                        <span className="text-[9px] text-rose-400 uppercase font-black block">Flagged Mechanical Faults & Warnings</span>
+                        {Object.entries(ins.faults_json).map(([item, desc]) => (
+                          <div key={item} className="text-[10px] text-slate-300 flex justify-between items-start">
+                            <span className="font-semibold capitalize text-rose-300">{item.replace(/_/g, ' ')}:</span>
+                            <span className="text-slate-400 italic text-right ml-2">{desc}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Media attachments */}
+                    {ins.media_urls && Object.keys(ins.media_urls).length > 0 && (
+                      <div className="pt-2">
+                        <span className="text-[9px] text-slate-500 uppercase font-black block mb-1">Captured Mechanical Proof Photo Attachments</span>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {Object.entries(ins.media_urls).map(([key, url]) => (
+                            <div key={key} className="flex items-center gap-1.5 bg-slate-900 border border-slate-850 p-1.5 rounded-lg max-w-xs">
+                              <Camera className="w-3.5 h-3.5 text-teal-400 shrink-0" />
+                              <span className="capitalize text-[10px] text-slate-300 truncate max-w-[120px]">{key.replace(/_/g, ' ')}</span>
+                              <button
+                                onClick={async () => {
+                                  const signed = await getSignedUrlForView(url);
+                                  window.open(signed, '_blank');
+                                }}
+                                className="text-[9px] text-teal-400 font-bold hover:underline ml-1 cursor-pointer"
+                              >
+                                View Photo
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {ins.notes && (
+                      <div className="bg-slate-900/60 border border-slate-850 p-2.5 rounded-lg">
+                        <span className="text-[9px] text-slate-500 uppercase font-black block">Additional Observations Notes</span>
+                        <p className="text-slate-300 italic text-[11px] mt-0.5">&ldquo;{ins.notes}&rdquo;</p>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1449,11 +1685,208 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
           </div>
         )}
 
-        {/* ==================== LOGGING CENTER TAB ==================== */}
+        {/* ==================== VEHICLE CHECKLISTS TAB ==================== */}
+        {activeTab === 'checklists' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold flex items-center gap-1.5">
+                <ClipboardCheck className="w-5 h-5 text-teal-500 animate-pulse" />
+                Weekly Vehicle Checklist Audit
+              </h2>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Submit your standard 12-point weekly safety checklist audit for compliance records. Use OK or WARN (Action Required) to log actual condition.
+            </p>
+
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3">
+              <form onSubmit={submitPeriodicChecklist} className="space-y-3 text-xs">
+                <div className="grid grid-cols-2 gap-2 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Current Mileage (km)</span>
+                    <input
+                      type="number" required placeholder="e.g. 124000"
+                      value={checklistForm.mileage || ''}
+                      onChange={(e) => setChecklistForm(prev => ({ ...prev, mileage: Number(e.target.value) }))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-white"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-400 block mb-1">Start Date</span>
+                    <input
+                      type="date"
+                      value={checklistForm.week_start}
+                      onChange={(e) => setChecklistForm(prev => ({ ...prev, week_start: e.target.value }))}
+                      className="w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-white"
+                    />
+                  </div>
+                </div>
+
+                {/* 12 check points rating */}
+                <div className="space-y-1.5 border border-slate-800 rounded bg-slate-900/60 p-2">
+                  <p className="text-[9px] uppercase font-bold text-slate-400 border-b border-slate-800 pb-1 mb-1.5">Rating Audit</p>
+                  
+                  {Object.keys(checklistForm.checklist_data || {}).map(key => {
+                    const cleanKey = key.replace(/_/g, ' ');
+                    const ratingValue = (checklistForm.checklist_data as any)[key];
+                    const isOk = ratingValue === 'ok';
+
+                    return (
+                      <div key={key} className="flex justify-between items-center text-[10px] py-1 border-b border-slate-950 last:border-0">
+                        <span className="text-slate-300 capitalize">{cleanKey}</span>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleChecklistValueChange(key, 'ok')}
+                            className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold cursor-pointer ${
+                              isOk ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            OK
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleChecklistValueChange(key, key.includes('tyre') || key.includes('light') ? 'action' : 'low')}
+                            className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold cursor-pointer ${
+                              !isOk ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400'
+                            }`}
+                          >
+                            WARN
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <textarea
+                  placeholder="Notes / Issues noticed during audit checklist"
+                  value={checklistForm.notes}
+                  onChange={(e) => setChecklistForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white h-12"
+                />
+
+                <button
+                  type="submit"
+                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 rounded-lg text-xs transition-colors cursor-pointer"
+                >
+                  File Checklist
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== INCIDENT REPORTS TAB ==================== */}
+        {activeTab === 'incidents' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold flex items-center gap-1.5">
+                <AlertTriangle className="w-5 h-5 text-rose-500 animate-pulse" />
+                Incident Reports
+              </h2>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Report breakdowns, physical damage, collisions, medical issues, or theft incidents immediately to dispatch and safety admins.
+            </p>
+
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3">
+              <form onSubmit={handleLogIncident} className="space-y-2.5 text-xs">
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    value={incidentForm.vehicle_reg}
+                    onChange={(e) => setIncidentForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
+                    className="bg-slate-900 border border-slate-800 rounded p-1.5 text-slate-200"
+                  >
+                    <option value="">Select Vehicle...</option>
+                    {vehicles.map(v => (
+                      <option key={v.registration_no} value={v.registration_no}>{v.registration_no}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={incidentForm.incident_type}
+                    onChange={(e) => setIncidentForm(prev => ({ ...prev, incident_type: e.target.value }))}
+                    className="bg-slate-900 border border-slate-800 rounded p-1.5 text-slate-200"
+                  >
+                    <option value="Accident">Accident / Collision</option>
+                    <option value="Breakdown">Breakdown</option>
+                    <option value="Injury">Medical / Passenger Injury</option>
+                    <option value="Theft">Vandalism / Theft</option>
+                  </select>
+                </div>
+                <input
+                  type="text" required placeholder="Incident Location (e.g. N1 highway outbound)"
+                  value={incidentForm.location}
+                  onChange={(e) => setIncidentForm(prev => ({ ...prev, location: e.target.value }))}
+                  className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-white"
+                />
+                
+                <div className="flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-800">
+                  <input
+                    type="checkbox" id="injuries-chk"
+                    checked={incidentForm.injuries}
+                    onChange={(e) => setIncidentForm(prev => ({ ...prev, injuries: e.target.checked }))}
+                    className="accent-teal-600 w-4 h-4"
+                  />
+                  <label htmlFor="injuries-chk" className="text-slate-300 font-bold">Passenger or Driver Injuries occurred?</label>
+                </div>
+
+                <textarea
+                  required placeholder="Detailed description of what occurred, damage, next actions..."
+                  value={incidentForm.description}
+                  onChange={(e) => setIncidentForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-white h-20"
+                />
+
+                {/* Real Cloudinary file selector for Incidents */}
+                <div className="border border-dashed border-slate-700 bg-slate-900 p-3 text-center rounded-xl flex flex-col items-center justify-center gap-2 relative">
+                  {uploadingIncident ? (
+                    <div className="flex items-center gap-1.5 text-[10px] text-teal-400 font-bold justify-center">
+                      <RefreshCw className="w-4 h-4 animate-spin text-teal-400" /> Uploading photo...
+                    </div>
+                  ) : incidentUrl ? (
+                    <div className="flex flex-col items-center gap-1">
+                      <CheckCircle className="w-5 h-5 text-emerald-400" />
+                      <span className="text-[9px] text-emerald-400 font-extrabold truncate max-w-[200px]">Uploaded: {incidentUrl.split('/').pop()}</span>
+                      <button type="button" onClick={() => setIncidentUrl('')} className="text-[9px] text-rose-400 hover:underline cursor-pointer">Remove</button>
+                    </div>
+                  ) : (
+                    <>
+                      <Camera className="w-5 h-5 text-slate-400" />
+                      <span className="text-[9px] text-slate-400 block">Select Incident Photo / Document</span>
+                      <input 
+                        type="file" 
+                        accept="image/*,application/pdf"
+                        onChange={handleIncidentFileChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                    </>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-2 rounded-lg text-xs transition-colors shadow-md cursor-pointer"
+                >
+                  File Urgent Incident Report
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== LOG EXPENSE / DAMAGE TAB ==================== */}
         {activeTab === 'logging' && (
           <div className="space-y-4">
-            
-            {/* EXPENSES LOGGING */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-bold flex items-center gap-1.5">
+                <PlusCircle className="w-5 h-5 text-teal-500 animate-pulse" />
+                Log Trip Expense or Damage Costs
+              </h2>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Submit trip expenses like fuel slips, tyres, toll gates, or emergency fleet repairs with real receipt uploads.
+            </p>
+
             <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-1">
                 <Camera className="w-4 h-4 text-teal-500" />
@@ -1536,175 +1969,6 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                   className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 rounded-lg text-xs transition-colors"
                 >
                   File Expense Slip
-                </button>
-              </form>
-            </div>
-
-            {/* PERIODIC SAFETY CHECKLISTS FORM */}
-            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-1">
-                <ClipboardCheck className="w-4 h-4 text-teal-500" />
-                Submit Periodic Vehicle Checklist
-              </h3>
-              <form onSubmit={submitPeriodicChecklist} className="space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-2 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
-                  <div>
-                    <span className="text-[10px] text-slate-400 block mb-1">Current Mileage (km)</span>
-                    <input
-                      type="number" required placeholder="e.g. 124000"
-                      value={checklistForm.mileage || ''}
-                      onChange={(e) => setChecklistForm(prev => ({ ...prev, mileage: Number(e.target.value) }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-white"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 block mb-1">Start Date</span>
-                    <input
-                      type="date"
-                      value={checklistForm.week_start}
-                      onChange={(e) => setChecklistForm(prev => ({ ...prev, week_start: e.target.value }))}
-                      className="w-full bg-slate-950 border border-slate-800 rounded p-1 text-xs text-white"
-                    />
-                  </div>
-                </div>
-
-                {/* 12 check points rating */}
-                <div className="space-y-1.5 border border-slate-800 rounded bg-slate-900/60 p-2">
-                  <p className="text-[9px] uppercase font-bold text-slate-400 border-b border-slate-800 pb-1 mb-1.5">Rating Audit</p>
-                  
-                  {Object.keys(checklistForm.checklist_data || {}).map(key => {
-                    const cleanKey = key.replace(/_/g, ' ');
-                    const ratingValue = (checklistForm.checklist_data as any)[key];
-                    const isOk = ratingValue === 'ok';
-
-                    return (
-                      <div key={key} className="flex justify-between items-center text-[10px] py-1 border-b border-slate-950 last:border-0">
-                        <span className="text-slate-300 capitalize">{cleanKey}</span>
-                        <div className="flex gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleChecklistValueChange(key, 'ok')}
-                            className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold ${
-                              isOk ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400'
-                            }`}
-                          >
-                            OK
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleChecklistValueChange(key, key.includes('tyre') || key.includes('light') ? 'action' : 'low')}
-                            className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold ${
-                              !isOk ? 'bg-amber-600 text-white' : 'bg-slate-800 text-slate-400'
-                            }`}
-                          >
-                            WARN
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <textarea
-                  placeholder="Notes / Issues noticed during audit checklist"
-                  value={checklistForm.notes}
-                  onChange={(e) => setChecklistForm(prev => ({ ...prev, notes: e.target.value }))}
-                  className="w-full bg-slate-900 border border-slate-800 rounded p-2 text-white h-12"
-                />
-
-                <button
-                  type="submit"
-                  className="w-full bg-teal-600 hover:bg-teal-500 text-white font-bold py-2 rounded-lg text-xs transition-colors"
-                >
-                  File Checklist
-                </button>
-              </form>
-            </div>
-
-            {/* INCIDENT REPORT FORM */}
-            <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3">
-              <h3 className="text-sm font-bold text-rose-400 flex items-center gap-1">
-                <AlertTriangle className="w-4 h-4" />
-                Report Accident / Road Incident
-              </h3>
-              <form onSubmit={handleLogIncident} className="space-y-2.5 text-xs">
-                <div className="grid grid-cols-2 gap-2">
-                  <select
-                    value={incidentForm.vehicle_reg}
-                    onChange={(e) => setIncidentForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
-                    className="bg-slate-900 border border-slate-800 rounded p-1.5 text-slate-200"
-                  >
-                    <option value="">Select Vehicle...</option>
-                    {vehicles.map(v => (
-                      <option key={v.registration_no} value={v.registration_no}>{v.registration_no}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={incidentForm.incident_type}
-                    onChange={(e) => setIncidentForm(prev => ({ ...prev, incident_type: e.target.value }))}
-                    className="bg-slate-900 border border-slate-800 rounded p-1.5 text-slate-200"
-                  >
-                    <option value="Accident">Accident / Collision</option>
-                    <option value="Breakdown">Breakdown</option>
-                    <option value="Injury">Medical / Passenger Injury</option>
-                    <option value="Theft">Vandalism / Theft</option>
-                  </select>
-                </div>
-                <input
-                  type="text" required placeholder="Incident Location (e.g. N1 highway outbound)"
-                  value={incidentForm.location}
-                  onChange={(e) => setIncidentForm(prev => ({ ...prev, location: e.target.value }))}
-                  className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-white"
-                />
-                
-                <div className="flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-800">
-                  <input
-                    type="checkbox" id="injuries-chk"
-                    checked={incidentForm.injuries}
-                    onChange={(e) => setIncidentForm(prev => ({ ...prev, injuries: e.target.checked }))}
-                    className="accent-teal-600 w-4 h-4"
-                  />
-                  <label htmlFor="injuries-chk" className="text-slate-300 font-bold">Passenger or Driver Injuries occurred?</label>
-                </div>
-
-                <textarea
-                  required placeholder="Detailed description of what occurred, damage, next actions..."
-                  value={incidentForm.description}
-                  onChange={(e) => setIncidentForm(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full bg-slate-900 border border-slate-800 rounded p-1.5 text-white h-20"
-                />
-
-                {/* Real Cloudinary file selector for Incidents */}
-                <div className="border border-dashed border-slate-700 bg-slate-900 p-3 text-center rounded-xl flex flex-col items-center justify-center gap-2 relative">
-                  {uploadingIncident ? (
-                    <div className="flex items-center gap-1.5 text-[10px] text-teal-400 font-bold justify-center">
-                      <RefreshCw className="w-4 h-4 animate-spin text-teal-400" /> Uploading photo...
-                    </div>
-                  ) : incidentUrl ? (
-                    <div className="flex flex-col items-center gap-1">
-                      <CheckCircle className="w-5 h-5 text-emerald-400" />
-                      <span className="text-[9px] text-emerald-400 font-extrabold truncate max-w-[200px]">Uploaded: {incidentUrl.split('/').pop()}</span>
-                      <button type="button" onClick={() => setIncidentUrl('')} className="text-[9px] text-rose-400 hover:underline">Remove</button>
-                    </div>
-                  ) : (
-                    <>
-                      <Camera className="w-5 h-5 text-slate-400" />
-                      <span className="text-[9px] text-slate-400 block">Select Incident Photo / Document</span>
-                      <input 
-                        type="file" 
-                        accept="image/*,application/pdf"
-                        onChange={handleIncidentFileChange}
-                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                      />
-                    </>
-                  )}
-                </div>
-
-                <button
-                  type="submit"
-                  className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-2 rounded-lg text-xs transition-colors shadow-md"
-                >
-                  File Urgent Incident Report
                 </button>
               </form>
             </div>
@@ -2040,6 +2304,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
           </div>
         </div>
       )}
+
+      </div>
 
       {/* Driver Footer Navigation Panel */}
       <footer className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950 border-t border-slate-850 grid grid-cols-5 text-center">

@@ -13,7 +13,7 @@ import {
 } from '@/lib/storage';
 import CalendarGrid from './CalendarGrid';
 import OTPModal from './OTPModal';
-import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF } from '@/lib/pdf';
+import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF, downloadIncidentPDF, downloadExpensePDF } from '@/lib/pdf';
 
 interface AdminDashboardProps {
   admin: Profile;
@@ -76,6 +76,45 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   // Search/Filter states
   const [complianceSearch, setComplianceSearch] = useState('');
   const [checklistSearch, setChecklistSearch] = useState('');
+
+  // Admin logs state variables
+  const [showLogIncidentModal, setShowLogIncidentModal] = useState(false);
+  const [newIncidentForm, setNewIncidentForm] = useState({
+    vehicle_reg: '',
+    driver_id: '',
+    incident_type: 'Accident' as 'Accident' | 'Breakdown' | 'Theft' | 'Fine' | 'Other',
+    description: '',
+    location: '',
+    injuries: false,
+    photo_url: '',
+    document_url: '',
+  });
+
+  const [showLogExpenseModal, setShowLogExpenseModal] = useState(false);
+  const [newExpenseForm, setNewExpenseForm] = useState({
+    vehicle_reg: '',
+    driver_id: '',
+    expense_type: 'Other' as 'Tyres' | 'Service' | 'Damage' | 'Repair' | 'Accident' | 'Other',
+    description: '',
+    amount: '',
+    expense_date: new Date().toISOString().substring(0, 10),
+    photo_url: '',
+    document_url: '',
+  });
+
+  const [showLogChecklistModal, setShowLogChecklistModal] = useState(false);
+  const [newChecklistForm, setNewChecklistForm] = useState({
+    driver_id: '',
+    week_start: new Date().toISOString().substring(0, 10),
+    week_end: new Date(new Date().getTime() + 7 * 24 * 3600 * 1000).toISOString().substring(0, 10),
+    checklist_data: {
+      engine_oil: 'ok' as const, coolant: 'ok' as const, brake_fluid: 'ok' as const, windshield_washer: 'ok' as const,
+      tyres_pressure: 'ok' as const, tyres_tread: 'ok' as const, lights_headlights: 'ok' as const, lights_indicators: 'ok' as const,
+      lights_brake: 'ok' as const, wipers: 'ok' as const, horn: 'ok' as const, bodywork: 'ok' as const
+    },
+    mileage: 0,
+    notes: '',
+  });
 
   // OTP State
   const [showOtpModal, setShowOtpModal] = useState(false);
@@ -215,6 +254,123 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     setShowLogInspectionModal(false);
     setNewInspectionForm(initialInspectionForm);
     alert("✅ Operational compliance check logged successfully.");
+  };
+
+  const handleSaveAdminIncident = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newIncidentForm.vehicle_reg || !newIncidentForm.description) {
+      alert("Please enter vehicle registration and a description.");
+      return;
+    }
+
+    const newIncident: IncidentReport = {
+      id: `inc-${Math.random().toString(36).substring(2, 9)}`,
+      driver_id: newIncidentForm.driver_id || 'admin',
+      vehicle_reg: newIncidentForm.vehicle_reg,
+      incident_type: newIncidentForm.incident_type,
+      description: newIncidentForm.description,
+      location: newIncidentForm.location,
+      injuries: newIncidentForm.injuries,
+      photo_urls: newIncidentForm.photo_url ? [newIncidentForm.photo_url] : [],
+      document_urls: newIncidentForm.document_url ? [newIncidentForm.document_url] : [],
+      status: 'reported',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    incidentsApi.saveIncident(newIncident);
+    refreshData();
+    setShowLogIncidentModal(false);
+    setNewIncidentForm({
+      vehicle_reg: '',
+      driver_id: '',
+      incident_type: 'Accident',
+      description: '',
+      location: '',
+      injuries: false,
+      photo_url: '',
+      document_url: '',
+    });
+    alert("✅ Incident report logged successfully.");
+  };
+
+  const handleSaveAdminExpense = (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = Number(newExpenseForm.amount);
+    if (!newExpenseForm.vehicle_reg || isNaN(amount) || amount <= 0) {
+      alert("Please fill a valid vehicle registration and a positive amount.");
+      return;
+    }
+
+    const newExpense: VehicleExpense = {
+      id: `exp-${Math.random().toString(36).substring(2, 9)}`,
+      vehicle_reg: newExpenseForm.vehicle_reg,
+      driver_id: newExpenseForm.driver_id || 'admin',
+      expense_type: newExpenseForm.expense_type,
+      description: newExpenseForm.description,
+      amount,
+      expense_date: newExpenseForm.expense_date,
+      document_urls: newExpenseForm.document_url ? [newExpenseForm.document_url] : [],
+      photo_urls: newExpenseForm.photo_url ? [newExpenseForm.photo_url] : [],
+      status: 'approved',
+      submitted_at: new Date().toISOString(),
+      alert_sent: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    expensesApi.saveExpense(newExpense);
+    refreshData();
+    setShowLogExpenseModal(false);
+    setNewExpenseForm({
+      vehicle_reg: '',
+      driver_id: '',
+      expense_type: 'Other',
+      description: '',
+      amount: '',
+      expense_date: new Date().toISOString().substring(0, 10),
+      photo_url: '',
+      document_url: '',
+    });
+    alert("✅ Vehicle expense logged successfully.");
+  };
+
+  const handleSaveAdminChecklist = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChecklistForm.driver_id || !newChecklistForm.mileage) {
+      alert("Please select a driver and fill the current mileage.");
+      return;
+    }
+
+    const newChecklist: VehicleChecklist = {
+      id: `chk-${Math.random().toString(36).substring(2, 9)}`,
+      driver_id: newChecklistForm.driver_id,
+      week_start: newChecklistForm.week_start,
+      week_end: newChecklistForm.week_end,
+      status: 'submitted',
+      checklist_data: newChecklistForm.checklist_data,
+      mileage: Number(newChecklistForm.mileage),
+      notes: newChecklistForm.notes,
+      submitted_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
+    };
+
+    checklistsApi.saveChecklist(newChecklist);
+    refreshData();
+    setShowLogChecklistModal(false);
+    setNewChecklistForm({
+      driver_id: '',
+      week_start: new Date().toISOString().substring(0, 10),
+      week_end: new Date(new Date().getTime() + 7 * 24 * 3600 * 1000).toISOString().substring(0, 10),
+      checklist_data: {
+        engine_oil: 'ok' as const, coolant: 'ok' as const, brake_fluid: 'ok' as const, windshield_washer: 'ok' as const,
+        tyres_pressure: 'ok' as const, tyres_tread: 'ok' as const, lights_headlights: 'ok' as const, lights_indicators: 'ok' as const,
+        lights_brake: 'ok' as const, wipers: 'ok' as const, horn: 'ok' as const, bodywork: 'ok' as const
+      },
+      mileage: 0,
+      notes: '',
+    });
+    alert("✅ Weekly vehicle checklist logged successfully.");
   };
 
   // Init & refresh
@@ -1760,14 +1916,27 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
           {/* ==================== EXPENSES LOG TAB ==================== */}
           {activeTab === 'expenses' && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h2 className="text-base font-bold text-slate-900">Vehicle Expenses and Damages approvals</h2>
-                <button
-                  onClick={() => downloadCSV(vehicleExpenses, 'vehicle_expenses_log.csv')}
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-slate-300 flex items-center gap-1 transition-colors"
-                >
-                  <Download className="w-4 h-4" /> Export Expenses Sheet
-                </button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                <div>
+                  <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Vehicle Expenses & Damages Ledger</h1>
+                  <p className="text-xs text-slate-500 font-medium">Approve driver receipts, log direct operational maintenance expenses, and download formal expense sheets.</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => downloadCSV(vehicleExpenses, 'vehicle_expenses_log.csv')}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-2 px-3.5 rounded-xl border border-slate-300 flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Export CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowLogExpenseModal(true)}
+                    className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow transition-colors shrink-0 cursor-pointer"
+                  >
+                    ➕ Log Expense / Damage
+                  </button>
+                </div>
               </div>
 
               <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
@@ -1793,7 +1962,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                         <tr key={exp.id} className="hover:bg-slate-50/50">
                           <td className="p-3">
                             <span className="font-bold text-slate-900 block">{exp.description}</span>
-                            <span className="text-[10px] text-slate-400 block">Logged by: {exp.driver_id}</span>
+                            <span className="text-[10px] text-slate-400 block">Logged by: {drivers.find(d => d.driver_id === exp.driver_id)?.name || exp.driver_id}</span>
                             {((exp.document_urls && exp.document_urls.length > 0) || (exp.photo_urls && exp.photo_urls.length > 0)) && (
                               <button
                                 onClick={async () => {
@@ -1820,7 +1989,17 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                               {exp.status}
                             </span>
                           </td>
-                          <td className="p-3 text-right flex gap-1 justify-end">
+                          <td className="p-3 text-right flex gap-1.5 justify-end items-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const driverName = (exp.driver_id && drivers.find(d => d.driver_id === exp.driver_id)?.name) || exp.driver_id || 'Admin';
+                                downloadExpensePDF(exp, driverName);
+                              }}
+                              className="px-2 py-0.5 border border-slate-200 bg-slate-50 text-slate-700 text-[10px] font-bold rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                            >
+                              Download PDF
+                            </button>
                             {exp.status === 'pending' && (
                               <>
                                 <button
@@ -1831,7 +2010,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                                       refreshData();
                                     }
                                   }}
-                                  className="text-rose-600 font-bold hover:underline"
+                                  className="text-rose-600 font-bold hover:underline text-[11px] cursor-pointer"
                                 >
                                   Reject
                                 </button>
@@ -1840,7 +2019,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                                     expensesApi.saveExpense({ ...exp, status: 'approved' });
                                     refreshData();
                                   }}
-                                  className="text-emerald-600 font-bold hover:underline ml-2"
+                                  className="text-emerald-600 font-bold hover:underline text-[11px] cursor-pointer"
                                 >
                                   Approve
                                 </button>
@@ -1859,7 +2038,19 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
           {/* ==================== INCIDENT REPORTS TAB ==================== */}
           {activeTab === 'incidents' && (
             <div className="space-y-4">
-              <h2 className="text-base font-bold text-slate-900">Driver Incident Reports logs</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Incident Reports Log</h1>
+                  <p className="text-xs text-slate-500 font-medium">Record, track, and download vehicle collisions, breakdowns, and damage incidents.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLogIncidentModal(true)}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl shadow transition-colors shrink-0 cursor-pointer"
+                >
+                  ➕ Log Incident Report
+                </button>
+              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {incidentReports.length === 0 ? (
@@ -1872,7 +2063,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                           <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase bg-rose-50 text-rose-700 border border-rose-200`}>
                             {inc.incident_type}
                           </span>
-                          <h3 className="text-sm font-extrabold text-slate-900 mt-1.5">Vehicle: {inc.vehicle_reg} • Driver: {inc.driver_id}</h3>
+                          <h3 className="text-sm font-extrabold text-slate-900 mt-1.5">Vehicle: {inc.vehicle_reg} • Driver: {drivers.find(d => d.driver_id === inc.driver_id)?.name || inc.driver_id}</h3>
                           <p className="text-xs text-slate-500 font-semibold">Location details: {inc.location}</p>
                         </div>
                         <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${
@@ -1915,19 +2106,31 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                         </div>
                       )}
 
-                      <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-100 gap-2 flex-wrap">
                         <span className="text-[10px] text-slate-400">Filed: {new Date(inc.created_at).toLocaleString()}</span>
-                        {inc.status !== 'closed' && (
+                        <div className="flex items-center gap-2">
                           <button
+                            type="button"
                             onClick={() => {
-                              incidentsApi.saveIncident({ ...inc, status: 'closed' });
-                              refreshData();
+                              const driverName = (inc.driver_id && drivers.find(d => d.driver_id === inc.driver_id)?.name) || inc.driver_id || 'Admin';
+                              downloadIncidentPDF(inc, driverName);
                             }}
-                            className="bg-slate-900 text-white text-xs font-bold py-1 px-3 rounded hover:bg-slate-800 transition-colors"
+                            className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1 px-3 rounded transition-colors border border-slate-300 cursor-pointer"
                           >
-                            Close Incident Log
+                            Download PDF
                           </button>
-                        )}
+                          {inc.status !== 'closed' && (
+                            <button
+                              onClick={() => {
+                                incidentsApi.saveIncident({ ...inc, status: 'closed' });
+                                refreshData();
+                              }}
+                              className="bg-slate-900 text-white text-xs font-bold py-1 px-3 rounded hover:bg-slate-800 transition-colors cursor-pointer"
+                            >
+                              Close Incident Log
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))
@@ -2079,9 +2282,18 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
           {/* ==================== WEEKLY CHECKLISTS TAB ==================== */}
           {activeTab === 'checklists' && (
             <div className="space-y-6">
-              <div>
-                <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Weekly Condition Checklists</h1>
-                <p className="text-xs text-slate-500">Periodic weekly inspections and vehicle reports uploaded by dispatching drivers.</p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Weekly Condition Checklists</h1>
+                  <p className="text-xs text-slate-500 font-medium">Periodic weekly inspections and vehicle reports uploaded by dispatching drivers or logged by admins.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLogChecklistModal(true)}
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow transition-colors shrink-0 cursor-pointer"
+                >
+                  ➕ Log Weekly Checklist
+                </button>
               </div>
 
               {/* Filter Bar */}
@@ -3238,6 +3450,434 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                 <FileText className="w-3.5 h-3.5" /> Download PDF Report
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== ADMINISTRATIVE LOG INCIDENT MODAL ==================== */}
+      {showLogIncidentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Log Incident Report</h3>
+                <p className="text-[10px] text-slate-400 font-medium">Manually file an accident, breakdown, or damage report into the system logs.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLogIncidentModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdminIncident} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Vehicle *</label>
+                  <select
+                    required
+                    value={newIncidentForm.vehicle_reg}
+                    onChange={(e) => setNewIncidentForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                  >
+                    <option value="">-- Select Vehicle --</option>
+                    {vehicles.map(v => (
+                      <option key={v.registration_no} value={v.registration_no}>
+                        {v.registration_no} — {v.make} {v.model}
+                      </option>
+                    ))}
+                    {rentedVehicles.map(v => (
+                      <option key={v.reg_no} value={v.reg_no}>
+                        {v.reg_no} — {v.make} {v.model} (Rented)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Driver (Involved) *</label>
+                  <select
+                    required
+                    value={newIncidentForm.driver_id}
+                    onChange={(e) => setNewIncidentForm(prev => ({ ...prev, driver_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                  >
+                    <option value="">-- Select Driver --</option>
+                    {drivers.map(d => (
+                      <option key={d.driver_id} value={d.driver_id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Incident Type *</label>
+                  <select
+                    required
+                    value={newIncidentForm.incident_type}
+                    onChange={(e) => setNewIncidentForm(prev => ({ ...prev, incident_type: e.target.value as any }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                  >
+                    <option value="Accident">Accident / Collision</option>
+                    <option value="Breakdown">Breakdown / Tow-in</option>
+                    <option value="Theft">Theft / Break-in</option>
+                    <option value="Fine">Traffic Fine Incident</option>
+                    <option value="Other">Other Operational Incident</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Involved Injuries? *</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewIncidentForm(prev => ({ ...prev, injuries: false }))}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                        !newIncidentForm.injuries
+                          ? 'bg-slate-100 text-slate-800 border-slate-300'
+                          : 'bg-white text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      No Injuries
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewIncidentForm(prev => ({ ...prev, injuries: true }))}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                        newIncidentForm.injuries
+                          ? 'bg-rose-50 text-rose-700 border-rose-300 shadow-xs'
+                          : 'bg-white text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      🚨 Yes, Injuries
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Location / Address *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. N1 Highway outbound near exit 14"
+                  value={newIncidentForm.location}
+                  onChange={(e) => setNewIncidentForm(prev => ({ ...prev, location: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Detailed Description of Incident *</label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="Describe details: what happened, weather, speed, damage report..."
+                  value={newIncidentForm.description}
+                  onChange={(e) => setNewIncidentForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLogIncidentModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer"
+                >
+                  Save Incident Report
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== ADMINISTRATIVE LOG EXPENSE MODAL ==================== */}
+      {showLogExpenseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Log Vehicle Expense / Damage Cost</h3>
+                <p className="text-[10px] text-slate-400 font-medium">Manually enter fuel receipts, repairs costs, toll fees, or fine expenses.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLogExpenseModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdminExpense} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Vehicle Registration *</label>
+                  <select
+                    required
+                    value={newExpenseForm.vehicle_reg}
+                    onChange={(e) => setNewExpenseForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                  >
+                    <option value="">-- Select Vehicle --</option>
+                    {vehicles.map(v => (
+                      <option key={v.registration_no} value={v.registration_no}>
+                        {v.registration_no} — {v.make} {v.model}
+                      </option>
+                    ))}
+                    {rentedVehicles.map(v => (
+                      <option key={v.reg_no} value={v.reg_no}>
+                        {v.reg_no} — {v.make} {v.model} (Rented)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Driver (Payer / Logged By) *</label>
+                  <select
+                    required
+                    value={newExpenseForm.driver_id}
+                    onChange={(e) => setNewExpenseForm(prev => ({ ...prev, driver_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                  >
+                    <option value="">-- Select Driver --</option>
+                    {drivers.map(d => (
+                      <option key={d.driver_id} value={d.driver_id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Expense Type *</label>
+                  <select
+                    required
+                    value={newExpenseForm.expense_type}
+                    onChange={(e) => setNewExpenseForm(prev => ({ ...prev, expense_type: e.target.value as any }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                  >
+                    <option value="Tyres">Tyres Replacement</option>
+                    <option value="Service">Routine Vehicle Service</option>
+                    <option value="Damage">Accidental Damage Cost</option>
+                    <option value="Repair">Vehicle Repairs</option>
+                    <option value="Accident">Accident Claims/Costs</option>
+                    <option value="Other">Other Maintenance Cost</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Expense Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={newExpenseForm.expense_date}
+                    onChange={(e) => setNewExpenseForm(prev => ({ ...prev, expense_date: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Cost Amount (ZAR R) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={0.01}
+                    step={0.01}
+                    placeholder="Total ZAR amount"
+                    value={newExpenseForm.amount}
+                    onChange={(e) => setNewExpenseForm(prev => ({ ...prev, amount: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Detailed Description of Expense *</label>
+                <textarea
+                  required
+                  rows={3}
+                  placeholder="e.g. Purchased new oil filters and brake pads. Repairs done at service center."
+                  value={newExpenseForm.description}
+                  onChange={(e) => setNewExpenseForm(prev => ({ ...prev, description: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLogExpenseModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer"
+                >
+                  Log Expense Entry
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== ADMINISTRATIVE LOG WEEKLY CHECKLIST MODAL ==================== */}
+      {showLogChecklistModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Log Weekly Condition Checklist</h3>
+                <p className="text-[10px] text-slate-400 font-medium">Log a periodic weekly full checklist audit on vehicle state and performance diagnostics.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLogChecklistModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAdminChecklist} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Driver Name *</label>
+                  <select
+                    required
+                    value={newChecklistForm.driver_id}
+                    onChange={(e) => setNewChecklistForm(prev => ({ ...prev, driver_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                  >
+                    <option value="">-- Select Driver --</option>
+                    {drivers.map(d => (
+                      <option key={d.driver_id} value={d.driver_id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Odometer Mileage (km) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    placeholder="e.g. 142050"
+                    value={newChecklistForm.mileage || ''}
+                    onChange={(e) => setNewChecklistForm(prev => ({ ...prev, mileage: Number(e.target.value) }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Week Period Start Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={newChecklistForm.week_start}
+                    onChange={(e) => setNewChecklistForm(prev => ({ ...prev, week_start: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Week Period End Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={newChecklistForm.week_end}
+                    onChange={(e) => setNewChecklistForm(prev => ({ ...prev, week_end: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Core Checklists Grid */}
+              <div className="border border-slate-100 rounded-xl p-4 bg-slate-50/50 space-y-3">
+                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">System Components Condition Ratings</h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1">
+                  {Object.keys(newChecklistForm.checklist_data).map((key) => {
+                    const value = (newChecklistForm.checklist_data as any)[key];
+                    return (
+                      <div key={key} className="p-2.5 bg-white border border-slate-100 rounded-lg flex justify-between items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-700 capitalize">{key.replace(/_/g, ' ')}</span>
+                        
+                        <div className="flex items-center gap-1">
+                          {(['ok', 'low', 'action'] as const).map(option => (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => {
+                                setNewChecklistForm(prev => {
+                                  const data = { ...prev.checklist_data, [key]: option };
+                                  return { ...prev, checklist_data: data };
+                                });
+                              }}
+                              className={`px-2 py-0.5 rounded text-[9px] font-black uppercase transition-all border ${
+                                value === option
+                                  ? option === 'ok'
+                                    ? 'bg-emerald-500 text-white border-emerald-600'
+                                    : option === 'low'
+                                      ? 'bg-amber-500 text-white border-amber-600'
+                                      : 'bg-rose-500 text-white border-rose-600'
+                                  : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Additional Notes & Observations</label>
+                <textarea
+                  rows={2}
+                  placeholder="Log specific issues found, performance comments, tire wear level notes..."
+                  value={newChecklistForm.notes}
+                  onChange={(e) => setNewChecklistForm(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                />
+              </div>
+
+              <div className="flex gap-2 justify-end border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLogChecklistModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer"
+                >
+                  Log Condition Checklist
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
