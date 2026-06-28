@@ -320,6 +320,26 @@ export interface VehicleChecklist {
   created_at: string;
 }
 
+export interface VehicleDirectChecklist {
+  id: string;
+  vehicle_reg: string;
+  driver_id: string;
+  checklist_date: string;
+  exterior: string;
+  interior: string;
+  mechanical: string;
+  fluids: string;
+  tires: string;
+  brakes: string;
+  lights: string;
+  safety_gear: string;
+  notes?: string;
+  pdf_url?: string;
+  status: 'pending' | 'completed' | 'flagged' | 'approved';
+  created_at?: string;
+  updated_at?: string;
+}
+
 // Check for Supabase credentials
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -346,6 +366,7 @@ export const STORAGE_KEYS = {
   FINES: 'inyathi_fines',
   INCIDENTS: 'inyathi_incidents',
   CHECKLISTS: 'inyathi_checklists',
+  DIRECT_CHECKLISTS: 'inyathi_direct_checklists',
   AUTH_USER: 'inyathi_auth_user',
   REGION: 'inyathi_region',
   OTP_ENABLED: 'inyathi_otp_enabled'
@@ -365,7 +386,8 @@ export const TABLE_MAP: Record<string, string> = {
   delete_requests: 'booking_delete_requests',
   invites: 'driver_invites',
   logs: 'booking_edit_log',
-  checklists: 'vehicle_checklists'
+  checklists: 'vehicle_checklists',
+  direct_checklists: 'vehicle_checklists'
 };
 
 export const TABLE_COLUMNS: Record<string, string[]> = {
@@ -502,22 +524,30 @@ export function transformPayloadForPush(dbTableName: string, data: any): any {
   }
 
   if (dbTableName === 'vehicle_checklists') {
-    prepared = {
-      id: data.id,
-      driver_id: data.driver_id,
-      checklist_date: data.week_start || new Date().toISOString().split('T')[0],
-      exterior: data.checklist_data?.bodywork === 'ok' ? 'OK' : 'Needs Attention',
-      interior: 'OK',
-      mechanical: data.checklist_data?.horn === 'ok' ? 'OK' : 'Needs Attention',
-      fluids: data.checklist_data?.engine_oil === 'ok' ? 'OK' : 'Needs Attention',
-      tires: data.checklist_data?.tyres_pressure === 'ok' ? 'OK' : 'Needs Attention',
-      brakes: data.checklist_data?.brake_fluid === 'ok' ? 'OK' : 'Needs Attention',
-      lights: data.checklist_data?.lights_headlights === 'ok' ? 'OK' : 'Needs Attention',
-      safety_gear: 'OK',
-      notes: data.notes || '',
-      status: 'completed',
-      vehicle_reg: 'Unknown'
-    };
+    if (data.checklist_data) {
+      prepared = {
+        id: data.id,
+        driver_id: data.driver_id,
+        checklist_date: data.week_start || new Date().toISOString().split('T')[0],
+        exterior: data.checklist_data?.bodywork === 'ok' ? 'OK' : 'Needs Attention',
+        interior: 'OK',
+        mechanical: data.checklist_data?.horn === 'ok' ? 'OK' : 'Needs Attention',
+        fluids: data.checklist_data?.engine_oil === 'ok' ? 'OK' : 'Needs Attention',
+        tires: data.checklist_data?.tyres_pressure === 'ok' ? 'OK' : 'Needs Attention',
+        brakes: data.checklist_data?.brake_fluid === 'ok' ? 'OK' : 'Needs Attention',
+        lights: data.checklist_data?.lights_headlights === 'ok' ? 'OK' : 'Needs Attention',
+        safety_gear: 'OK',
+        notes: data.notes || '',
+        status: 'completed',
+        vehicle_reg: 'Unknown'
+      };
+    } else {
+      prepared = {
+        ...data,
+        vehicle_reg: data.vehicle_reg || 'Unknown',
+        checklist_date: data.checklist_date || new Date().toISOString().split('T')[0]
+      };
+    }
   }
 
   if (dbTableName === 'recon_sheets') {
@@ -540,8 +570,10 @@ export function transformPayloadForPush(dbTableName: string, data: any): any {
   return filterPayloadForTable(dbTableName, prepared);
 }
 
-export function transformPayloadForPull(dbTableName: string, data: any[]): any[] {
+export function transformPayloadForPull(tableName: string, data: any[]): any[] {
   if (!Array.isArray(data)) return data;
+
+  const dbTableName = TABLE_MAP[tableName] || tableName;
 
   if (dbTableName === 'bookings') {
     return data.map((row: any) => ({
@@ -550,8 +582,9 @@ export function transformPayloadForPull(dbTableName: string, data: any[]): any[]
     }));
   }
 
-  if (dbTableName === 'vehicle_checklists') {
-    return data.map((row: any) => ({
+  if (tableName === 'checklists') {
+    const weeklyRows = data.filter((row: any) => row.vehicle_reg === 'Unknown' || !row.vehicle_reg);
+    return weeklyRows.map((row: any) => ({
       id: row.id,
       driver_id: row.driver_id,
       week_start: row.checklist_date,
@@ -576,6 +609,10 @@ export function transformPayloadForPull(dbTableName: string, data: any[]): any[]
         bodywork: row.exterior === 'OK' ? 'ok' : 'action'
       }
     }));
+  }
+
+  if (tableName === 'direct_checklists') {
+    return data.filter((row: any) => row.vehicle_reg && row.vehicle_reg !== 'Unknown');
   }
 
   if (dbTableName === 'recon_sheets') {
@@ -683,6 +720,7 @@ export async function syncAllFromSupabase() {
       { name: 'fines', key: STORAGE_KEYS.FINES },
       { name: 'incidents', key: STORAGE_KEYS.INCIDENTS },
       { name: 'checklists', key: STORAGE_KEYS.CHECKLISTS },
+      { name: 'direct_checklists', key: STORAGE_KEYS.DIRECT_CHECKLISTS },
       { name: 'delete_requests', key: STORAGE_KEYS.DELETES }
     ];
 
@@ -693,7 +731,7 @@ export async function syncAllFromSupabase() {
         if (error) {
           console.error(`[Supabase Sync] Error fetching table '${dbTableName}':`, error.message || error);
         } else if (data) {
-          const transformed = transformPayloadForPull(dbTableName, data);
+          const transformed = transformPayloadForPull(t.name, data);
           console.log(`[Supabase Sync] Successfully synchronized ${transformed.length} rows from table '${dbTableName}' into ${t.key}.`);
           setLocalStorageItem(t.key, transformed);
         }
@@ -1028,6 +1066,9 @@ export function initializeStorage() {
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.CHECKLISTS)) {
     setLocalStorageItem(STORAGE_KEYS.CHECKLISTS, []);
+  }
+  if (!window.localStorage.getItem(STORAGE_KEYS.DIRECT_CHECKLISTS)) {
+    setLocalStorageItem(STORAGE_KEYS.DIRECT_CHECKLISTS, []);
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.REGION)) {
     window.localStorage.setItem(STORAGE_KEYS.REGION, 'Cape Town');
@@ -1840,6 +1881,36 @@ export const checklistsApi = {
     }
     setLocalStorageItem(STORAGE_KEYS.CHECKLISTS, list);
     pushToSupabase('checklists', prepared, 'id', prepared.id);
+    return prepared;
+  }
+};
+
+// Vehicle Direct Checklists API Layer (Matching the Supabase Schema)
+export const directChecklistsApi = {
+  getChecklists: (driverId?: string): VehicleDirectChecklist[] => {
+    initializeStorage();
+    const list = getLocalStorageItem<VehicleDirectChecklist[]>(STORAGE_KEYS.DIRECT_CHECKLISTS, []);
+    return driverId ? list.filter(c => c.driver_id === driverId) : list;
+  },
+  saveChecklist: (checklist: VehicleDirectChecklist): VehicleDirectChecklist => {
+    const list = getLocalStorageItem<VehicleDirectChecklist[]>(STORAGE_KEYS.DIRECT_CHECKLISTS, []);
+    const idx = list.findIndex(c => c.id === checklist.id);
+    const now = new Date().toISOString();
+    
+    const prepared = {
+      ...checklist,
+      created_at: checklist.created_at || now,
+      updated_at: now
+    };
+    
+    if (idx !== -1) {
+      list[idx] = prepared;
+    } else {
+      prepared.id = checklist.id || `dc-${Math.random().toString(36).substring(2, 9)}`;
+      list.push(prepared);
+    }
+    setLocalStorageItem(STORAGE_KEYS.DIRECT_CHECKLISTS, list);
+    pushToSupabase('direct_checklists', prepared, 'id', prepared.id);
     return prepared;
   }
 };

@@ -8,8 +8,8 @@ import {
 } from 'lucide-react';
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, BookingDeleteRequest,
-  VehicleExpense, TrafficFine, IncidentReport, BookingEditLog, VehicleChecklist,
-  bookingsApi, fleetApi, driversApi, inspectionsApi, reconApi, transferReconApi, expensesApi, trafficFinesApi, incidentsApi, checklistsApi, authApi,
+  VehicleExpense, TrafficFine, IncidentReport, BookingEditLog, VehicleChecklist, VehicleDirectChecklist,
+  bookingsApi, fleetApi, driversApi, inspectionsApi, reconApi, transferReconApi, expensesApi, trafficFinesApi, incidentsApi, checklistsApi, directChecklistsApi, authApi,
   downloadCSV, uploadToCloudinary, getSignedUrlForView
 } from '@/lib/storage';
 import CalendarGrid from './CalendarGrid';
@@ -40,11 +40,37 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [selectedInspectionForModal, setSelectedInspectionForModal] = useState<Inspection | null>(null);
   const [checklists, setChecklists] = useState<VehicleChecklist[]>([]);
+  const [directChecklists, setDirectChecklists] = useState<VehicleDirectChecklist[]>([]);
+  const [checklistSubTab, setChecklistSubTab] = useState<'weekly' | 'direct'>('weekly');
+  const [directChecklistSearch, setDirectChecklistSearch] = useState('');
+  const [directChecklistStatusFilter, setDirectChecklistStatusFilter] = useState<'all' | 'pending' | 'completed' | 'flagged' | 'approved'>('all');
+  const [directChecklistVehicleFilter, setDirectChecklistVehicleFilter] = useState('all');
+  const [directChecklistDriverFilter, setDirectChecklistDriverFilter] = useState('all');
+  const [directChecklistSortField, setDirectChecklistSortField] = useState<'checklist_date' | 'created_at' | 'vehicle_reg'>('checklist_date');
+  const [directChecklistSortOrder, setDirectChecklistSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [directChecklistViewMode, setDirectChecklistViewMode] = useState<'grid' | 'table'>('table');
+  const [showLogDirectChecklistModal, setShowLogDirectChecklistModal] = useState(false);
+  const [newDirectChecklistForm, setNewDirectChecklistForm] = useState<Partial<VehicleDirectChecklist>>({
+    vehicle_reg: '',
+    driver_id: '',
+    checklist_date: new Date().toISOString().substring(0, 10),
+    exterior: 'pending',
+    interior: 'pending',
+    mechanical: 'pending',
+    fluids: 'pending',
+    tires: 'pending',
+    brakes: 'pending',
+    lights: 'pending',
+    safety_gear: 'pending',
+    notes: '',
+    status: 'completed'
+  });
   const [deleteRequests, setDeleteRequests] = useState<BookingDeleteRequest[]>([]);
 
   // Inspections and Checklists states
   const [showLogInspectionModal, setShowLogInspectionModal] = useState(false);
   const [selectedChecklistForModal, setSelectedChecklistForModal] = useState<VehicleChecklist | null>(null);
+  const [selectedDirectChecklistForModal, setSelectedDirectChecklistForModal] = useState<VehicleDirectChecklist | null>(null);
   const [uploadingInspectionMedia, setUploadingInspectionMedia] = useState<Record<string, boolean>>({});
   
   const initialInspectionForm = {
@@ -187,6 +213,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     setIncidentReports(incidentsApi.getIncidents());
     setInspections(inspectionsApi.getInspections());
     setChecklists(checklistsApi.getChecklists());
+    setDirectChecklists(directChecklistsApi.getChecklists());
     setDeleteRequests(bookingsApi.getDeleteRequests());
   }, [region]);
 
@@ -379,6 +406,53 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       notes: '',
     });
     alert("✅ Weekly vehicle checklist logged successfully.");
+  };
+
+  const handleSaveDirectChecklist = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDirectChecklistForm.driver_id || !newDirectChecklistForm.vehicle_reg) {
+      alert("Please select a driver and a vehicle.");
+      return;
+    }
+
+    const newChecklist: VehicleDirectChecklist = {
+      id: `dc-${Math.random().toString(36).substring(2, 9)}`,
+      driver_id: newDirectChecklistForm.driver_id || '',
+      vehicle_reg: newDirectChecklistForm.vehicle_reg || '',
+      checklist_date: newDirectChecklistForm.checklist_date || new Date().toISOString().substring(0, 10),
+      exterior: newDirectChecklistForm.exterior || 'pending',
+      interior: newDirectChecklistForm.interior || 'pending',
+      mechanical: newDirectChecklistForm.mechanical || 'pending',
+      fluids: newDirectChecklistForm.fluids || 'pending',
+      tires: newDirectChecklistForm.tires || 'pending',
+      brakes: newDirectChecklistForm.brakes || 'pending',
+      lights: newDirectChecklistForm.lights || 'pending',
+      safety_gear: newDirectChecklistForm.safety_gear || 'pending',
+      notes: newDirectChecklistForm.notes || '',
+      status: newDirectChecklistForm.status || 'completed',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    directChecklistsApi.saveChecklist(newChecklist);
+    refreshData();
+    setShowLogDirectChecklistModal(false);
+    setNewDirectChecklistForm({
+      vehicle_reg: '',
+      driver_id: '',
+      checklist_date: new Date().toISOString().substring(0, 10),
+      exterior: 'pending',
+      interior: 'pending',
+      mechanical: 'pending',
+      fluids: 'pending',
+      tires: 'pending',
+      brakes: 'pending',
+      lights: 'pending',
+      safety_gear: 'pending',
+      notes: '',
+      status: 'completed'
+    });
+    alert("✅ Direct vehicle checklist logged successfully.");
   };
 
   // Init & refresh
@@ -2565,129 +2639,538 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
             );
           })()}
 
-          {/* ==================== WEEKLY CHECKLISTS TAB ==================== */}
+          {/* ==================== CHECKLISTS TAB ==================== */}
           {activeTab === 'checklists' && (
             <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Weekly Condition Checklists</h1>
-                  <p className="text-xs text-slate-500 font-medium">Periodic weekly inspections and vehicle reports uploaded by dispatching drivers or logged by admins.</p>
-                </div>
+              {/* Checklist Sub-Tabs Selection */}
+              <div className="flex border-b border-slate-200">
                 <button
                   type="button"
-                  onClick={() => setShowLogChecklistModal(true)}
-                  className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow transition-colors shrink-0 cursor-pointer"
+                  onClick={() => setChecklistSubTab('weekly')}
+                  className={`py-2 px-4 text-xs font-bold transition-all border-b-2 -mb-px cursor-pointer ${
+                    checklistSubTab === 'weekly'
+                      ? 'border-teal-600 text-teal-600 font-extrabold'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
                 >
-                  ➕ Log Weekly Checklist
+                  📋 Weekly Condition Checklists
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChecklistSubTab('direct')}
+                  className={`py-2 px-4 text-xs font-bold transition-all border-b-2 -mb-px cursor-pointer ${
+                    checklistSubTab === 'direct'
+                      ? 'border-teal-600 text-teal-600 font-extrabold'
+                      : 'border-transparent text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  🚗 Daily/Direct Vehicle Checklists
                 </button>
               </div>
 
-              {/* Filter Bar */}
-              <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col md:flex-row gap-4 justify-between items-center">
-                <input
-                  type="text"
-                  placeholder="Filter by Driver..."
-                  value={checklistSearch}
-                  onChange={(e) => setChecklistSearch(e.target.value)}
-                  className="w-full md:w-96 px-3 py-2 bg-white border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
-                />
-                <span className="text-xs font-bold text-slate-500">
-                  Total Logged Checklists: {checklists.length}
-                </span>
-              </div>
+              {checklistSubTab === 'weekly' ? (
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h1 className="text-xl font-extrabold tracking-tight text-slate-900">Weekly Condition Checklists</h1>
+                      <p className="text-xs text-slate-500 font-medium">Periodic weekly inspections and vehicle reports uploaded by dispatching drivers or logged by admins.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowLogChecklistModal(true)}
+                      className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow transition-colors shrink-0 cursor-pointer"
+                    >
+                      ➕ Log Weekly Checklist
+                    </button>
+                  </div>
 
-              {/* Checklists Table */}
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-400">
-                        <th className="p-4">Week Range</th>
-                        <th className="p-4">Logged At</th>
-                        <th className="p-4">Driver</th>
-                        <th className="p-4">Odometer</th>
-                        <th className="p-4">Overall Status</th>
-                        <th className="p-4">Condition Summary</th>
-                        <th className="p-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
-                      {checklists.filter(c => {
-                        const searchLower = checklistSearch.toLowerCase();
-                        const driverName = drivers.find(d => d.driver_id === c.driver_id)?.name || c.driver_id || '';
-                        return driverName.toLowerCase().includes(searchLower);
-                      }).length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="p-8 text-center text-slate-400 text-xs">
-                            No weekly checklists found matching search.
-                          </td>
-                        </tr>
-                      ) : (
-                        checklists.filter(c => {
-                          const searchLower = checklistSearch.toLowerCase();
-                          const driverName = drivers.find(d => d.driver_id === c.driver_id)?.name || c.driver_id || '';
-                          return driverName.toLowerCase().includes(searchLower);
-                        }).map(chk => {
-                          const driverName = drivers.find(d => d.driver_id === chk.driver_id)?.name || chk.driver_id;
-                          const hasIssues = Object.values(chk.checklist_data || {}).some(v => v === 'action' || v === 'low');
-                          const activeIssues = Object.entries(chk.checklist_data || {})
-                            .filter(([_, v]) => v === 'action' || v === 'low')
-                            .map(([k, _]) => k.replace(/_/g, ' '));
-                          
-                          return (
-                            <tr key={chk.id} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="p-4 font-bold text-slate-900">
-                                {chk.week_start} to {chk.week_end}
-                              </td>
-                              <td className="p-4 font-mono text-[11px] text-slate-500">
-                                {chk.submitted_at ? new Date(chk.submitted_at).toLocaleString() : 'N/A'}
-                              </td>
-                              <td className="p-4 text-slate-800 font-bold">{driverName}</td>
-                              <td className="p-4 font-mono text-slate-900">{(chk.mileage || 0).toLocaleString()} km</td>
-                              <td className="p-4">
-                                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                                  chk.status === 'submitted'
-                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                    : 'bg-slate-100 text-slate-600 border-slate-300'
-                                }`}>
-                                  {chk.status}
-                                </span>
-                              </td>
-                              <td className="p-4 max-w-xs truncate">
-                                {hasIssues ? (
-                                  <span className="text-amber-600 font-bold flex items-center gap-1 text-[11px]" title={activeIssues.join(', ')}>
-                                    ⚠️ Issues: {activeIssues.length} ({activeIssues.slice(0, 2).join(', ')}{activeIssues.length > 2 ? '...' : ''})
-                                  </span>
-                                ) : (
-                                  <span className="text-emerald-600 font-bold flex items-center gap-1 text-[11px]">
-                                    ✓ Perfect Condition
-                                  </span>
-                                )}
-                              </td>
-                              <td className="p-4 text-right">
-                                <div className="flex justify-end gap-1.5">
-                                  <button
-                                    onClick={() => setSelectedChecklistForModal(chk)}
-                                    className="px-2.5 py-1 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
-                                  >
-                                    View Report
-                                  </button>
-                                  <button
-                                    onClick={() => downloadChecklistPDF(chk, driverName)}
-                                    className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
-                                  >
-                                    PDF
-                                  </button>
-                                </div>
+                  {/* Filter Bar */}
+                  <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <input
+                      type="text"
+                      placeholder="Filter by Driver..."
+                      value={checklistSearch}
+                      onChange={(e) => setChecklistSearch(e.target.value)}
+                      className="w-full md:w-96 px-3 py-2 bg-white border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
+                    />
+                    <span className="text-xs font-bold text-slate-500">
+                      Total Logged Checklists: {checklists.length}
+                    </span>
+                  </div>
+
+                  {/* Checklists Table */}
+                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-400">
+                            <th className="p-4">Week Range</th>
+                            <th className="p-4">Logged At</th>
+                            <th className="p-4">Driver</th>
+                            <th className="p-4">Odometer</th>
+                            <th className="p-4">Overall Status</th>
+                            <th className="p-4">Condition Summary</th>
+                            <th className="p-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                          {checklists.filter(c => {
+                            const searchLower = checklistSearch.toLowerCase();
+                            const driverName = drivers.find(d => d.driver_id === c.driver_id)?.name || c.driver_id || '';
+                            return driverName.toLowerCase().includes(searchLower);
+                          }).length === 0 ? (
+                            <tr>
+                              <td colSpan={7} className="p-8 text-center text-slate-400 text-xs">
+                                No weekly checklists found matching search.
                               </td>
                             </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                          ) : (
+                            checklists.filter(c => {
+                              const searchLower = checklistSearch.toLowerCase();
+                              const driverName = drivers.find(d => d.driver_id === c.driver_id)?.name || c.driver_id || '';
+                              return driverName.toLowerCase().includes(searchLower);
+                            }).map(chk => {
+                              const driverName = drivers.find(d => d.driver_id === chk.driver_id)?.name || chk.driver_id;
+                              const hasIssues = Object.values(chk.checklist_data || {}).some(v => v === 'action' || v === 'low');
+                              const activeIssues = Object.entries(chk.checklist_data || {})
+                                .filter(([_, v]) => v === 'action' || v === 'low')
+                                .map(([k, _]) => k.replace(/_/g, ' '));
+                              
+                              return (
+                                <tr key={chk.id} className="hover:bg-slate-50/50 transition-colors">
+                                  <td className="p-4 font-bold text-slate-900">
+                                    {chk.week_start} to {chk.week_end}
+                                  </td>
+                                  <td className="p-4 font-mono text-[11px] text-slate-500">
+                                    {chk.submitted_at ? new Date(chk.submitted_at).toLocaleString() : 'N/A'}
+                                  </td>
+                                  <td className="p-4 text-slate-800 font-bold">{driverName}</td>
+                                  <td className="p-4 font-mono text-slate-900">{(chk.mileage || 0).toLocaleString()} km</td>
+                                  <td className="p-4">
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                                      chk.status === 'submitted'
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                        : 'bg-slate-100 text-slate-600 border-slate-300'
+                                    }`}>
+                                      {chk.status}
+                                    </span>
+                                  </td>
+                                  <td className="p-4 max-w-xs truncate">
+                                    {hasIssues ? (
+                                      <span className="text-amber-600 font-bold flex items-center gap-1 text-[11px]" title={activeIssues.join(', ')}>
+                                        ⚠️ Issues: {activeIssues.length} ({activeIssues.slice(0, 2).join(', ')}{activeIssues.length > 2 ? '...' : ''})
+                                      </span>
+                                    ) : (
+                                      <span className="text-emerald-600 font-bold flex items-center gap-1 text-[11px]">
+                                        ✓ Perfect Condition
+                                      </span>
+                                    )}
+                                  </td>
+                                  <td className="p-4 text-right">
+                                    <div className="flex justify-end gap-1.5">
+                                      <button
+                                        onClick={() => setSelectedChecklistForModal(chk)}
+                                        className="px-2.5 py-1 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                      >
+                                        View Report
+                                      </button>
+                                      <button
+                                        onClick={() => downloadChecklistPDF(chk, driverName)}
+                                        className="px-2.5 py-1 bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                      >
+                                        PDF
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Daily/Direct Checklist View */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h1 className="text-xl font-extrabold tracking-tight text-slate-900 flex items-center gap-2">
+                        🚗 Daily/Direct Vehicle Checklists
+                      </h1>
+                      <p className="text-xs text-slate-500 mt-1 font-medium">
+                        View, sort, and query 8-point physical checks logged for fleet vehicles matching the Supabase DB schema.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowLogDirectChecklistModal(true)}
+                      className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-xl shadow transition-colors shrink-0 cursor-pointer"
+                    >
+                      ➕ Log Direct Checklist
+                    </button>
+                  </div>
+
+                  {/* Direct Stats Bento Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Checklists</span>
+                      <span className="text-2xl font-black text-slate-900 mt-1">{directChecklists.length}</span>
+                      <span className="text-[9px] text-slate-500 mt-0.5">Physical condition logs</span>
+                    </div>
+                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">✓ Completed / Approved</span>
+                      <span className="text-2xl font-black text-emerald-700 mt-1">
+                        {directChecklists.filter(c => c.status === 'completed' || c.status === 'approved').length}
+                      </span>
+                      <span className="text-[9px] text-emerald-600 mt-0.5">Passed checks</span>
+                    </div>
+                    <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">⚠️ Flagged / Issue</span>
+                      <span className="text-2xl font-black text-amber-700 mt-1">
+                        {directChecklists.filter(c => c.status === 'flagged').length}
+                      </span>
+                      <span className="text-[9px] text-amber-600 mt-0.5">Require attention</span>
+                    </div>
+                    <div className="bg-rose-50 border border-rose-100 rounded-xl p-4 flex flex-col justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600">🚨 Pending Review</span>
+                      <span className="text-2xl font-black text-rose-700 mt-1">
+                        {directChecklists.filter(c => c.status === 'pending').length}
+                      </span>
+                      <span className="text-[9px] text-rose-600 mt-0.5">Awaiting audit</span>
+                    </div>
+                  </div>
+
+                  {/* Interactive Controls Bar */}
+                  <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs space-y-4">
+                    <div className="flex flex-col lg:flex-row gap-3 justify-between items-stretch lg:items-center">
+                      {/* Search & Main Filter inputs */}
+                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-4 gap-2">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            placeholder="Search reg, driver, notes..."
+                            value={directChecklistSearch}
+                            onChange={(e) => setDirectChecklistSearch(e.target.value)}
+                            className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
+                          />
+                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-3" />
+                        </div>
+
+                        {/* Vehicle select filter */}
+                        <select
+                          value={directChecklistVehicleFilter}
+                          onChange={(e) => setDirectChecklistVehicleFilter(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium bg-white"
+                        >
+                          <option value="all">All Vehicles</option>
+                          {Array.from(new Set(directChecklists.map(c => c.vehicle_reg))).filter(Boolean).map(vReg => (
+                            <option key={vReg} value={vReg}>{vReg}</option>
+                          ))}
+                        </select>
+
+                        {/* Driver select filter */}
+                        <select
+                          value={directChecklistDriverFilter}
+                          onChange={(e) => setDirectChecklistDriverFilter(e.target.value)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium bg-white"
+                        >
+                          <option value="all">All Drivers</option>
+                          {drivers.map(drv => (
+                            <option key={drv.driver_id} value={drv.driver_id}>{drv.name}</option>
+                          ))}
+                        </select>
+
+                        {/* Status filter */}
+                        <select
+                          value={directChecklistStatusFilter}
+                          onChange={(e) => setDirectChecklistStatusFilter(e.target.value as any)}
+                          className="w-full px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium bg-white"
+                        >
+                          <option value="all">All Statuses</option>
+                          <option value="pending">Pending</option>
+                          <option value="completed">Completed</option>
+                          <option value="flagged">Flagged</option>
+                          <option value="approved">Approved</option>
+                        </select>
+                      </div>
+
+                      {/* Sorting & Layout Toggles */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          value={directChecklistSortField}
+                          onChange={(e) => setDirectChecklistSortField(e.target.value as any)}
+                          className="px-3 py-2 bg-slate-50 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium bg-white"
+                        >
+                          <option value="checklist_date">Sort: Check Date</option>
+                          <option value="created_at">Sort: Log Date</option>
+                          <option value="vehicle_reg">Sort: Reg Number</option>
+                        </select>
+
+                        <button
+                          type="button"
+                          onClick={() => setDirectChecklistSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                          className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-xs rounded-lg font-bold text-slate-700 cursor-pointer"
+                        >
+                          {directChecklistSortOrder === 'asc' ? '▲ Asc' : '▼ Desc'}
+                        </button>
+
+                        <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={() => setDirectChecklistViewMode('grid')}
+                            className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                              directChecklistViewMode === 'grid' 
+                                ? 'bg-white text-teal-600 shadow-xs' 
+                                : 'text-slate-400 hover:text-slate-600'
+                            }`}
+                            title="Grid Cards View"
+                          >
+                            <LayoutGrid className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDirectChecklistViewMode('table')}
+                            className={`p-1.5 rounded-md transition-all cursor-pointer ${
+                              directChecklistViewMode === 'table' 
+                                ? 'bg-white text-teal-600 shadow-xs' 
+                                : 'text-slate-400 hover:text-slate-600'
+                            }`}
+                            title="Table View"
+                          >
+                            <List className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filtered & Sorted Checklist Listing */}
+                  {(() => {
+                    const filtered = directChecklists.filter(c => {
+                      const searchLower = directChecklistSearch.toLowerCase();
+                      const drvName = drivers.find(d => d.driver_id === c.driver_id)?.name || c.driver_id || '';
+                      const matchesSearch = 
+                        c.vehicle_reg.toLowerCase().includes(searchLower) ||
+                        drvName.toLowerCase().includes(searchLower) ||
+                        (c.notes || '').toLowerCase().includes(searchLower);
+
+                      const matchesVehicle = directChecklistVehicleFilter === 'all' || c.vehicle_reg === directChecklistVehicleFilter;
+                      const matchesDriver = directChecklistDriverFilter === 'all' || c.driver_id === directChecklistDriverFilter;
+                      const matchesStatus = directChecklistStatusFilter === 'all' || c.status === directChecklistStatusFilter;
+
+                      return matchesSearch && matchesVehicle && matchesDriver && matchesStatus;
+                    }).sort((a, b) => {
+                      let valA = a[directChecklistSortField] || '';
+                      let valB = b[directChecklistSortField] || '';
+                      if (directChecklistSortOrder === 'asc') {
+                        return valA > valB ? 1 : -1;
+                      } else {
+                        return valA < valB ? 1 : -1;
+                      }
+                    });
+
+                    if (filtered.length === 0) {
+                      return (
+                        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center shadow-xs">
+                          <p className="text-xs text-slate-400 font-medium italic">No direct vehicle checklists found matching the filters.</p>
+                        </div>
+                      );
+                    }
+
+                    const ratingBadge = (val: string) => {
+                      const lower = String(val || 'pending').toLowerCase();
+                      if (lower === 'pass' || lower === 'ok') {
+                        return <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 text-[9px] font-black uppercase">Pass</span>;
+                      } else if (lower === 'fail') {
+                        return <span className="px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-100 text-[9px] font-black uppercase">Fail</span>;
+                      } else if (lower === 'flag' || lower === 'warn' || lower === 'warning') {
+                        return <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-100 text-[9px] font-black uppercase">Flag</span>;
+                      }
+                      return <span className="px-1.5 py-0.5 rounded-md bg-slate-50 text-slate-600 border border-slate-200 text-[9px] font-black uppercase">Pending</span>;
+                    };
+
+                    const statusColor = (status: string) => {
+                      switch (status) {
+                        case 'approved': return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+                        case 'completed': return 'bg-blue-100 text-blue-800 border-blue-200';
+                        case 'flagged': return 'bg-amber-100 text-amber-800 border-amber-200';
+                        default: return 'bg-slate-100 text-slate-700 border-slate-200';
+                      }
+                    };
+
+                    if (directChecklistViewMode === 'grid') {
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {filtered.map(chk => {
+                            const drvName = drivers.find(d => d.driver_id === chk.driver_id)?.name || chk.driver_id;
+                            return (
+                              <div key={chk.id} className="bg-white border border-slate-200 hover:border-teal-500/50 rounded-xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition-all">
+                                <div className="space-y-4">
+                                  <div className="flex justify-between items-start gap-2">
+                                    <div>
+                                      <span className="text-xs font-black text-slate-900 tracking-tight">{chk.vehicle_reg}</span>
+                                      <div className="text-[10px] text-slate-500 font-bold mt-0.5">Driver: {drvName}</div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase border tracking-wider ${statusColor(chk.status)}`}>
+                                        {chk.status}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 font-mono">{chk.checklist_date}</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-100">
+                                    <div className="flex flex-col items-center p-1 bg-slate-50 rounded-md">
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Exterior</span>
+                                      <div className="mt-1">{ratingBadge(chk.exterior)}</div>
+                                    </div>
+                                    <div className="flex flex-col items-center p-1 bg-slate-50 rounded-md">
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Interior</span>
+                                      <div className="mt-1">{ratingBadge(chk.interior)}</div>
+                                    </div>
+                                    <div className="flex flex-col items-center p-1 bg-slate-50 rounded-md">
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Mech</span>
+                                      <div className="mt-1">{ratingBadge(chk.mechanical)}</div>
+                                    </div>
+                                    <div className="flex flex-col items-center p-1 bg-slate-50 rounded-md">
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Fluids</span>
+                                      <div className="mt-1">{ratingBadge(chk.fluids)}</div>
+                                    </div>
+                                    <div className="flex flex-col items-center p-1 bg-slate-50 rounded-md mt-1">
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Tires</span>
+                                      <div className="mt-1">{ratingBadge(chk.tires)}</div>
+                                    </div>
+                                    <div className="flex flex-col items-center p-1 bg-slate-50 rounded-md mt-1">
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Brakes</span>
+                                      <div className="mt-1">{ratingBadge(chk.brakes)}</div>
+                                    </div>
+                                    <div className="flex flex-col items-center p-1 bg-slate-50 rounded-md mt-1">
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Lights</span>
+                                      <div className="mt-1">{ratingBadge(chk.lights)}</div>
+                                    </div>
+                                    <div className="flex flex-col items-center p-1 bg-slate-50 rounded-md mt-1">
+                                      <span className="text-[8px] text-slate-400 font-bold uppercase tracking-wider">Safety</span>
+                                      <div className="mt-1">{ratingBadge(chk.safety_gear)}</div>
+                                    </div>
+                                  </div>
+
+                                  {chk.notes && (
+                                    <p className="text-[11px] text-slate-500 bg-slate-50/50 p-2 rounded-lg italic line-clamp-2">
+                                      &ldquo;{chk.notes}&rdquo;
+                                    </p>
+                                  )}
+                                </div>
+
+                                <div className="flex gap-2 justify-end pt-3 mt-3 border-t border-slate-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedDirectChecklistForModal(chk)}
+                                    className="px-2.5 py-1 border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 text-[11px] font-bold rounded-lg cursor-pointer transition-colors"
+                                  >
+                                    View Details
+                                  </button>
+                                  {chk.status === 'completed' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = { ...chk, status: 'approved' as const };
+                                        directChecklistsApi.saveChecklist(updated);
+                                        refreshData();
+                                        alert('✅ Checklist approved.');
+                                      }}
+                                      className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-[11px] font-bold rounded-lg cursor-pointer transition-colors"
+                                    >
+                                      Approve
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-black uppercase text-slate-400">
+                                <th className="p-4">Reg Number</th>
+                                <th className="p-4">Check Date</th>
+                                <th className="p-4">Driver</th>
+                                <th className="p-4">Ratings Overview</th>
+                                <th className="p-4">Status</th>
+                                <th className="p-4 text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+                              {filtered.map(chk => {
+                                const drvName = drivers.find(d => d.driver_id === chk.driver_id)?.name || chk.driver_id;
+                                const failedCount = [
+                                  chk.exterior, chk.interior, chk.mechanical, chk.fluids,
+                                  chk.tires, chk.brakes, chk.lights, chk.safety_gear
+                                ].filter(v => String(v || '').toLowerCase() === 'fail').length;
+                                
+                                const flaggedCount = [
+                                  chk.exterior, chk.interior, chk.mechanical, chk.fluids,
+                                  chk.tires, chk.brakes, chk.lights, chk.safety_gear
+                                ].filter(v => String(v || '').toLowerCase() === 'flag' || String(v || '').toLowerCase() === 'warn').length;
+
+                                return (
+                                  <tr key={chk.id} className="hover:bg-slate-50/50 transition-colors">
+                                    <td className="p-4 font-bold text-slate-900">{chk.vehicle_reg}</td>
+                                    <td className="p-4 font-mono text-[11px] text-slate-500">{chk.checklist_date}</td>
+                                    <td className="p-4 text-slate-800 font-bold">{drvName}</td>
+                                    <td className="p-4">
+                                      <div className="flex gap-1">
+                                        {failedCount > 0 && <span className="px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-100 text-[9px] font-black">{failedCount} FAIL</span>}
+                                        {flaggedCount > 0 && <span className="px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-100 text-[9px] font-black">{flaggedCount} FLAG</span>}
+                                        {failedCount === 0 && flaggedCount === 0 && <span className="px-1.5 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 text-[9px] font-black uppercase">100% OK</span>}
+                                      </div>
+                                    </td>
+                                    <td className="p-4">
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${statusColor(chk.status)}`}>
+                                        {chk.status}
+                                      </span>
+                                    </td>
+                                    <td className="p-4 text-right">
+                                      <div className="flex justify-end gap-1.5">
+                                        <button
+                                          onClick={() => setSelectedDirectChecklistForModal(chk)}
+                                          className="px-2.5 py-1 hover:bg-slate-100 border border-slate-200 text-slate-600 hover:text-slate-900 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                        >
+                                          View Details
+                                        </button>
+                                        {chk.status === 'completed' && (
+                                          <button
+                                            onClick={() => {
+                                              const updated = { ...chk, status: 'approved' as const };
+                                              directChecklistsApi.saveChecklist(updated);
+                                              refreshData();
+                                              alert('✅ Checklist approved.');
+                                            }}
+                                            className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                                          >
+                                            Approve
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           )}
 
@@ -4161,6 +4644,335 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                   className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer"
                 >
                   Log Condition Checklist
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== DIRECT VEHICLE CHECKLIST VIEW MODAL ==================== */}
+      {selectedDirectChecklistForModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Direct Vehicle Checklist Details</h3>
+                <p className="text-[10px] text-slate-400 font-medium">Logged on {selectedDirectChecklistForModal.created_at ? new Date(selectedDirectChecklistForModal.created_at).toLocaleString() : 'N/A'}</p>
+              </div>
+              <button
+                onClick={() => setSelectedDirectChecklistForModal(null)}
+                className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Quick Metadata */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+              <div>
+                <span className="text-[9px] text-slate-400 uppercase font-black block">Vehicle Reg</span>
+                <span className="font-bold text-slate-800">{selectedDirectChecklistForModal.vehicle_reg}</span>
+              </div>
+              <div>
+                <span className="text-[9px] text-slate-400 uppercase font-black block">Driver</span>
+                <span className="font-bold text-slate-800">
+                  {drivers.find(d => d.driver_id === selectedDirectChecklistForModal.driver_id)?.name || selectedDirectChecklistForModal.driver_id}
+                </span>
+              </div>
+              <div>
+                <span className="text-[9px] text-slate-400 uppercase font-black block">Check Date</span>
+                <span className="font-bold text-slate-800">{selectedDirectChecklistForModal.checklist_date}</span>
+              </div>
+              <div>
+                <span className="text-[9px] text-slate-400 uppercase font-black block">Audit Status</span>
+                <span className={`inline-block px-2.5 py-0.5 text-[9px] font-black uppercase rounded-full border ${
+                  selectedDirectChecklistForModal.status === 'approved' 
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                    : selectedDirectChecklistForModal.status === 'flagged'
+                      ? 'bg-amber-50 text-amber-700 border-amber-200'
+                      : 'bg-blue-50 text-blue-700 border-blue-200'
+                }`}>
+                  {selectedDirectChecklistForModal.status}
+                </span>
+              </div>
+            </div>
+
+            {/* Checklist Items Status Matrix */}
+            <div className="border border-slate-100 rounded-xl p-4 space-y-3">
+              <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">8-System Components Condition Status</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-2">
+                {[
+                  { key: 'Exterior Systems', val: selectedDirectChecklistForModal.exterior },
+                  { key: 'Interior Systems', val: selectedDirectChecklistForModal.interior },
+                  { key: 'Mechanical Componentry', val: selectedDirectChecklistForModal.mechanical },
+                  { key: 'Fluid Levels (Oil, Water, Brake)', val: selectedDirectChecklistForModal.fluids },
+                  { key: 'Tire Condition & Tread', val: selectedDirectChecklistForModal.tires },
+                  { key: 'Braking Systems', val: selectedDirectChecklistForModal.brakes },
+                  { key: 'Lights & Indicators', val: selectedDirectChecklistForModal.lights },
+                  { key: 'Safety Gear & Spare Tire', val: selectedDirectChecklistForModal.safety_gear }
+                ].map(({ key, val }) => {
+                  const valStr = String(val || 'pending').toLowerCase();
+                  return (
+                    <div key={key} className="p-2.5 bg-slate-50/50 rounded-lg flex justify-between items-center text-xs">
+                      <span className="font-semibold text-slate-700">{key}</span>
+                      <span>
+                        {valStr === 'pass' || valStr === 'ok' ? (
+                          <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">
+                            ✓ Pass
+                          </span>
+                        ) : valStr === 'fail' ? (
+                          <span className="bg-rose-100 text-rose-800 border border-rose-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">
+                            🚨 Fail
+                          </span>
+                        ) : valStr === 'flag' || valStr === 'warn' ? (
+                          <span className="bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">
+                            ⚠️ Flagged
+                          </span>
+                        ) : (
+                          <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase">
+                            {valStr}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Notes */}
+            {selectedDirectChecklistForModal.notes && (
+              <div className="bg-slate-50 border border-slate-100 p-4 rounded-xl text-xs">
+                <span className="text-[9px] text-slate-400 uppercase font-black block mb-1">Additional Observations</span>
+                <p className="text-slate-700 italic">&ldquo;{selectedDirectChecklistForModal.notes}&rdquo;</p>
+              </div>
+            )}
+
+            {/* Admin Status Management Action Area */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 text-xs space-y-3">
+              <span className="text-[9px] text-slate-400 uppercase font-black block">Administrative Override Status Actions</span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = { ...selectedDirectChecklistForModal, status: 'approved' as const };
+                    directChecklistsApi.saveChecklist(updated);
+                    setSelectedDirectChecklistForModal(updated);
+                    refreshData();
+                    alert("✅ Checklist set to Approved.");
+                  }}
+                  className={`px-3 py-1.5 rounded-lg font-bold border transition-all cursor-pointer ${
+                    selectedDirectChecklistForModal.status === 'approved'
+                      ? 'bg-emerald-600 text-white border-emerald-700'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  ✓ Set Approved
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = { ...selectedDirectChecklistForModal, status: 'flagged' as const };
+                    directChecklistsApi.saveChecklist(updated);
+                    setSelectedDirectChecklistForModal(updated);
+                    refreshData();
+                    alert("⚠️ Checklist set to Flagged.");
+                  }}
+                  className={`px-3 py-1.5 rounded-lg font-bold border transition-all cursor-pointer ${
+                    selectedDirectChecklistForModal.status === 'flagged'
+                      ? 'bg-amber-500 text-white border-amber-600'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  ⚠️ Set Flagged
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = { ...selectedDirectChecklistForModal, status: 'completed' as const };
+                    directChecklistsApi.saveChecklist(updated);
+                    setSelectedDirectChecklistForModal(updated);
+                    refreshData();
+                    alert("ℹ️ Checklist set to Completed.");
+                  }}
+                  className={`px-3 py-1.5 rounded-lg font-bold border transition-all cursor-pointer ${
+                    selectedDirectChecklistForModal.status === 'completed'
+                      ? 'bg-blue-600 text-white border-blue-700'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  ℹ️ Set Completed
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2.5 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setSelectedDirectChecklistForModal(null)}
+                className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold py-2 rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close Report Detail
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== DIRECT VEHICLE CHECKLIST CREATION MODAL ==================== */}
+      {showLogDirectChecklistModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white border border-slate-200 w-full max-w-2xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Log Direct Vehicle Checklist</h3>
+                <p className="text-[10px] text-slate-400 font-medium">Log an 8-point direct system physical check for any fleet registered vehicle.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLogDirectChecklistModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDirectChecklist} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Vehicle *</label>
+                  <select
+                    required
+                    value={newDirectChecklistForm.vehicle_reg}
+                    onChange={(e) => setNewDirectChecklistForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                  >
+                    <option value="">-- Select Vehicle --</option>
+                    {vehicles.map(v => (
+                      <option key={v.registration_no} value={v.registration_no}>
+                        {v.registration_no} — {v.make} {v.model}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Driver Name *</label>
+                  <select
+                    required
+                    value={newDirectChecklistForm.driver_id}
+                    onChange={(e) => setNewDirectChecklistForm(prev => ({ ...prev, driver_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-medium font-sans"
+                  >
+                    <option value="">-- Select Driver --</option>
+                    {drivers.map(d => (
+                      <option key={d.driver_id} value={d.driver_id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Check Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={newDirectChecklistForm.checklist_date}
+                    onChange={(e) => setNewDirectChecklistForm(prev => ({ ...prev, checklist_date: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Systems Rating Grid */}
+              <div className="border border-slate-100 rounded-xl p-4 bg-slate-50/50 space-y-3">
+                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">8 Core Systems Status Rating</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1">
+                  {[
+                    { field: 'exterior', label: 'Exterior Systems' },
+                    { field: 'interior', label: 'Interior Systems' },
+                    { field: 'mechanical', label: 'Mechanical Componentry' },
+                    { field: 'fluids', label: 'Fluid Levels (Oil, Water, Brake)' },
+                    { field: 'tires', label: 'Tire Condition & Tread' },
+                    { field: 'brakes', label: 'Braking Systems' },
+                    { field: 'lights', label: 'Lights & Indicators' },
+                    { field: 'safety_gear', label: 'Safety Gear & Spare Tire' }
+                  ].map(({ field, label }) => {
+                    const value = (newDirectChecklistForm as any)[field] || 'pending';
+                    return (
+                      <div key={field} className="p-2.5 bg-white border border-slate-100 rounded-lg flex justify-between items-center gap-2">
+                        <span className="text-[11px] font-bold text-slate-700">{label}</span>
+                        <div className="flex items-center gap-1">
+                          {(['pass', 'fail', 'flag', 'pending'] as const).map(option => (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => {
+                                setNewDirectChecklistForm(prev => ({ ...prev, [field]: option }));
+                              }}
+                              className={`px-2 py-0.5 rounded text-[9px] font-black uppercase transition-all border ${
+                                value === option
+                                  ? option === 'pass'
+                                    ? 'bg-emerald-500 text-white border-emerald-600'
+                                    : option === 'fail'
+                                      ? 'bg-rose-500 text-white border-rose-600'
+                                      : option === 'flag'
+                                        ? 'bg-amber-500 text-white border-amber-600'
+                                        : 'bg-slate-500 text-white border-slate-600'
+                                  : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Checklist Overall Status *</label>
+                  <select
+                    required
+                    value={newDirectChecklistForm.status}
+                    onChange={(e) => setNewDirectChecklistForm(prev => ({ ...prev, status: e.target.value as any }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg bg-white focus:outline-hidden focus:border-teal-500 font-bold"
+                  >
+                    <option value="pending">Pending Audit</option>
+                    <option value="completed">Completed / Inspected</option>
+                    <option value="flagged">Flagged Issues</option>
+                    <option value="approved">Approved & Audited</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 block mb-1">Additional Observations & Notes</label>
+                  <input
+                    type="text"
+                    placeholder="Describe issues if any, tire depth, wiper status, or light bulb replacements needed..."
+                    value={newDirectChecklistForm.notes}
+                    onChange={(e) => setNewDirectChecklistForm(prev => ({ ...prev, notes: e.target.value }))}
+                    className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end border-t border-slate-100 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLogDirectChecklistModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold rounded-lg shadow transition-colors cursor-pointer"
+                >
+                  Log Direct Checklist
                 </button>
               </div>
             </form>
