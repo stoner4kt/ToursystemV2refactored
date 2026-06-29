@@ -16,6 +16,35 @@ import CalendarGrid from './CalendarGrid';
 import OTPModal from './OTPModal';
 import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF, downloadIncidentPDF, downloadExpensePDF } from '@/lib/pdf';
 
+export const INSPECTION_CATEGORIES = {
+  'Documents & Compliance': [
+    'Tourism Permit', 'Passenger Liability Insurance', 'RC1 (NATIS Document)', 
+    'Cross Border Permit', 'Licence Disc Valid'
+  ],
+  'Engine Compartment': [
+    'Engine Oil Level', 'Coolant Level', 'Brake Fluid',
+    'Fan Belts / Tension', 'Battery Terminals', 'Leakages (Oil/Water)'
+  ],
+  'External & Exterior': [
+    'Tyre Tread & Pressure', 'Wheel Nuts Secured', 'Spare Wheel & Tools',
+    'Windscreen & Wipers', 'Mirrors & Glass', 'Headlights (High/Low)', 
+    'Brake & Tail Lights', 'Indicators (Front/Rear)', 'Reverse & Plate Lights',
+    'Reflectors & Tape', 'MUD GUARDS', 'TOW BAR'
+  ],
+  'Internal / Cab': [
+    'Horn & Gauges', 'Seatbelts / Seats', 'Air Conditioner / Demister',
+    'Steering Play', 'Footbrake / Handbrake', 'Interior Cleanliness', 'Dash Camera'
+  ],
+  'Safety Gear & Tools': [
+    'Fire Extinguisher', 'Triangle & First Aid', 'Safety Vest',
+    'Spare Wheel + Rim', 'Jack & Jack Handle', 'Wheel Spanner', 
+    'Medic Kit-Green Bag', 'Roadside Kit - Blue Case'
+  ],
+  'Communication & Tech': [
+    'Headset', 'PA System', 'Microphone', 'Key with Key Ring'
+  ]
+};
+
 interface AdminDashboardProps {
   admin: Profile;
   onLogout: () => void;
@@ -3758,64 +3787,174 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
             </div>
 
             {/* Checklist items */}
-            <div className="space-y-3.5">
+            <div className="space-y-4">
               <h4 className="text-[11px] font-black text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-1">
-                10-Point core safety checks
+                Operational Compliance Checklist
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {Object.keys(selectedInspectionForModal.checklist_json).map((key) => {
-                  const status = selectedInspectionForModal.checklist_json[key];
-                  const faultDesc = selectedInspectionForModal.faults_json?.[key];
-                  const mediaUrl = selectedInspectionForModal.media_urls?.[key];
+              
+              <div className="space-y-4 max-h-96 overflow-y-auto pr-1">
+                {Object.entries(INSPECTION_CATEGORIES).map(([category, items]) => {
+                  // Only display category if the inspection checklist contains any of its items
+                  const hasCategoryItems = items.some(item => selectedInspectionForModal.checklist_json && selectedInspectionForModal.checklist_json[item] !== undefined);
+                  if (!hasCategoryItems) return null;
 
                   return (
-                    <div key={key} className="border border-slate-150 rounded-lg p-2.5 flex flex-col justify-between bg-white hover:bg-slate-50/50 transition-colors">
-                      <div className="flex justify-between items-start gap-1.5">
-                        <span className="capitalize font-bold text-slate-700 text-xs">{key.replace(/_/g, ' ')}</span>
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase border ${
-                          status === 'pass' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                          status === 'flag' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                          'bg-rose-50 text-rose-700 border-rose-200'
-                        }`}>
-                          {status}
-                        </span>
-                      </div>
+                    <div key={category} className="space-y-2 bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
+                      <h5 className="text-[10px] font-bold text-teal-600 uppercase tracking-wider">{category}</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {items.map((item) => {
+                          const status = selectedInspectionForModal.checklist_json[item];
+                          if (status === undefined) return null;
 
-                      {/* Fault Details / Image Attachment */}
-                      {(faultDesc || mediaUrl) && (
-                        <div className="mt-2 pt-2 border-t border-slate-100 space-y-1.5">
-                          {faultDesc && (
-                            <p className="text-[10px] text-slate-600 italic">
-                              <strong className="text-slate-800 font-bold not-italic">Fault:</strong> {faultDesc}
-                            </p>
-                          )}
-                          {mediaUrl && (
-                            <div className="mt-1">
-                              <span className="text-[9px] text-slate-400 font-semibold block mb-1">Attached Operational Evidence:</span>
-                              <div className="relative group rounded border border-slate-200 overflow-hidden bg-slate-50 max-w-[120px]">
-                                <img
-                                  src={mediaUrl}
-                                  alt={`${key} proof`}
-                                  className="w-full h-16 object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={async () => {
-                                    const signed = await getSignedUrlForView(mediaUrl);
-                                    window.open(signed, '_blank');
-                                  }}
-                                  referrerPolicy="no-referrer"
-                                />
-                                <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
-                                  <Eye className="w-3.5 h-3.5 text-white" />
-                                </div>
+                          let faultDesc = '';
+                          if (Array.isArray(selectedInspectionForModal.faults_json)) {
+                            if (selectedInspectionForModal.faults_json.includes(item)) {
+                              faultDesc = 'Fault flagged';
+                            }
+                          } else if (selectedInspectionForModal.faults_json && typeof selectedInspectionForModal.faults_json === 'object') {
+                            faultDesc = selectedInspectionForModal.faults_json[item] || '';
+                          }
+
+                          let mediaUrl = '';
+                          if (Array.isArray(selectedInspectionForModal.media_urls)) {
+                            // backward fallback: if array, match index or search for matching path
+                          } else if (selectedInspectionForModal.media_urls && typeof selectedInspectionForModal.media_urls === 'object') {
+                            mediaUrl = selectedInspectionForModal.media_urls[item] || '';
+                          }
+
+                          return (
+                            <div key={item} className="border border-slate-150 rounded-md p-2 flex flex-col justify-between bg-white">
+                              <div className="flex justify-between items-start gap-1">
+                                <span className="font-bold text-slate-700 text-[11px]">{item}</span>
+                                <span className={`px-1.5 py-0.2 rounded text-[7px] font-black uppercase border ${
+                                  status === 'ok' || status === 'pass' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                  status === 'flag' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                  'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}>
+                                  {status}
+                                </span>
                               </div>
+
+                              {(faultDesc || mediaUrl) && (
+                                <div className="mt-1.5 pt-1.5 border-t border-slate-100 space-y-1">
+                                  {faultDesc && (
+                                    <p className="text-[9px] text-slate-600 italic">
+                                      <strong className="text-slate-800 font-bold not-italic">Fault:</strong> {faultDesc}
+                                    </p>
+                                  )}
+                                  {mediaUrl && (
+                                    <div className="mt-1">
+                                      <span className="text-[8px] text-slate-400 font-semibold block mb-0.5">Attached Evidence:</span>
+                                      <div className="relative group rounded border border-slate-200 overflow-hidden bg-slate-50 max-w-[100px]">
+                                        <img
+                                          src={mediaUrl}
+                                          alt={`${item} proof`}
+                                          className="w-full h-12 object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                                          onClick={async () => {
+                                            const signed = await getSignedUrlForView(mediaUrl);
+                                            window.open(signed, '_blank');
+                                          }}
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
+                                          <Eye className="w-3 h-3 text-white" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      )}
+                          );
+                        })}
+                      </div>
                     </div>
                   );
                 })}
+
+                {/* Fallback for legacy items if not matched in the 42 categories above */}
+                {(() => {
+                  const categorizedKeys = Object.values(INSPECTION_CATEGORIES).flat();
+                  const legacyKeys = Object.keys(selectedInspectionForModal.checklist_json).filter(k => !categorizedKeys.includes(k));
+                  if (legacyKeys.length === 0) return null;
+
+                  return (
+                    <div className="space-y-2 bg-slate-50/50 p-2.5 rounded-lg border border-slate-100">
+                      <h5 className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Additional Core Checks</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {legacyKeys.map((key) => {
+                          const status = selectedInspectionForModal.checklist_json[key];
+                          const faultDesc = !Array.isArray(selectedInspectionForModal.faults_json) && selectedInspectionForModal.faults_json ? selectedInspectionForModal.faults_json[key] : '';
+                          const mediaUrl = !Array.isArray(selectedInspectionForModal.media_urls) && selectedInspectionForModal.media_urls ? selectedInspectionForModal.media_urls[key] : '';
+
+                          return (
+                            <div key={key} className="border border-slate-150 rounded-md p-2 flex flex-col justify-between bg-white">
+                              <div className="flex justify-between items-start gap-1">
+                                <span className="capitalize font-bold text-slate-700 text-[11px]">{key.replace(/_/g, ' ')}</span>
+                                <span className={`px-1.5 py-0.2 rounded text-[7px] font-black uppercase border ${
+                                  status === 'pass' || status === 'ok' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                                  status === 'flag' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                  'bg-rose-50 text-rose-700 border-rose-200'
+                                }`}>
+                                  {status}
+                                </span>
+                              </div>
+
+                              {(faultDesc || mediaUrl) && (
+                                <div className="mt-1.5 pt-1.5 border-t border-slate-100 space-y-1">
+                                  {faultDesc && (
+                                    <p className="text-[9px] text-slate-600 italic">
+                                      <strong className="text-slate-800 font-bold not-italic">Fault:</strong> {faultDesc}
+                                    </p>
+                                  )}
+                                  {mediaUrl && (
+                                    <div className="mt-1">
+                                      <span className="text-[8px] text-slate-400 font-semibold block mb-0.5">Evidence:</span>
+                                      <img
+                                        src={String(mediaUrl)}
+                                        alt={`${key} proof`}
+                                        className="w-16 h-12 object-cover rounded border border-slate-200 cursor-pointer"
+                                        onClick={async () => {
+                                          const signed = await getSignedUrlForView(mediaUrl);
+                                          window.open(signed, '_blank');
+                                        }}
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
+
+            {/* Attached reports / PDFs */}
+            {selectedInspectionForModal.pdf_urls && selectedInspectionForModal.pdf_urls.length > 0 && (
+              <div className="border border-slate-100 rounded-lg p-3 bg-slate-50/50 space-y-2">
+                <span className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider block">Attached Inspection Reports / PDFs</span>
+                <div className="flex flex-wrap gap-2">
+                  {selectedInspectionForModal.pdf_urls.map((url, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={async () => {
+                        const signed = await getSignedUrlForView(url);
+                        window.open(signed, '_blank');
+                      }}
+                      className="px-3 py-1.5 bg-white border border-slate-200 hover:border-slate-300 text-teal-600 hover:text-teal-700 font-bold text-[11px] rounded flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> View Report {i + 1}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* General notes */}
             {selectedInspectionForModal.notes && (
@@ -3825,29 +3964,54 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
               </div>
             )}
 
-            {/* Signature view */}
-            {selectedInspectionForModal.signature_url && (
-              <div className="border border-slate-100 rounded-lg p-3 bg-slate-50/50">
-                <span className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider block mb-1">Driver Digital Sign-off</span>
-                <div className="flex items-center gap-4">
-                  {selectedInspectionForModal.signature_url.startsWith('data:image') ? (
-                    <img
-                      src={selectedInspectionForModal.signature_url}
-                      alt="Driver Signature"
-                      className="bg-white border border-slate-200 rounded max-w-[150px] h-12 object-contain"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded">
-                      ✓ Digitally Certified
-                    </span>
-                  )}
-                  <p className="text-[10px] text-slate-400 italic leading-relaxed">
-                    Certified that all 10-point mechanical safety checks were executed prior to dispatch/de-route.
-                  </p>
+            {/* Signatures view side-by-side */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(selectedInspectionForModal.driver_signature || selectedInspectionForModal.signature_url) && (
+                <div className="border border-slate-100 rounded-lg p-3 bg-slate-50/50">
+                  <span className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider block mb-1">Driver Digital Sign-off</span>
+                  <div className="flex flex-col gap-2">
+                    {(selectedInspectionForModal.driver_signature || selectedInspectionForModal.signature_url)?.startsWith('data:image') ? (
+                      <img
+                        src={selectedInspectionForModal.driver_signature || selectedInspectionForModal.signature_url}
+                        alt="Driver Signature"
+                        className="bg-white border border-slate-200 rounded max-w-[150px] h-12 object-contain"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded w-fit">
+                        ✓ Digitally Certified
+                      </span>
+                    )}
+                    <p className="text-[10px] text-slate-400 italic leading-relaxed">
+                      Certified that all safety compliance checks were executed.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {selectedInspectionForModal.client_signature && (
+                <div className="border border-slate-100 rounded-lg p-3 bg-slate-50/50">
+                  <span className="font-extrabold text-slate-400 uppercase text-[9px] tracking-wider block mb-1">Client Digital Sign-off</span>
+                  <div className="flex flex-col gap-2">
+                    {selectedInspectionForModal.client_signature.startsWith('data:image') ? (
+                      <img
+                        src={selectedInspectionForModal.client_signature}
+                        alt="Client Signature"
+                        className="bg-white border border-slate-200 rounded max-w-[150px] h-12 object-contain"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded w-fit">
+                        ✓ Digitally Certified
+                      </span>
+                    )}
+                    <p className="text-[10px] text-slate-400 italic leading-relaxed">
+                      Client acknowledged and verified compliance inspection on-board.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="flex gap-2.5 border-t border-slate-100 pt-3">
               <button

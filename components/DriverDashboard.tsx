@@ -14,6 +14,37 @@ import {
 import SignaturePad from './SignaturePad';
 import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF } from '@/lib/pdf';
 
+export const INSPECTION_CATEGORIES = {
+  'Documents & Compliance': [
+    'Tourism Permit', 'Passenger Liability Insurance', 'RC1 (NATIS Document)', 
+    'Cross Border Permit', 'Licence Disc Valid'
+  ],
+  'Engine Compartment': [
+    'Engine Oil Level', 'Coolant Level', 'Brake Fluid',
+    'Fan Belts / Tension', 'Battery Terminals', 'Leakages (Oil/Water)'
+  ],
+  'External & Exterior': [
+    'Tyre Tread & Pressure', 'Wheel Nuts Secured', 'Spare Wheel & Tools',
+    'Windscreen & Wipers', 'Mirrors & Glass', 'Headlights (High/Low)', 
+    'Brake & Tail Lights', 'Indicators (Front/Rear)', 'Reverse & Plate Lights',
+    'Reflectors & Tape', 'MUD GUARDS', 'TOW BAR'
+  ],
+  'Internal / Cab': [
+    'Horn & Gauges', 'Seatbelts / Seats', 'Air Conditioner / Demister',
+    'Steering Play', 'Footbrake / Handbrake', 'Interior Cleanliness', 'Dash Camera'
+  ],
+  'Safety Gear & Tools': [
+    'Fire Extinguisher', 'Triangle & First Aid', 'Safety Vest',
+    'Spare Wheel + Rim', 'Jack & Jack Handle', 'Wheel Spanner', 
+    'Medic Kit-Green Bag', 'Roadside Kit - Blue Case'
+  ],
+  'Communication & Tech': [
+    'Headset', 'PA System', 'Microphone', 'Key with Key Ring'
+  ]
+};
+
+export const ALL_INSPECTION_ITEMS = Object.values(INSPECTION_CATEGORIES).flat();
+
 interface DriverDashboardProps {
   driver: Profile;
   onLogout: () => void;
@@ -31,14 +62,20 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
   const [showInspectionModal, setShowInspectionModal] = useState(false);
   const [selectedBookingForInspection, setSelectedBookingForInspection] = useState<Booking | null>(null);
   const [inspectionType, setInspectionType] = useState<'pre-trip' | 'post-trip'>('pre-trip');
-  const [inspectionChecklist, setInspectionChecklist] = useState<Record<string, 'pass' | 'fail' | 'flag'>>({
-    brakes: 'pass', steering: 'pass', tyres: 'pass', lights: 'pass', seatbelts: 'pass',
-    windshield: 'pass', fluids: 'pass', horn: 'pass', bodywork: 'pass', emergency_kit: 'pass'
+  const [inspectionChecklist, setInspectionChecklist] = useState<Record<string, 'ok' | 'fault'>>(() => {
+    const init: Record<string, 'ok' | 'fault'> = {};
+    ALL_INSPECTION_ITEMS.forEach(item => {
+      init[item] = 'ok';
+    });
+    return init;
   });
   const [inspectionFaults, setInspectionFaults] = useState<Record<string, string>>({});
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [inspectionMileage, setInspectionMileage] = useState<number>(0);
   const [inspectionSignature, setInspectionSignature] = useState('');
+  const [clientSignature, setClientSignature] = useState('');
+  const [inspectionPdfs, setInspectionPdfs] = useState<string[]>([]);
+  const [uploadingPdf, setUploadingPdf] = useState(false);
   const [inspectionsList, setInspectionsList] = useState<Inspection[]>([]);
   const [inspectionMedia, setInspectionMedia] = useState<Record<string, string>>({});
   const [uploadingMediaKeys, setUploadingMediaKeys] = useState<Record<string, boolean>>({});
@@ -265,19 +302,24 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     const vehicle = vehicles.find(v => v.registration_no === booking.assigned_vehicle_reg);
     setInspectionMileage(vehicle ? vehicle.current_mileage : 120000);
     
-    setInspectionChecklist({
-      brakes: 'pass', steering: 'pass', tyres: 'pass', lights: 'pass', seatbelts: 'pass',
-      windshield: 'pass', fluids: 'pass', horn: 'pass', bodywork: 'pass', emergency_kit: 'pass'
+    const initChecklist: Record<string, 'ok' | 'fault'> = {};
+    ALL_INSPECTION_ITEMS.forEach(item => {
+      initChecklist[item] = 'ok';
     });
+    setInspectionChecklist(initChecklist);
+    
     setInspectionFaults({});
     setInspectionNotes('');
     setInspectionSignature('');
+    setClientSignature('');
+    setInspectionPdfs([]);
+    setUploadingPdf(false);
     setInspectionMedia({});
     setUploadingMediaKeys({});
     setShowInspectionModal(true);
   };
 
-  const handleInspectionChecklistChange = (item: string, rating: 'pass' | 'fail' | 'flag') => {
+  const handleInspectionChecklistChange = (item: string, rating: 'ok' | 'fault') => {
     setInspectionChecklist(prev => ({ ...prev, [item]: rating }));
   };
 
@@ -303,15 +345,25 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
   const submitInspection = () => {
     if (!selectedBookingForInspection) return;
 
-    // Check if critical faults were selected (any fail counts as critical)
-    const hasCritical = Object.values(inspectionChecklist).some(rating => rating === 'fail');
+    // Check if critical faults were selected (any fault counts as critical)
+    const hasCritical = Object.values(inspectionChecklist).some(rating => rating === 'fault');
 
     // Check if any uploads are still pending
     const isUploadingAny = Object.values(uploadingMediaKeys).some(Boolean);
-    if (isUploadingAny) {
-      alert("Please wait for your inspection photo uploads to complete before submitting.");
+    if (isUploadingAny || uploadingPdf) {
+      alert("Please wait for your inspection attachments to complete uploading before submitting.");
       return;
     }
+
+    if (!inspectionSignature) {
+      alert("Driver signature is required to verify operational compliance.");
+      return;
+    }
+
+    // Build lists for standard storage compliance
+    const faultsArray = Object.entries(inspectionChecklist)
+      .filter(([_, rating]) => rating === 'fault')
+      .map(([item]) => item);
 
     const newInspection: Inspection = {
       id: `ins-${Math.random().toString(36).substring(2, 9)}`,
@@ -320,15 +372,18 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
       driver_id: driver.driver_id,
       inspection_type: inspectionType,
       checklist_json: inspectionChecklist,
-      faults_json: inspectionFaults,
-      media_urls: inspectionMedia,
+      faults_json: faultsArray, // Stored as JSON array of failed items (names)
+      media_urls: inspectionMedia, // item -> url map for fine-grained lookups
       mileage_at_inspection: inspectionMileage,
       notes: inspectionNotes,
       has_critical_fault: hasCritical,
       alert_sent: hasCritical, // Set true if there's a fault
       is_rented_vehicle: selectedBookingForInspection.is_rented_vehicle,
       rented_vehicle_model: selectedBookingForInspection.rented_vehicle_model,
-      signature_url: inspectionSignature,
+      signature_url: inspectionSignature, // Legacy driver signature field
+      driver_signature: inspectionSignature, // Explicit driver signature
+      client_signature: clientSignature, // Explicit client signature
+      pdf_urls: inspectionPdfs, // Attached PDF compliance reports
       created_at: new Date().toISOString()
     };
 
@@ -2545,96 +2600,143 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                 />
               </div>
 
-              {/* Checks */}
-              <div className="space-y-2 border border-slate-800 rounded bg-slate-950/40 p-2 max-h-60 overflow-y-auto scrollbar-thin">
-                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">10-Point Core Safety Checks</p>
+              {/* Checks grouped by category */}
+              <div className="space-y-4 border border-slate-800 rounded bg-slate-950/40 p-3 max-h-80 overflow-y-auto scrollbar-thin">
+                <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">Operational Compliance Checklist</p>
                 
-                {Object.keys(inspectionChecklist).map((checkKey) => {
-                  const checkVal = inspectionChecklist[checkKey];
-                  const cleanLabel = checkKey.replace(/_/g, ' ');
-
-                  return (
-                    <div key={checkKey} className="p-2 border-b border-slate-900 last:border-0 space-y-2">
-                      <div className="flex justify-between items-center text-[11px]">
-                        <span className="capitalize font-bold text-slate-200">{cleanLabel}</span>
-                        <div className="flex bg-slate-950 border border-slate-850 p-0.5 rounded gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleInspectionChecklistChange(checkKey, 'pass')}
-                            className={`px-2 py-0.5 rounded text-[8px] font-black ${
-                              checkVal === 'pass' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                            }`}
-                          >
-                            PASS
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleInspectionChecklistChange(checkKey, 'flag')}
-                            className={`px-2 py-0.5 rounded text-[8px] font-black ${
-                              checkVal === 'flag' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                            }`}
-                          >
-                            FLAG
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleInspectionChecklistChange(checkKey, 'fail')}
-                            className={`px-2 py-0.5 rounded text-[8px] font-black ${
-                              checkVal === 'fail' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-slate-200'
-                            }`}
-                          >
-                            FAIL
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Display input if check is failed or flagged */}
-                      {checkVal !== 'pass' && (
-                        <div className="space-y-1 bg-slate-950 p-2 rounded border border-slate-850 animate-scale-up">
-                          <input
-                            type="text" required
-                            placeholder="Describe fault details (e.g. left bulb burnt out)"
-                            value={inspectionFaults[checkKey] || ''}
-                            onChange={(e) => handleInspectionFaultChange(checkKey, e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-800 rounded p-1 text-[10px] text-white"
-                          />
-                          <div className="relative border border-dashed border-slate-800 hover:border-slate-700 bg-slate-900 p-1.5 rounded text-center cursor-pointer flex items-center justify-center gap-1.5 min-h-[32px] transition-colors overflow-hidden">
-                            {uploadingMediaKeys[checkKey] ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-400" />
-                                <span className="text-[9px] text-teal-400 font-bold">Uploading photo...</span>
-                              </>
-                            ) : inspectionMedia[checkKey] ? (
-                              <>
-                                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                                <span className="text-[9px] text-emerald-400 font-bold truncate">Photo Attached ✓</span>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  capture="environment"
-                                  onChange={(e) => handleInspectionMediaUpload(checkKey, e)}
-                                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                />
-                              </>
-                            ) : (
-                              <>
-                                <Camera className="w-3.5 h-3.5 text-slate-500" />
-                                <span className="text-[9px] text-slate-400">Capture fault photo (Camera)</span>
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  capture="environment"
-                                  onChange={(e) => handleInspectionMediaUpload(checkKey, e)}
-                                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                />
-                              </>
-                            )}
+                {Object.entries(INSPECTION_CATEGORIES).map(([category, items]) => (
+                  <div key={category} className="space-y-2">
+                    <h4 className="text-[10px] font-black text-teal-500 uppercase tracking-wider border-b border-slate-800/50 pb-1 mt-2">{category}</h4>
+                    {items.map((item) => {
+                      const checkVal = inspectionChecklist[item] || 'ok';
+                      return (
+                        <div key={item} className="p-2 border-b border-slate-900/60 last:border-0 space-y-2 bg-slate-950/20 rounded">
+                          <div className="flex justify-between items-center text-[11px]">
+                            <span className="font-semibold text-slate-200">{item}</span>
+                            <div className="flex bg-slate-950 border border-slate-850 p-0.5 rounded gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleInspectionChecklistChange(item, 'ok')}
+                                className={`px-3 py-0.5 rounded text-[8px] font-black transition-colors ${
+                                  checkVal === 'ok' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                              >
+                                OK
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleInspectionChecklistChange(item, 'fault')}
+                                className={`px-3 py-0.5 rounded text-[8px] font-black transition-colors ${
+                                  checkVal === 'fault' ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-slate-200'
+                                }`}
+                              >
+                                FAULT
+                              </button>
+                            </div>
                           </div>
+
+                          {/* Display input if check is fault */}
+                          {checkVal === 'fault' && (
+                            <div className="space-y-1 bg-slate-950 p-2 rounded border border-slate-850 animate-scale-up">
+                              <input
+                                type="text"
+                                required
+                                placeholder="Describe fault details (e.g. cracked or worn)"
+                                value={inspectionFaults[item] || ''}
+                                onChange={(e) => handleInspectionFaultChange(item, e.target.value)}
+                                className="w-full bg-slate-900 border border-slate-800 rounded p-1 text-[10px] text-white"
+                              />
+                              <div className="relative border border-dashed border-slate-800 hover:border-slate-700 bg-slate-900 p-1.5 rounded text-center cursor-pointer flex items-center justify-center gap-1.5 min-h-[32px] transition-colors overflow-hidden">
+                                {uploadingMediaKeys[item] ? (
+                                  <>
+                                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-400" />
+                                    <span className="text-[9px] text-teal-400 font-bold">Uploading photo...</span>
+                                  </>
+                                ) : inspectionMedia[item] ? (
+                                  <>
+                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span className="text-[9px] text-emerald-400 font-bold truncate">Photo Attached ✓</span>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      capture="environment"
+                                      onChange={(e) => handleInspectionMediaUpload(item, e)}
+                                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                    />
+                                  </>
+                                ) : (
+                                  <>
+                                    <Camera className="w-3.5 h-3.5 text-slate-500" />
+                                    <span className="text-[9px] text-slate-400">Capture fault photo (Camera)</span>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      capture="environment"
+                                      onChange={(e) => handleInspectionMediaUpload(item, e)}
+                                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                    />
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                ))}
+              </div>
+
+              {/* PDF Reports Upload Attachment */}
+              <div className="bg-slate-950 p-3 rounded border border-slate-850 space-y-2">
+                <span className="text-[11px] font-bold text-slate-300 block">Attach Inspection PDF / Reports</span>
+                <div className="relative border border-dashed border-slate-800 hover:border-slate-700 bg-slate-900 p-2.5 rounded text-center cursor-pointer flex items-center justify-center gap-1.5 min-h-[36px] transition-colors overflow-hidden">
+                  {uploadingPdf ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-teal-400" />
+                      <span className="text-[10px] text-teal-400 font-bold">Uploading report...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileUp className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="text-[10px] text-slate-300">Upload PDF Report</span>
+                      <input
+                        type="file"
+                        accept="application/pdf,image/*"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          setUploadingPdf(true);
+                          try {
+                            const res = await uploadToCloudinary(file, 'inspections');
+                            setInspectionPdfs(prev => [...prev, res.url]);
+                          } catch (err) {
+                            alert("Failed to attach report");
+                          } finally {
+                            setUploadingPdf(false);
+                          }
+                        }}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                    </>
+                  )}
+                </div>
+                {inspectionPdfs.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    {inspectionPdfs.map((url, i) => (
+                      <div key={i} className="flex items-center justify-between bg-slate-900 border border-slate-800 px-2 py-1 rounded text-[10px]">
+                        <span className="text-teal-400 font-bold truncate max-w-[150px]">Report-{i+1}.pdf</span>
+                        <button
+                          type="button"
+                          onClick={() => setInspectionPdfs(prev => prev.filter((_, idx) => idx !== i))}
+                          className="text-rose-500 hover:text-rose-400 font-bold px-1"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div>
@@ -2647,11 +2749,20 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                 />
               </div>
 
-              {/* Embed Interactive touch signature pad */}
+              {/* Embed Interactive touch signature pad - DRIVER */}
               <div className="bg-slate-950 p-3 rounded border border-slate-850">
                 <SignaturePad
                   onSave={(data) => setInspectionSignature(data)}
                   savedSignature={inspectionSignature}
+                />
+              </div>
+
+              {/* Embed Interactive touch signature pad - CLIENT */}
+              <div className="bg-slate-950 p-3 rounded border border-slate-850">
+                <span className="text-[11px] font-bold text-slate-300 block mb-1">CLIENT SIGNATURE (Optionally Sign-Off)</span>
+                <SignaturePad
+                  onSave={(data) => setClientSignature(data)}
+                  savedSignature={clientSignature}
                 />
               </div>
 

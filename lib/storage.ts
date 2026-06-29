@@ -88,17 +88,21 @@ export interface Inspection {
   vehicle_reg: string;
   driver_id: string;
   inspection_type: 'pre-trip' | 'post-trip';
-  checklist_json: Record<string, 'pass' | 'fail' | 'flag'>;
-  faults_json: Record<string, string>; // item -> description of fault
-  media_urls: Record<string, string>; // item -> Cloudinary URL
+  checklist_json: Record<string, string>; // keys are items, values are 'ok' or 'fault' (or 'pass'/'fail'/'flag')
+  faults_json: string[] | Record<string, string>; // item list of failed items, or backward compatible dictionary
+  media_urls: string[] | Record<string, string>; // attachment URLs list or dictionary
   mileage_at_inspection: number;
   notes?: string;
   has_critical_fault: boolean;
   alert_sent: boolean;
   is_rented_vehicle: boolean;
   rented_vehicle_model?: string;
-  signature_url?: string; // base64 or Cloudinary URL
+  signature_url?: string; // driver signature (backward compatibility)
+  driver_signature?: string; // base64 PNG data URL
+  client_signature?: string; // base64 PNG data URL
+  pdf_urls?: string[]; // attached pdf report URLs (Cloudinary)
   created_at: string;
+  submitted_at?: string;
 }
 
 export interface ReconCostLine {
@@ -1560,20 +1564,49 @@ export const inspectionsApi = {
       pushToSupabase('vehicles', updatedVehicle, 'registration_no', updatedVehicle.registration_no);
     }
 
-    // Call Supabase Edge Function for fault alert if faults are present
+    // Call Next.js Resend Email API Route if faults are present
     const hasFault = inspection.has_critical_fault || 
-                     (inspection.checklist_json && Object.values(inspection.checklist_json).some(v => v === 'fail' || v === 'flag')) ||
-                     (inspection.faults_json && Object.keys(inspection.faults_json).length > 0);
+                     (inspection.checklist_json && Object.values(inspection.checklist_json).some(v => v === 'fail' || v === 'flag' || v === 'fault')) ||
+                     (Array.isArray(inspection.faults_json) && inspection.faults_json.length > 0) ||
+                     (inspection.faults_json && !Array.isArray(inspection.faults_json) && Object.keys(inspection.faults_json).length > 0);
+
+    if (hasFault) {
+      // Find driver's name to include in email
+      const drivers = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
+      const driverObj = drivers.find(d => d.driver_id === inspection.driver_id);
+      const driverName = driverObj ? driverObj.name : 'A Dispatch Driver';
+
+      fetch('/api/alert', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inspection,
+          driver_name: driverName
+        })
+      })
+      .then(res => res.json())
+      .then(data => console.log('Resend email alert dispatch result:', data))
+      .catch(err => console.error('Failed to dispatch Resend email alert:', err));
+    }
 
     if (hasFault && isSupabaseConfigured && supabase) {
       // Format faults as an array of strings for the Edge function
       const failedItems = Object.entries(inspection.checklist_json || {})
-        .filter(([_, v]) => v === 'fail' || v === 'flag')
+        .filter(([_, v]) => v === 'fail' || v === 'flag' || v === 'fault')
         .map(([item, v]) => `${item.replace(/_/g, ' ')} (${v.toUpperCase()})`);
-      const faultDescEntries = Object.entries(inspection.faults_json || {})
-        .filter(([_, desc]) => desc && desc.trim())
-        .map(([item, desc]) => `${item.replace(/_/g, ' ')}: ${desc}`);
-      const faultsArray = [...new Set([...failedItems, ...faultDescEntries])];
+
+      let faultsArray: string[] = [];
+      if (Array.isArray(inspection.faults_json)) {
+        faultsArray = inspection.faults_json;
+      } else if (inspection.faults_json && typeof inspection.faults_json === 'object') {
+        const faultDescEntries = Object.entries(inspection.faults_json)
+          .filter(([_, desc]) => desc && desc.trim())
+          .map(([item, desc]) => `${item.replace(/_/g, ' ')}: ${desc}`);
+        faultsArray = [...new Set([...failedItems, ...faultDescEntries])];
+      }
+
       if (faultsArray.length === 0) {
         faultsArray.push('Operational safety warning / fault flagged');
       }

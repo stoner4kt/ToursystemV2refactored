@@ -74,13 +74,15 @@ export async function downloadInspectionPDF(inspection: Inspection, driverName: 
       }
 
       const status = inspection.checklist_json[key];
-      const fault = inspection.faults_json[key] || '-';
+      const fault = (inspection.faults_json && !Array.isArray(inspection.faults_json) && typeof inspection.faults_json === 'object')
+        ? (inspection.faults_json as Record<string, string>)[key] || '-'
+        : '-';
       const cleanKey = key.replace(/_/g, ' ').toUpperCase();
 
       page.drawText(cleanKey, { x: 60, y, size: 9, font });
       
       let statusColor = rgb(0.1, 0.6, 0.1); // Green
-      if (status === 'fail') statusColor = rgb(0.8, 0.1, 0.1);
+      if (status === 'fail' || status === 'fault') statusColor = rgb(0.8, 0.1, 0.1);
       if (status === 'flag') statusColor = rgb(0.8, 0.5, 0.1);
       
       page.drawText(status.toUpperCase(), { x: 280, y, size: 9, font: boldFont, color: statusColor });
@@ -103,7 +105,7 @@ export async function downloadInspectionPDF(inspection: Inspection, driverName: 
     }
 
     // Signature Area
-    if (y < 150) {
+    if (y < 220) {
       page = pdfDoc.addPage([600, 800]);
       y = 750;
     }
@@ -115,9 +117,10 @@ export async function downloadInspectionPDF(inspection: Inspection, driverName: 
     page.drawText('DRIVER SIGNATURE & SIGN-OFF', { x: 50, y, size: 12, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
     y -= 60;
 
-    if (inspection.signature_url && inspection.signature_url.startsWith('data:image')) {
+    const driverSigToUse = inspection.driver_signature || inspection.signature_url;
+    if (driverSigToUse && driverSigToUse.startsWith('data:image')) {
       try {
-        const sigImage = await pdfDoc.embedPng(inspection.signature_url);
+        const sigImage = await pdfDoc.embedPng(driverSigToUse);
         page.drawImage(sigImage, {
           x: 50,
           y,
@@ -136,6 +139,30 @@ export async function downloadInspectionPDF(inspection: Inspection, driverName: 
 
     page.drawText('I hereby certify that the above pre/post-trip safety checks', { x: 220, y: y + 30, size: 8, font });
     page.drawText('were completed diligently, and all recorded faults are accurate.', { x: 220, y: y + 18, size: 8, font });
+
+    if (inspection.client_signature && inspection.client_signature.startsWith('data:image')) {
+      y -= 80;
+      if (y < 120) {
+        page = pdfDoc.addPage([600, 800]);
+        y = 750;
+      }
+      page.drawText('CLIENT SIGNATURE & SIGN-OFF', { x: 50, y, size: 12, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
+      y -= 60;
+      try {
+        const clientSigImage = await pdfDoc.embedPng(inspection.client_signature);
+        page.drawImage(clientSigImage, {
+          x: 50,
+          y,
+          width: 150,
+          height: 50,
+        });
+      } catch (err) {
+        page.drawRectangle({ x: 50, y, width: 150, height: 50, color: rgb(0.9, 0.9, 0.9) });
+        page.drawText('Signature Authenticated', { x: 60, y: y + 20, size: 9, font: boldFont });
+      }
+      page.drawText('I hereby verify and acknowledge that the safety', { x: 220, y: y + 30, size: 8, font });
+      page.drawText('compliance checks have been verified with the crew.', { x: 220, y: y + 18, size: 8, font });
+    }
 
     const pdfBytes = await pdfDoc.save();
     const blob = new Blob([pdfBytes] as BlobPart[], { type: 'application/pdf' });
