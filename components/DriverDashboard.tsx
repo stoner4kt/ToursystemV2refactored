@@ -1526,8 +1526,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
               
               {/* Header Section */}
               <div className="flex items-center justify-between">
-                <h2 className="text-base font-bold flex items-center gap-1.5 text-slate-800">
-                  <FileText className="w-5 h-5 text-teal-600" />
+                <h2 className="text-base font-bold flex items-center gap-1.5 text-white">
+                  <FileText className="w-5 h-5 text-teal-500" />
                   Transfer Recon for Weekly Payment
                 </h2>
                 {!activeSheet && (
@@ -1572,10 +1572,10 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
               </div>
 
               {/* Alert Warning Box */}
-              <div className="bg-amber-50/70 border border-amber-200 text-slate-700 rounded-xl p-4 text-[11px] leading-relaxed shadow-xs">
+              <div className="bg-amber-950/30 border border-amber-900/60 text-slate-300 rounded-xl p-4 text-[11px] leading-relaxed shadow-xs">
                 <p>
                   All transfer information to be added here. Client reference numbers to be added to every date.{' '}
-                  <strong className="text-slate-900">
+                  <strong className="text-amber-400">
                     NO salary will be paid if this form has not been completed and sent to the office by every Thursday.
                   </strong>{' '}
                   Payments will be done once form has been received and checked. NO immediate payments will be done.
@@ -1584,18 +1584,18 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
 
               {/* ACTIVE WEEK RECON SHEET FORM */}
               {activeSheet ? (
-                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-5">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-5">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                     <div>
-                      <h3 className="text-xs uppercase tracking-wider font-extrabold text-slate-500">Weekly Transfer Sheet</h3>
-                      <p className="text-sm font-bold text-slate-800 mt-1">
+                      <h3 className="text-xs uppercase tracking-wider font-extrabold text-teal-400">Weekly Transfer Sheet</h3>
+                      <p className="text-sm font-bold text-white mt-1">
                         {formatRangeDisplay(activeSheet.week_start || '', activeSheet.week_end || '')}
                       </p>
                     </div>
                     <span className={`text-[10px] uppercase font-black px-2.5 py-1 rounded border ${
                       activeSheet.status === 'submitted' || activeSheet.status === 'reviewed'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                        ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/80'
+                        : 'bg-slate-800 text-slate-300 border-slate-700'
                     }`}>
                       {activeSheet.status || 'draft'}
                     </span>
@@ -1603,26 +1603,26 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
 
                   {/* Driver Name input box */}
                   <div className="max-w-md">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block mb-1">Driver Name</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">Driver Name</label>
                     <input
                       type="text"
                       readOnly
                       value={driver.name}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs text-slate-700 font-bold"
+                      className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-slate-300 font-bold"
                     />
                   </div>
 
                   {/* Submission Success Alert if locked */}
                   {(activeSheet.status === 'submitted' || activeSheet.status === 'reviewed') && (
-                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-3.5 text-xs font-bold flex items-center gap-2">
+                    <div className="bg-emerald-950/30 border border-emerald-900/60 text-emerald-400 rounded-xl p-3.5 text-xs font-bold flex items-center gap-2">
                       <span className="text-emerald-500 text-sm">✓</span> This transfer recon sheet has been submitted and is locked.
                     </div>
                   )}
 
                   {/* TRANSFER ENTRIES TABLE */}
-                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                  <div className="border border-slate-800 rounded-xl overflow-hidden shadow-xs">
                     <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-[#0c3a60] text-white text-[10px] uppercase tracking-wider font-extrabold">
+                      <thead className="bg-slate-900 text-slate-200 text-[10px] uppercase tracking-wider font-extrabold border-b border-slate-800">
                         <tr>
                           <th className="p-3 w-[15%]">Vehicle Reg</th>
                           <th className="p-3 w-[15%]">Vehicle Name</th>
@@ -1634,23 +1634,23 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                           {isSheetEditable && <th className="p-3 w-[5%] text-center">Action</th>}
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-slate-800/60">
                         {/* Render existing rows */}
                         {(activeSheet.transfers || []).length === 0 ? (
                           <tr>
-                            <td colSpan={isSheetEditable ? 8 : 7} className="p-6 text-center text-slate-400 italic text-xs bg-slate-50">
+                            <td colSpan={isSheetEditable ? 8 : 7} className="p-6 text-center text-slate-500 italic text-xs bg-slate-900/20">
                               No transfer rows added to this sheet yet.
                             </td>
                           </tr>
                         ) : (
                           (activeSheet.transfers || []).map((t) => (
-                            <tr key={t.id} className="hover:bg-slate-50 bg-white transition-colors">
+                            <tr key={t.id} className="hover:bg-slate-900/40 bg-slate-950/40 transition-colors">
                               <td className="p-2">
                                 <input
                                   type="text"
                                   readOnly
                                   value={t.vehicle_reg || ''}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 font-bold"
+                                  className="w-full bg-slate-900/60 border border-slate-800 rounded px-2 py-1 text-xs text-slate-300 font-bold"
                                 />
                               </td>
                               <td className="p-2">
@@ -1658,7 +1658,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                   type="text"
                                   readOnly
                                   value={t.vehicle_name || ''}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 font-medium"
+                                  className="w-full bg-slate-900/60 border border-slate-800 rounded px-2 py-1 text-xs text-slate-300 font-medium"
                                 />
                               </td>
                               <td className="p-2">
@@ -1666,7 +1666,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                   type="text"
                                   readOnly
                                   value={t.date || ''}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 font-mono"
+                                  className="w-full bg-slate-900/60 border border-slate-800 rounded px-2 py-1 text-xs text-slate-300 font-mono"
                                 />
                               </td>
                               <td className="p-2">
@@ -1674,7 +1674,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                   type="text"
                                   readOnly
                                   value={t.invoice_or_tour_ref || ''}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 font-mono"
+                                  className="w-full bg-slate-900/60 border border-slate-800 rounded px-2 py-1 text-xs text-slate-300 font-mono"
                                 />
                               </td>
                               <td className="p-2">
@@ -1682,7 +1682,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                   type="text"
                                   readOnly
                                   value={t.tla_type || ''}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 font-medium"
+                                  className="w-full bg-slate-900/60 border border-slate-800 rounded px-2 py-1 text-xs text-slate-300 font-medium"
                                 />
                               </td>
                               <td className="p-2">
@@ -1690,7 +1690,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                   type="text"
                                   readOnly
                                   value={t.description || ''}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600"
+                                  className="w-full bg-slate-900/60 border border-slate-800 rounded px-2 py-1 text-xs text-slate-300"
                                 />
                               </td>
                               <td className="p-2">
@@ -1698,7 +1698,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                   type="text"
                                   readOnly
                                   value={t.notes || ''}
-                                  className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600"
+                                  className="w-full bg-slate-900/60 border border-slate-800 rounded px-2 py-1 text-xs text-slate-300"
                                 />
                               </td>
                               {isSheetEditable && (
@@ -1706,7 +1706,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                   <button
                                     type="button"
                                     onClick={() => handleRemoveTransferRow(t.id)}
-                                    className="text-rose-500 hover:text-rose-700 font-black p-1 hover:bg-rose-50 rounded transition-all"
+                                    className="text-rose-400 hover:text-rose-300 font-black p-1 hover:bg-rose-950/40 rounded transition-all"
                                     title="Remove Entry"
                                   >
                                     ✕
@@ -1719,7 +1719,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
 
                         {/* Inline Add New Row Form inside the table if sheet is editable */}
                         {isSheetEditable && (
-                          <tr className="bg-teal-50/40 border-t-2 border-teal-100">
+                          <tr className="bg-teal-950/10 border-t border-slate-800">
                             <td className="p-2">
                               <select
                                 value={newTransferRow.vehicle_reg}
@@ -1732,7 +1732,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                     vehicle_name: veh ? `${veh.make} ${veh.model}` : ''
                                   }));
                                 }}
-                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 font-bold focus:ring-1 focus:ring-teal-500"
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white font-bold focus:ring-1 focus:ring-teal-500"
                               >
                                 <option value="">Select Reg</option>
                                 {vehicles.map(v => (
@@ -1746,7 +1746,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                 placeholder="Vehicle Name"
                                 value={newTransferRow.vehicle_name}
                                 onChange={(e) => setNewTransferRow(prev => ({ ...prev, vehicle_name: e.target.value }))}
-                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-teal-500"
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:ring-1 focus:ring-teal-500"
                               />
                             </td>
                             <td className="p-2">
@@ -1754,7 +1754,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                 type="date"
                                 value={newTransferRow.date}
                                 onChange={(e) => setNewTransferRow(prev => ({ ...prev, date: e.target.value }))}
-                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-teal-500"
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:ring-1 focus:ring-teal-500"
                               />
                             </td>
                             <td className="p-2">
@@ -1763,14 +1763,14 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                 placeholder="INV-2026-X"
                                 value={newTransferRow.invoice_or_tour_ref}
                                 onChange={(e) => setNewTransferRow(prev => ({ ...prev, invoice_or_tour_ref: e.target.value }))}
-                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 font-mono focus:ring-1 focus:ring-teal-500"
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white font-mono focus:ring-1 focus:ring-teal-500"
                               />
                             </td>
                             <td className="p-2">
                               <select
                                 value={newTransferRow.tla_type}
                                 onChange={(e) => setNewTransferRow(prev => ({ ...prev, tla_type: e.target.value }))}
-                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-teal-500"
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:ring-1 focus:ring-teal-500"
                               >
                                 <option value="L = Long Transfer">L = Long Transfer</option>
                                 <option value="T = Tour">T = Tour</option>
@@ -1783,7 +1783,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                 placeholder="e.g. Cape Town Airport"
                                 value={newTransferRow.description}
                                 onChange={(e) => setNewTransferRow(prev => ({ ...prev, description: e.target.value }))}
-                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-teal-500"
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:ring-1 focus:ring-teal-500"
                               />
                             </td>
                             <td className="p-2">
@@ -1792,14 +1792,14 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                 placeholder="Notes"
                                 value={newTransferRow.notes}
                                 onChange={(e) => setNewTransferRow(prev => ({ ...prev, notes: e.target.value }))}
-                                className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-xs text-slate-800 focus:ring-1 focus:ring-teal-500"
+                                className="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-xs text-white focus:ring-1 focus:ring-teal-500"
                               />
                             </td>
                             <td className="p-2 text-center">
                               <button
                                 type="button"
                                 onClick={handleAddTransferRow}
-                                className="bg-teal-600 hover:bg-teal-500 text-white font-extrabold px-3 py-1 rounded shadow-xs transition-colors text-xs"
+                                className="bg-teal-600 hover:bg-teal-500 text-white font-extrabold px-3 py-1 rounded shadow-xs transition-colors text-xs cursor-pointer"
                                 title="Add Row"
                               >
                                 Add
@@ -1812,10 +1812,10 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                   </div>
 
                   {/* Summary of entries and action buttons */}
-                  <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-50 border border-slate-150 p-4 rounded-xl gap-3">
-                    <div className="text-xs text-slate-600">
-                      Entries in sheet: <strong className="text-slate-800">{(activeSheet.transfers || []).length}</strong> | 
-                      Calculated wage payout: <strong className="text-teal-600">R {(activeSheet.transfers || []).reduce((sum, curr) => sum + Number(curr.amount || 0), 0).toFixed(2)}</strong>
+                  <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 border border-slate-800 p-4 rounded-xl gap-3">
+                    <div className="text-xs text-slate-400">
+                      Entries in sheet: <strong className="text-white">{(activeSheet.transfers || []).length}</strong> | 
+                      Calculated wage payout: <strong className="text-teal-400 font-bold">R {(activeSheet.transfers || []).reduce((sum, curr) => sum + Number(curr.amount || 0), 0).toFixed(2)}</strong>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1825,7 +1825,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                             setShowNewTransferSheet(false);
                             setTransferForm({ week_start: '', week_end: '', transfers: [] });
                           }}
-                          className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold py-1.5 px-3.5 rounded-xl text-xs transition-colors"
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-1.5 px-3.5 rounded-xl text-xs transition-colors"
                         >
                           Cancel
                         </button>
@@ -1835,7 +1835,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                         <>
                           <button
                             onClick={() => handleSaveTransferSheet(false)}
-                            className="bg-slate-800 hover:bg-slate-700 text-white font-bold py-1.5 px-3.5 rounded-xl text-xs transition-colors"
+                            className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 hover:text-white font-bold py-1.5 px-3.5 rounded-xl text-xs transition-colors"
                           >
                             Save Draft
                           </button>
@@ -1866,11 +1866,11 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                 </div>
               ) : (
                 /* Empty week sheet banner if no sheet has been started */
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-3">
-                  <p className="text-slate-500 italic text-xs">
+                <div className="bg-slate-950/90 border border-slate-800 rounded-2xl p-8 text-center space-y-3">
+                  <p className="text-slate-400 italic text-xs">
                     You have not started a transfer recon sheet for the current week period:
                   </p>
-                  <p className="text-sm font-bold text-slate-800 font-mono bg-slate-100 py-1 px-3 inline-block rounded-lg">
+                  <p className="text-sm font-bold text-slate-300 font-mono bg-slate-900 border border-slate-800 py-1.5 px-3 inline-block rounded-lg">
                     {formatRangeDisplay(currentWeekRange.week_start, currentWeekRange.week_end)}
                   </p>
                   <div>
@@ -1906,7 +1906,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                           }));
                         }
                       }}
-                      className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-extrabold py-2 px-4 rounded-xl transition-all shadow-xs inline-flex items-center gap-1"
+                      className="bg-teal-600 hover:bg-teal-500 text-white text-xs font-extrabold py-2 px-4 rounded-xl transition-all shadow-xs inline-flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-4 h-4" />
                       Create Transfer Sheet
@@ -1916,8 +1916,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
               )}
 
               {/* PREVIOUS SUBMISSIONS SECTION */}
-              <div className="space-y-3 pt-4 border-t border-slate-150">
-                <h3 className="text-xs uppercase tracking-wider font-extrabold text-slate-500">Previous Submissions</h3>
+              <div className="space-y-3 pt-4 border-t border-slate-800">
+                <h3 className="text-xs uppercase tracking-wider font-extrabold text-slate-400">Previous Submissions</h3>
                 
                 {(() => {
                   const previousSheets = transfersSheets.filter(ts => ts.week_start !== currentWeekRange.week_start);
@@ -1931,22 +1931,22 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                       {previousSheets.map(ts => {
                         const totalWage = ts.transfers.reduce((sum, curr) => sum + Number(curr.amount || 0), 0);
                         return (
-                          <div key={ts.id} className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs flex flex-col justify-between gap-3">
+                          <div key={ts.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-xs flex flex-col justify-between gap-3">
                             <div className="flex justify-between items-start">
                               <div>
-                                <p className="text-xs font-bold text-slate-800">
+                                <p className="text-xs font-bold text-slate-200">
                                   {formatRangeDisplay(ts.week_start, ts.week_end)}
                                 </p>
-                                <p className="text-[10px] text-slate-500 mt-0.5">
-                                  {ts.transfers.length} entries • Payout: <strong className="text-teal-600">R {totalWage.toFixed(2)}</strong>
+                                <p className="text-[10px] text-slate-400 mt-0.5">
+                                  {ts.transfers.length} entries • Payout: <strong className="text-teal-400 font-bold">R {totalWage.toFixed(2)}</strong>
                                 </p>
                               </div>
                               <span className={`text-[9px] uppercase font-black px-2 py-0.5 rounded border ${
                                 ts.status === 'reviewed' 
-                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                  ? 'bg-emerald-950/60 text-emerald-400 border-emerald-800/80' 
                                   : ts.status === 'submitted'
-                                  ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                  : 'bg-slate-100 text-slate-600 border-slate-200'
+                                  ? 'bg-blue-950/60 text-blue-300 border-blue-900/60'
+                                  : 'bg-slate-800 text-slate-400 border-slate-700'
                               }`}>
                                 {ts.status}
                               </span>
@@ -1963,22 +1963,22 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                     setActiveReconForEditRequest(null);
                                   }
                                 }}
-                                className="bg-amber-50/50 p-2 rounded-lg border border-amber-200 mt-2 space-y-2"
+                                className="bg-amber-950/30 p-2.5 rounded-lg border border-amber-900/60 mt-2 space-y-2"
                               >
-                                <p className="text-[9px] font-bold text-amber-800 uppercase">Reason for Edit Request</p>
+                                <p className="text-[9px] font-bold text-amber-400 uppercase">Reason for Edit Request</p>
                                 <input
                                   type="text"
                                   placeholder="Why do you need to edit this?"
                                   value={editRequestReason}
                                   onChange={(e) => setEditRequestReason(e.target.value)}
-                                  className="w-full bg-white border border-slate-200 rounded p-1 text-[11px] text-slate-800"
+                                  className="w-full bg-slate-900 border border-slate-800 rounded p-1 text-[11px] text-white"
                                   required
                                 />
                                 <div className="flex gap-1 justify-end">
                                   <button
                                     type="button"
                                     onClick={() => setActiveReconForEditRequest(null)}
-                                    className="text-[10px] text-slate-500 hover:text-slate-800 px-2 py-1"
+                                    className="text-[10px] text-slate-400 hover:text-white px-2 py-1"
                                   >
                                     Cancel
                                   </button>
@@ -1992,10 +1992,10 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                               </form>
                             )}
 
-                            <div className="flex gap-2 justify-end border-t border-slate-100 pt-3">
+                            <div className="flex gap-2 justify-end border-t border-slate-800 pt-3">
                               <button
                                 onClick={() => downloadTransferReconPDF(ts, driver.name)}
-                                className="text-[10px] font-bold text-teal-600 hover:bg-teal-50 border border-teal-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                                className="text-[10px] font-bold text-teal-400 hover:bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg transition-colors"
                               >
                                 PDF Report
                               </button>
@@ -2017,20 +2017,20 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                   onClick={() => {
                                     setActiveReconForEditRequest(ts.id);
                                   }}
-                                  className="text-[10px] font-bold text-amber-600 hover:bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                                  className="text-[10px] font-bold text-amber-400 hover:bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg transition-colors"
                                 >
                                   Request Edit
                                 </button>
                               )}
 
                               {ts.edit_request_status === 'pending' && (
-                                <span className="text-[10px] font-bold text-amber-500 bg-amber-50 border border-amber-100 px-2.5 py-1.5 rounded-lg">
+                                <span className="text-[10px] font-bold text-amber-400 bg-amber-950/30 border border-amber-900/60 px-2.5 py-1.5 rounded-lg">
                                   ⏳ Edit Pending
                                 </span>
                               )}
 
                               {ts.edit_request_status === 'rejected' && (
-                                <span className="text-[10px] font-bold text-rose-500 bg-rose-50 border border-rose-100 px-2.5 py-1.5 rounded-lg" title={ts.edit_request_rejection_reason}>
+                                <span className="text-[10px] font-bold text-rose-400 bg-rose-950/30 border border-rose-900/60 px-2.5 py-1.5 rounded-lg" title={ts.edit_request_rejection_reason}>
                                   ❌ Edit Rejected
                                 </span>
                               )}
