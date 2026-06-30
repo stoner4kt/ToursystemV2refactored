@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, 
   Settings, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera,
-  LayoutGrid, List, Search
+  LayoutGrid, List, Search, SquarePen
 } from 'lucide-react';
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, BookingDeleteRequest,
@@ -14,6 +14,7 @@ import {
 } from '@/lib/storage';
 import CalendarGrid from './CalendarGrid';
 import OTPModal from './OTPModal';
+import SignaturePad from './SignaturePad';
 import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF, downloadIncidentPDF, downloadExpensePDF } from '@/lib/pdf';
 
 export const INSPECTION_CATEGORIES = {
@@ -109,23 +110,18 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     driver_id: '',
     mileage_at_inspection: 0,
     notes: '',
-    checklist_json: {
-      engine_oil: 'pass' as const,
-      coolant: 'pass' as const,
-      brake_fluid: 'pass' as const,
-      windshield_washer: 'pass' as const,
-      tyres_pressure: 'pass' as const,
-      tyres_tread: 'pass' as const,
-      lights_headlights: 'pass' as const,
-      lights_indicators: 'pass' as const,
-      lights_brake: 'pass' as const,
-      wipers: 'pass' as const,
-      horn: 'pass' as const,
-      bodywork: 'pass' as const,
-    } as Record<string, 'pass' | 'flag' | 'fail'>,
+    checklist_json: (() => {
+      const init: Record<string, 'ok' | 'fault'> = {};
+      Object.values(INSPECTION_CATEGORIES).flat().forEach(item => {
+        init[item] = 'ok';
+      });
+      return init;
+    })(),
     faults_json: {} as Record<string, string>,
     media_urls: {} as Record<string, string>,
     has_critical_fault: false,
+    driver_signature: '',
+    client_signature: '',
   };
   const [newInspectionForm, setNewInspectionForm] = useState(initialInspectionForm);
 
@@ -290,7 +286,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       return;
     }
 
-    const hasCritical = Object.values(newInspectionForm.checklist_json).some(status => status === 'fail');
+    const hasCritical = Object.values(newInspectionForm.checklist_json).some(status => status === 'fault');
 
     const bookingObj = bookings.find(b => b.invoice_no === newInspectionForm.invoice_no);
     const is_rented_vehicle = bookingObj ? !!bookingObj.is_rented_vehicle : false;
@@ -308,7 +304,9 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       notes: newInspectionForm.notes,
       has_critical_fault: hasCritical,
       is_rented_vehicle,
-      signature_url: '✓ Digitally Certified by Admin',
+      signature_url: newInspectionForm.driver_signature || '✓ Digitally Certified by Admin',
+      driver_signature: newInspectionForm.driver_signature,
+      client_signature: newInspectionForm.client_signature,
       alert_sent: false,
       created_at: new Date().toISOString()
     };
@@ -4164,95 +4162,101 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                 </div>
               </div>
 
-              {/* 10-Point core checklist */}
+              {/* Operational Compliance Checklist Grouped by Category */}
               <div className="border border-slate-100 rounded-xl p-4 bg-slate-50/50 space-y-3">
-                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">10-Point Safety Check Checklist</h4>
+                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Operational Compliance Checklist</h4>
                 
-                <div className="max-h-60 overflow-y-auto space-y-3 pr-2">
-                  {Object.keys(newInspectionForm.checklist_json).map((key) => {
-                    const status = newInspectionForm.checklist_json[key];
-                    const faultDesc = newInspectionForm.faults_json[key] || '';
-                    const mediaUrl = newInspectionForm.media_urls[key];
-                    const isUploading = uploadingInspectionMedia[key];
+                <div className="max-h-80 overflow-y-auto space-y-4 pr-2">
+                  {Object.entries(INSPECTION_CATEGORIES).map(([category, items]) => (
+                    <div key={category} className="space-y-2">
+                      <h5 className="text-[10px] font-black text-teal-600 uppercase tracking-wider border-b border-slate-200/50 pb-1 mt-2">{category}</h5>
+                      
+                      <div className="space-y-2">
+                        {items.map((item) => {
+                          const status = newInspectionForm.checklist_json[item] || 'ok';
+                          const faultDesc = newInspectionForm.faults_json[item] || '';
+                          const mediaUrl = newInspectionForm.media_urls[item];
+                          const isUploading = uploadingInspectionMedia[item];
 
-                    return (
-                      <div key={key} className="p-3 bg-white border border-slate-100 rounded-lg flex flex-col gap-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <span className="text-xs font-bold text-slate-800 capitalize">{key.replace(/_/g, ' ')}</span>
-                          
-                          <div className="flex items-center gap-1.5">
-                            {(['pass', 'flag', 'fail'] as const).map(option => (
-                              <button
-                                key={option}
-                                type="button"
-                                onClick={() => {
-                                  setNewInspectionForm(prev => ({
-                                    ...prev,
-                                    checklist_json: { ...prev.checklist_json, [key]: option }
-                                  }));
-                                }}
-                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-all border ${
-                                  status === option
-                                    ? option === 'pass'
-                                      ? 'bg-emerald-500 text-white border-emerald-600'
-                                      : option === 'flag'
-                                        ? 'bg-amber-500 text-white border-amber-600'
-                                        : 'bg-rose-500 text-white border-rose-600'
-                                    : 'bg-slate-50 text-slate-500 border-slate-200'
-                                }`}
-                              >
-                                {option}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Fault description or photo upload if not compliant */}
-                        {(status === 'flag' || status === 'fail') && (
-                          <div className="space-y-2 mt-1 border-t border-slate-50 pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Fault Description</label>
-                              <input
-                                type="text"
-                                placeholder="Describe the fault or warning issue..."
-                                value={faultDesc}
-                                onChange={(e) => {
-                                  setNewInspectionForm(prev => ({
-                                    ...prev,
-                                    faults_json: { ...prev.faults_json, [key]: e.target.value }
-                                  }));
-                                }}
-                                className="w-full px-2.5 py-1.5 border border-slate-200 text-xs rounded-md focus:outline-hidden font-medium"
-                              />
-                            </div>
-
-                            <div>
-                              <label className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Mechanical Proof Photo</label>
-                              <div className="flex items-center gap-2">
-                                <label className="flex-1 flex items-center justify-center gap-1 bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 border border-dashed border-slate-200 rounded-md text-[10px] font-bold cursor-pointer transition-colors">
-                                  <Camera className="w-3.5 h-3.5" />
-                                  {isUploading ? 'Uploading...' : mediaUrl ? 'Update Photo' : 'Capture Photo'}
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    className="hidden"
-                                    onChange={(e) => handleAdminInspectionMediaUpload(key, e)}
-                                    disabled={isUploading}
-                                  />
-                                </label>
-
-                                {mediaUrl && (
-                                  <a href={mediaUrl} target="_blank" rel="noreferrer" className="shrink-0 bg-slate-100 p-1.5 rounded-md border border-slate-200 text-teal-600 hover:text-teal-800 transition-colors">
-                                    👁️
-                                  </a>
-                                )}
+                          return (
+                            <div key={item} className="p-3 bg-white border border-slate-100 rounded-lg flex flex-col gap-2">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <span className="text-xs font-bold text-slate-800 capitalize">{item.replace(/_/g, ' ')}</span>
+                                
+                                <div className="flex items-center gap-1.5">
+                                  {(['ok', 'fault'] as const).map(option => (
+                                    <button
+                                      key={option}
+                                      type="button"
+                                      onClick={() => {
+                                        setNewInspectionForm(prev => ({
+                                          ...prev,
+                                          checklist_json: { ...prev.checklist_json, [item]: option }
+                                        }));
+                                      }}
+                                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase transition-all border ${
+                                        status === option
+                                          ? option === 'ok'
+                                            ? 'bg-emerald-500 text-white border-emerald-600'
+                                            : 'bg-rose-500 text-white border-rose-600'
+                                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                                      }`}
+                                    >
+                                      {option === 'ok' ? 'OK' : 'FAULT'}
+                                    </button>
+                                  ))}
+                                </div>
                               </div>
+
+                              {/* Fault description or photo upload if not compliant */}
+                              {status === 'fault' && (
+                                <div className="space-y-2 mt-1 border-t border-slate-50 pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Fault Description</label>
+                                    <input
+                                      type="text"
+                                      placeholder="Describe the fault or warning issue..."
+                                      value={faultDesc}
+                                      onChange={(e) => {
+                                        setNewInspectionForm(prev => ({
+                                          ...prev,
+                                          faults_json: { ...prev.faults_json, [item]: e.target.value }
+                                        }));
+                                      }}
+                                      className="w-full px-2.5 py-1.5 border border-slate-200 text-xs rounded-md focus:outline-hidden font-medium"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[9px] font-bold text-slate-400 uppercase block mb-0.5">Mechanical Proof Photo</label>
+                                    <div className="flex items-center gap-2">
+                                      <label className="flex-1 flex items-center justify-center gap-1 bg-slate-50 hover:bg-slate-100 text-slate-600 px-2 py-1.5 border border-dashed border-slate-200 rounded-md text-[10px] font-bold cursor-pointer transition-colors">
+                                        <Camera className="w-3.5 h-3.5" />
+                                        {isUploading ? 'Uploading...' : mediaUrl ? 'Update Photo' : 'Capture Photo'}
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          className="hidden"
+                                          onChange={(e) => handleAdminInspectionMediaUpload(item, e)}
+                                          disabled={isUploading}
+                                        />
+                                      </label>
+
+                                      {mediaUrl && (
+                                        <a href={mediaUrl} target="_blank" rel="noreferrer" className="shrink-0 bg-slate-100 p-1.5 rounded-md border border-slate-200 text-teal-600 hover:text-teal-800 transition-colors">
+                                          👁️
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -4266,6 +4270,27 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                   onChange={(e) => setNewInspectionForm(prev => ({ ...prev, notes: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-200 text-xs rounded-lg focus:outline-hidden focus:border-teal-500 font-medium"
                 ></textarea>
+              </div>
+
+              {/* Interactive signatures */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <SignaturePad
+                    onSave={(data) => setNewInspectionForm(prev => ({ ...prev, driver_signature: data }))}
+                    savedSignature={newInspectionForm.driver_signature}
+                  />
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                  <span className="text-sm font-semibold text-slate-700 block mb-2 flex items-center gap-1.5">
+                    <SquarePen className="w-4 h-4 text-teal-600" />
+                    Client Digital Sign-Off
+                  </span>
+                  <SignaturePad
+                    onSave={(data) => setNewInspectionForm(prev => ({ ...prev, client_signature: data }))}
+                    savedSignature={newInspectionForm.client_signature}
+                  />
+                </div>
               </div>
 
               <div className="flex gap-2.5 pt-2 border-t border-slate-100">
