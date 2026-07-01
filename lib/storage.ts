@@ -1821,6 +1821,7 @@ if (hasFault && isSupabaseConfigured && supabase) {
     else console.log("Fault alert dispatched successfully:", data);
   }).catch(err => console.error("Error triggering fault-alert function:", err));
 }
+    };
 
 
 // Weekly Recon Sheets API Layer
