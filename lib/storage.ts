@@ -359,6 +359,14 @@ export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
+// Service Role Client (for admin-level operations like notifications)
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+export const supabaseAdmin = isSupabaseConfigured && supabaseServiceKey
+  ? createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseServiceKey
+    )
+  : null;
 
 export function generateUUID(): string {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
@@ -1787,9 +1795,9 @@ export const inspectionsApi = {
                      (Array.isArray(inspection.faults_json) && inspection.faults_json.length > 0) ||
                      (inspection.faults_json && !Array.isArray(inspection.faults_json) && Object.keys(inspection.faults_json).length > 0);
 
-    // === FAULT ALERT via Edge Function (only) ===
-    if (hasFault && isSupabaseConfigured && supabase) {
-      // Format faults as an array of strings for the Edge function
+        // === FAULT ALERT via Edge Function (using Service Role) ===
+    if (hasFault && isSupabaseConfigured && supabaseAdmin) {
+      // Format faults...
       const failedItems = Object.entries(inspection.checklist_json || {})
         .filter(([_, v]) => v === 'fail' || v === 'flag' || v === 'fault')
         .map(([item, v]) => `${item.replace(/_/g, ' ')} (${v.toUpperCase()})`);
@@ -1808,15 +1816,12 @@ export const inspectionsApi = {
         faultsArray.push('Operational safety warning / fault flagged');
       }
 
-      // Get current session for auth header
-      const { data: { session } } = await supabase.auth.getSession();
-
-      console.log('[fault-alert] Sending payload:', { 
+      console.log('[fault-alert] Sending payload with service role:', { 
         vehicle_reg: inspection.vehicle_reg, 
         faultsCount: faultsArray.length 
       });
 
-      supabase.functions.invoke('fault-alert', {
+      supabaseAdmin.functions.invoke('fault-alert', {
         body: { 
           vehicle_reg: inspection.vehicle_reg,
           driver_id: inspection.driver_id,
@@ -1824,9 +1829,6 @@ export const inspectionsApi = {
           inspection_id: inspection.id,
           invoice_no: inspection.invoice_no,
           notes: inspection.notes
-        },
-        headers: {
-          Authorization: `Bearer ${session?.access_token || ''}`
         }
       }).then(({ data, error }) => {
         if (error) {
@@ -1838,11 +1840,6 @@ export const inspectionsApi = {
         console.error("Error triggering fault-alert function:", err);
       });
     }
-    
-    return inspection;
-  }
-};
-
 // Weekly Recon Sheets API Layer
 export const reconApi = {
   getRecons: (driverId?: string): ReconSheet[] => {
