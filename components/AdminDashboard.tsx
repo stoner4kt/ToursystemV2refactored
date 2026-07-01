@@ -878,14 +878,31 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     }
   };
 
-  const handleResendFineEmail = (fine: TrafficFine) => {
-    fine.email_sent = true;
-    fine.email_sent_at = new Date().toISOString();
-    trafficFinesApi.saveFine(fine);
-    refreshData();
-    alert(`📧 Resent notification email for fine ${fine.fine_reference} to ${fine.notification_email}!`);
-  };
+  const handleResendFineEmail = async (fine: TrafficFine) => {
+    if (!fine.id) {
+      alert('Cannot resend: fine has no valid ID.');
+      return;
+    }
+    try {
+      const { supabase } = await import('@/lib/storage');
+      if (!supabase) throw new Error('Supabase client not available');
 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('No active admin session. Please log in again.');
+
+      const { error } = await supabase.functions.invoke('notify-driver-fine', {
+        body: { traffic_fine_id: fine.id },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) throw new Error(error.message);
+
+      refreshData();
+      alert(`✅ Notification resent for fine ${fine.fine_reference}.`);
+    } catch (err: any) {
+      alert(`❌ Failed to resend notification: ${err.message}`);
+    }
+  };
   // COMPILING WAGES DATA
   const getCompiledWages = () => {
     const wageDetails: Record<string, { driverName: string; tripReconsAmount: number; transfersAmount: number; total: number; sheetsCount: number }> = {};
