@@ -360,6 +360,7 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+
 export function generateUUID(): string {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
     try {
@@ -633,7 +634,8 @@ export function transformPayloadForPush(dbTableName: string, data: any): any {
       end_date: endDateStr,
       start_time: data.start_date || null,
       end_time: data.end_date || null,
-      status: data.status === 'pending' ? 'invoiced' : data.status
+      status: data.status === 'pending' ? 'invoiced' : data.status,
+      receipt_number: data.receipt_number && data.receipt_number.trim() !== '' ? data.receipt_number : null
     };
   }
 
@@ -834,38 +836,93 @@ export async function deleteFromSupabase(tableName: string, matchColumn: string,
   }
 }
 
+// // Merges local localStorage data with remote Supabase data.
+// Local wins if its updated_at is newer; remote wins otherwise.
+// Any local record not found in Supabase is kept (it hasn't synced yet).
+function mergeLocalAndRemote(localItems: any[], remoteItems: any[], primaryKey: string): any[] {
+  const merged: any[] = [...remoteItems];
+
+  for (const localItem of localItems) {
+    const remoteIndex = merged.findIndex(r => r[primaryKey] === localItem[primaryKey]);
+
+    if (remoteIndex === -1) {
+      // Not in Supabase yet — keep the local copy so it isn't lost
+      merged.push(localItem);
+    } else {
+      // Both exist — keep whichever was modified more recently
+      const localTime  = new Date(localItem.updated_at  || localItem.created_at  || 0).getTime();
+      const remoteTime = new Date(merged[remoteIndex].updated_at || merged[remoteIndex].created_at || 0).getTime();
+      if (localTime > remoteTime) {
+        merged[remoteIndex] = localItem;
+      }
+    }
+  }
+
+  return merged;
+}
+
+// Maps each table name to its primary key used for merging
+const TABLE_PRIMARY_KEYS: Record<string, string> = {
+  bookings:               'id',
+  profiles:               'driver_id',
+  vehicles:               'registration_no',
+  rented_vehicles:        'id',
+  inspections:            'id',
+  recons:                 'id',
+  transfer_recons:        'id',
+  expenses:               'id',
+  fines:                  'id',
+  incidents:              'id',
+  checklists:             'id',
+  direct_checklists:      'id',
+  delete_requests:        'id',
+};
+
 export async function syncAllFromSupabase() {
   if (!isSupabaseConfigured || !supabase) return;
   try {
     const tables = [
-      { name: 'bookings', key: STORAGE_KEYS.BOOKINGS },
-      { name: 'profiles', key: STORAGE_KEYS.PROFILES },
-      { name: 'vehicles', key: STORAGE_KEYS.VEHICLES },
-      { name: 'rented_vehicles', key: STORAGE_KEYS.RENTED_VEHICLES },
-      { name: 'inspections', key: STORAGE_KEYS.INSPECTIONS },
-      { name: 'recons', key: STORAGE_KEYS.RECON_SHEETS },
-      { name: 'transfer_recons', key: STORAGE_KEYS.TRANSFER_RECON_SHEETS },
-      { name: 'expenses', key: STORAGE_KEYS.EXPENSES },
-      { name: 'fines', key: STORAGE_KEYS.FINES },
-      { name: 'incidents', key: STORAGE_KEYS.INCIDENTS },
-      { name: 'checklists', key: STORAGE_KEYS.CHECKLISTS },
+      { name: 'bookings',          key: STORAGE_KEYS.BOOKINGS },
+      { name: 'profiles',          key: STORAGE_KEYS.PROFILES },
+      { name: 'vehicles',          key: STORAGE_KEYS.VEHICLES },
+      { name: 'rented_vehicles',   key: STORAGE_KEYS.RENTED_VEHICLES },
+      { name: 'inspections',       key: STORAGE_KEYS.INSPECTIONS },
+      { name: 'recons',            key: STORAGE_KEYS.RECON_SHEETS },
+      { name: 'transfer_recons',   key: STORAGE_KEYS.TRANSFER_RECON_SHEETS },
+      { name: 'expenses',          key: STORAGE_KEYS.EXPENSES },
+      { name: 'fines',             key: STORAGE_KEYS.FINES },
+      { name: 'incidents',         key: STORAGE_KEYS.INCIDENTS },
+      { name: 'checklists',        key: STORAGE_KEYS.CHECKLISTS },
       { name: 'direct_checklists', key: STORAGE_KEYS.DIRECT_CHECKLISTS },
-      { name: 'delete_requests', key: STORAGE_KEYS.DELETES }
+      { name: 'delete_requests',   key: STORAGE_KEYS.DELETES }
     ];
 
     for (const t of tables) {
       try {
         const dbTableName = TABLE_MAP[t.name] || t.name;
         const { data, error } = await supabase.from(dbTableName).select('*');
+
         if (error) {
           console.error(`[Supabase Sync] Error fetching table '${dbTableName}':`, error.message || error);
-        } else if (data) {
-          const transformed = transformPayloadForPull(t.name, data);
-          console.log(`[Supabase Sync] Successfully synchronized ${transformed.length} rows from table '${dbTableName}' into ${t.key}.`);
-          setLocalStorageItem(t.key, transformed);
+          // Do NOT touch localStorage if the fetch failed — leave local data intact
+          continue;
+        }
+
+        if (data) {
+          const remoteTransformed = transformPayloadForPull(t.name, data);
+          const localItems        = getLocalStorageItem<any[]>(t.key, []);
+          const primaryKey        = TABLE_PRIMARY_KEYS[t.name] || 'id';
+          const merged            = mergeLocalAndRemote(localItems, remoteTransformed, primaryKey);
+
+          console.log(
+            `[Supabase Sync] Merged table '${dbTableName}': ` +
+            `${remoteTransformed.length} remote + ${localItems.length} local → ${merged.length} total`
+          );
+          setLocalStorageItem(t.key, merged);
         }
       } catch (e: any) {
         console.warn(`[Supabase Sync] Exception when syncing table ${t.name}:`, e.message || e);
+        // Never touch localStorage on exception — leave local data intact
       }
     }
   } catch (error) {
@@ -1611,7 +1668,7 @@ export const bookingsApi = {
       }
     }
 
-    await pushToSupabase('bookings', preparedBooking, 'invoice_no', preparedBooking.invoice_no);
+    await pushToSupabase('bookings', preparedBooking, 'id', preparedBooking.id);
 
     // Call Supabase Edge Function to check vehicle maintenance 2 days before
     if (isSupabaseConfigured && supabase) {
@@ -1704,7 +1761,7 @@ export const inspectionsApi = {
       return b ? b.location === region : true;
     });
   },
-  saveInspection: (inspection: Inspection): Inspection => {
+      saveInspection: async (inspection: Inspection): Promise<Inspection> => {
     const list = getLocalStorageItem<Inspection[]>(STORAGE_KEYS.INSPECTIONS, []);
     const idx = list.findIndex(ins => ins.id === inspection.id);
     if (idx !== -1) {
@@ -1715,7 +1772,7 @@ export const inspectionsApi = {
     setLocalStorageItem(STORAGE_KEYS.INSPECTIONS, list);
     pushToSupabase('inspections', inspection, 'id', inspection.id);
     
-    // Update vehicle mileage
+        // Update vehicle mileage
     const vehicles = getLocalStorageItem<Vehicle[]>(STORAGE_KEYS.VEHICLES, []);
     const vIdx = vehicles.findIndex(v => v.registration_no === inspection.vehicle_reg);
     if (vIdx !== -1 && inspection.mileage_at_inspection > vehicles[vIdx].current_mileage) {
@@ -1725,33 +1782,13 @@ export const inspectionsApi = {
       pushToSupabase('vehicles', updatedVehicle, 'registration_no', updatedVehicle.registration_no);
     }
 
-    // Call Next.js Resend Email API Route if faults are present
+    // === Determine if we need to send a fault alert ===
     const hasFault = inspection.has_critical_fault || 
                      (inspection.checklist_json && Object.values(inspection.checklist_json).some(v => v === 'fail' || v === 'flag' || v === 'fault')) ||
                      (Array.isArray(inspection.faults_json) && inspection.faults_json.length > 0) ||
                      (inspection.faults_json && !Array.isArray(inspection.faults_json) && Object.keys(inspection.faults_json).length > 0);
 
-    if (hasFault) {
-      // Find driver's name to include in email
-      const drivers = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
-      const driverObj = drivers.find(d => d.driver_id === inspection.driver_id);
-      const driverName = driverObj ? driverObj.name : 'A Dispatch Driver';
-
-      fetch('/api/alert', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inspection,
-          driver_name: driverName
-        })
-      })
-      .then(res => res.json())
-      .then(data => console.log('Resend email alert dispatch result:', data))
-      .catch(err => console.error('Failed to dispatch Resend email alert:', err));
-    }
-
+    // === FAULT ALERT via Edge Function (only) ===
     if (hasFault && isSupabaseConfigured && supabase) {
       // Format faults as an array of strings for the Edge function
       const failedItems = Object.entries(inspection.checklist_json || {})
@@ -1763,7 +1800,7 @@ export const inspectionsApi = {
         faultsArray = inspection.faults_json;
       } else if (inspection.faults_json && typeof inspection.faults_json === 'object') {
         const faultDescEntries = Object.entries(inspection.faults_json)
-          .filter(([_, desc]) => desc && desc.trim())
+          .filter(([_, desc]) => desc && String(desc).trim())
           .map(([item, desc]) => `${item.replace(/_/g, ' ')}: ${desc}`);
         faultsArray = [...new Set([...failedItems, ...faultDescEntries])];
       }
@@ -1772,23 +1809,40 @@ export const inspectionsApi = {
         faultsArray.push('Operational safety warning / fault flagged');
       }
 
+      // Get current session for auth header
+      const { data: { session } } = await supabase.auth.getSession();
+
+      console.log('[fault-alert] Sending payload:', { 
+        vehicle_reg: inspection.vehicle_reg, 
+        faultsCount: faultsArray.length 
+      });
+
       supabase.functions.invoke('fault-alert', {
         body: { 
-          inspection_id: inspection.id,
-          invoice_no: inspection.invoice_no,
           vehicle_reg: inspection.vehicle_reg,
           driver_id: inspection.driver_id,
-          checklist: inspection.checklist_json,
           faults: faultsArray,
+          inspection_id: inspection.id,
+          invoice_no: inspection.invoice_no,
           notes: inspection.notes
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ''}`
         }
-      }).catch(err => console.error("Error triggering fault-alert function:", err));
+      }).then(({ data, error }) => {
+        if (error) {
+          console.error("fault-alert function error:", error);
+        } else {
+          console.log("Fault alert dispatched successfully:", data);
+        }
+      }).catch(err => {
+        console.error("Error triggering fault-alert function:", err);
+      });
     }
     
     return inspection;
   }
 };
-
 // Weekly Recon Sheets API Layer
 export const reconApi = {
   getRecons: (driverId?: string): ReconSheet[] => {
@@ -1940,7 +1994,7 @@ export const expensesApi = {
 
     // Call Supabase Edge Function to notify main admin of expense
     if (isSupabaseConfigured && supabase) {
-      supabase.functions.invoke('notify-expenses', {
+      supabase.functions.invoke('notify-expense-submitted', {
         body: { expense: prepared }
       }).catch(err => console.error("Error triggering notify-expenses function:", err));
     }
@@ -1986,13 +2040,13 @@ export const trafficFinesApi = {
       const drivers = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
       const driver = drivers.find(d => d.driver_id === prepared.driver_id);
       if (driver && driver.email) {
-        supabase.functions.invoke('notify-drivers-fines', {
+        supabase.functions.invoke('notify-drivers-fine', {
           body: {
             fine: prepared,
             driver_email: driver.email,
             driver_name: driver.name
           }
-        }).catch(err => console.error("Error invoking notify-drivers-fines:", err));
+        }).catch(err => console.error("Error invoking notify-drivers-fine:", err));
       }
     }
 
