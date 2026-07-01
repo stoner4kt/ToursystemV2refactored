@@ -651,8 +651,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       updated_at: new Date().toISOString()
     };
 
-    const action = () => {
-      bookingsApi.saveBooking(payload, admin.id || admin.driver_id, editReason || 'Details modified');
+    const action = async () => {
+      await bookingsApi.saveBooking(payload, admin.id || admin.driver_id, editReason || 'Details modified');
       setShowBookingModal(false);
       refreshData();
       alert('Booking saved and schedules compiled!');

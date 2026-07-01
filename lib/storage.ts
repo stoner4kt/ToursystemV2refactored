@@ -557,9 +557,71 @@ export function filterPayloadForTable(dbTableName: string, payload: any): any {
   return filtered;
 }
 
+export function resolveBookingUuid(invoiceNoOrId: string | undefined | null): string | null {
+  if (!invoiceNoOrId) return null;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidRegex.test(invoiceNoOrId)) {
+    return invoiceNoOrId;
+  }
+  if (typeof window === 'undefined') return null;
+  try {
+    const bookingsStr = window.localStorage.getItem(STORAGE_KEYS.BOOKINGS);
+    if (bookingsStr) {
+      const bookings = JSON.parse(bookingsStr);
+      if (Array.isArray(bookings)) {
+        const found = bookings.find(b => b.invoice_no === invoiceNoOrId || b.id === invoiceNoOrId);
+        if (found && found.id && uuidRegex.test(found.id)) {
+          return found.id;
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error resolving booking UUID:", e);
+  }
+  return null;
+}
+
+export function resolveBookingInvoiceNo(uuid: string | undefined | null): string | null {
+  if (!uuid) return null;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(uuid)) {
+    return uuid;
+  }
+  if (typeof window === 'undefined') return uuid;
+  try {
+    const bookingsStr = window.localStorage.getItem(STORAGE_KEYS.BOOKINGS);
+    if (bookingsStr) {
+      const bookings = JSON.parse(bookingsStr);
+      if (Array.isArray(bookings)) {
+        const found = bookings.find(b => b.id === uuid || b.invoice_no === uuid);
+        if (found && found.invoice_no) {
+          return found.invoice_no;
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Error resolving booking invoice_no:", e);
+  }
+  return uuid;
+}
+
 export function transformPayloadForPush(dbTableName: string, data: any): any {
   if (!data) return data;
   let prepared = { ...data };
+
+  // Resolve booking invoice_no to UUID id where applicable
+  if (prepared.booking_id) {
+    const resolved = resolveBookingUuid(prepared.booking_id);
+    if (resolved) {
+      prepared.booking_id = resolved;
+    }
+  }
+  if (prepared.assigned_booking_id) {
+    const resolved = resolveBookingUuid(prepared.assigned_booking_id);
+    if (resolved) {
+      prepared.assigned_booking_id = resolved;
+    }
+  }
 
   if (dbTableName === 'bookings') {
     const startDateStr = data.start_date ? data.start_date.split('T')[0] : '';
@@ -627,8 +689,20 @@ export function transformPayloadForPull(tableName: string, data: any[]): any[] {
 
   const dbTableName = TABLE_MAP[tableName] || tableName;
 
+  // Resolve any booking_id or assigned_booking_id to invoice_no
+  const withBookingResolved = data.map((row: any) => {
+    const copy = { ...row };
+    if (copy.booking_id) {
+      copy.booking_id = resolveBookingInvoiceNo(copy.booking_id) || copy.booking_id;
+    }
+    if (copy.assigned_booking_id) {
+      copy.assigned_booking_id = resolveBookingInvoiceNo(copy.assigned_booking_id) || copy.assigned_booking_id;
+    }
+    return copy;
+  });
+
   if (dbTableName === 'bookings') {
-    return data.map((row: any) => ({
+    return withBookingResolved.map((row: any) => ({
       ...row,
       route: row.tour_reference || row.route || '',
       start_date: row.start_time || row.start_date,
@@ -638,7 +712,7 @@ export function transformPayloadForPull(tableName: string, data: any[]): any[] {
   }
 
   if (tableName === 'checklists') {
-    const weeklyRows = data.filter((row: any) => row.vehicle_reg === 'Unknown' || !row.vehicle_reg);
+    const weeklyRows = withBookingResolved.filter((row: any) => row.vehicle_reg === 'Unknown' || !row.vehicle_reg);
     return weeklyRows.map((row: any) => ({
       id: row.id,
       driver_id: row.driver_id,
@@ -667,11 +741,11 @@ export function transformPayloadForPull(tableName: string, data: any[]): any[] {
   }
 
   if (tableName === 'direct_checklists') {
-    return data.filter((row: any) => row.vehicle_reg && row.vehicle_reg !== 'Unknown');
+    return withBookingResolved.filter((row: any) => row.vehicle_reg && row.vehicle_reg !== 'Unknown');
   }
 
   if (dbTableName === 'recon_sheets') {
-    return data.map((row: any) => {
+    return withBookingResolved.map((row: any) => {
       let cost_lines = [];
       if (row.cost_lines_text) {
         try {
@@ -705,7 +779,7 @@ export function transformPayloadForPull(tableName: string, data: any[]): any[] {
     });
   }
 
-  return data;
+  return withBookingResolved;
 }
 
 export async function pushToSupabase(tableName: string, data: any, matchColumn: string, matchValue: any) {
@@ -764,10 +838,10 @@ export async function syncAllFromSupabase() {
   if (!isSupabaseConfigured || !supabase) return;
   try {
     const tables = [
+      { name: 'bookings', key: STORAGE_KEYS.BOOKINGS },
       { name: 'profiles', key: STORAGE_KEYS.PROFILES },
       { name: 'vehicles', key: STORAGE_KEYS.VEHICLES },
       { name: 'rented_vehicles', key: STORAGE_KEYS.RENTED_VEHICLES },
-      { name: 'bookings', key: STORAGE_KEYS.BOOKINGS },
       { name: 'inspections', key: STORAGE_KEYS.INSPECTIONS },
       { name: 'recons', key: STORAGE_KEYS.RECON_SHEETS },
       { name: 'transfer_recons', key: STORAGE_KEYS.TRANSFER_RECON_SHEETS },
@@ -1197,6 +1271,7 @@ export const authApi = {
       }
 
       setLocalStorageItem(STORAGE_KEYS.AUTH_USER, profile);
+      await pushToSupabase('profiles', profile, 'id', profile.id);
       const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
       const idx = profiles.findIndex(p => p.email.toLowerCase() === email.toLowerCase());
       if (idx !== -1) {
@@ -1460,7 +1535,7 @@ export const bookingsApi = {
     const list = getLocalStorageItem<Booking[]>(STORAGE_KEYS.BOOKINGS, []);
     return region ? list.filter(b => b.location === region) : list;
   },
-  saveBooking: (booking: Booking, adminId: string, reason?: string): Booking => {
+  saveBooking: async (booking: Booking, adminId: string, reason?: string): Promise<Booking> => {
     const list = getLocalStorageItem<Booking[]>(STORAGE_KEYS.BOOKINGS, []);
     const idx = list.findIndex(b => b.invoice_no === booking.invoice_no);
     const now = new Date().toISOString();
@@ -1491,7 +1566,7 @@ export const bookingsApi = {
       };
       editLogs.push(newLog);
       setLocalStorageItem(STORAGE_KEYS.LOGS, editLogs);
-      pushToSupabase('logs', newLog, 'id', logId);
+      await pushToSupabase('logs', newLog, 'id', logId);
 
       preparedBooking = {
         ...booking,
@@ -1518,25 +1593,25 @@ export const bookingsApi = {
       const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
       const drv = profiles.find(p => p.driver_id === preparedBooking.assigned_driver_id);
       if (drv) {
-        pushToSupabase('profiles', drv, 'driver_id', drv.driver_id);
+        await pushToSupabase('profiles', drv, 'driver_id', drv.driver_id);
       }
     }
     if (preparedBooking.assigned_vehicle_reg) {
       const vehicles = getLocalStorageItem<Vehicle[]>(STORAGE_KEYS.VEHICLES, []);
       const veh = vehicles.find(v => v.registration_no === preparedBooking.assigned_vehicle_reg);
       if (veh) {
-        pushToSupabase('vehicles', veh, 'registration_no', veh.registration_no);
+        await pushToSupabase('vehicles', veh, 'registration_no', veh.registration_no);
       }
     }
     if (preparedBooking.is_rented_vehicle && preparedBooking.rented_vehicle_id) {
       const rentedList = getLocalStorageItem<RentedVehicle[]>(STORAGE_KEYS.RENTED_VEHICLES, []);
       const rv = rentedList.find(r => r.id === preparedBooking.rented_vehicle_id);
       if (rv) {
-        pushToSupabase('rented_vehicles', rv, 'id', rv.id);
+        await pushToSupabase('rented_vehicles', rv, 'id', rv.id);
       }
     }
 
-    pushToSupabase('bookings', preparedBooking, 'invoice_no', preparedBooking.invoice_no);
+    await pushToSupabase('bookings', preparedBooking, 'invoice_no', preparedBooking.invoice_no);
 
     // Call Supabase Edge Function to check vehicle maintenance 2 days before
     if (isSupabaseConfigured && supabase) {
