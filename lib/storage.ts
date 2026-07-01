@@ -687,63 +687,59 @@ export function transformPayloadForPull(tableName: string, data: any[]): any[] {
 }
 
 export async function pushToSupabase(tableName: string, data: any, matchColumn: string, matchValue: any) {
-  if (!isSupabaseConfigured) {
-    console.log(`Supabase not configured. Skipping push to ${tableName}.`);
+  if (!isSupabaseConfigured || !supabase) {
+    console.log(`Supabase not configured or client null. Skipping push to ${tableName}.`);
     return;
   }
   try {
     const dbTableName = TABLE_MAP[tableName] || tableName;
     const transformed = transformPayloadForPush(dbTableName, data);
-    console.log(`[Supabase Push via API] Attempting upsert on '${dbTableName}' for matching ${matchColumn} = ${matchValue}`);
-    
-    const response = await fetch('/api/supabase', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'push',
-        tableName: dbTableName,
-        data: transformed,
-        matchColumn,
-        matchValue
-      })
-    });
-
-    if (!response.ok) {
-      const errRes = await response.json().catch(() => ({ error: 'Unknown response format' }));
-      console.warn(`[Supabase Push via API] Save failed for '${dbTableName}':`, errRes.error);
+    console.log(`[Supabase Push] Attempting upsert on '${dbTableName}' for matching ${matchColumn} = ${matchValue}`);
+    const { error } = await supabase.from(dbTableName).upsert(transformed, { onConflict: matchColumn });
+    if (error) {
+      console.warn(`[Supabase Push] Upsert failed for '${dbTableName}', trying manual fallback. Error:`, error.message || error);
+      // Fallback manual upsert
+      const { data: existing, error: selectError } = await supabase.from(dbTableName).select(matchColumn).eq(matchColumn, matchValue).maybeSingle();
+      if (selectError) {
+        console.error(`[Supabase Push] Fallback select error on '${dbTableName}':`, selectError.message || selectError);
+      }
+      if (existing) {
+        console.log(`[Supabase Push] Row exists in '${dbTableName}', performing update.`);
+        const { error: updateError } = await supabase.from(dbTableName).update(transformed).eq(matchColumn, matchValue);
+        if (updateError) {
+          console.error(`[Supabase Push] Fallback update failed on '${dbTableName}':`, updateError.message || updateError);
+        } else {
+          console.log(`[Supabase Push] Fallback update succeeded on '${dbTableName}'.`);
+        }
+      } else {
+        console.log(`[Supabase Push] Row does not exist in '${dbTableName}', performing insert.`);
+        const { error: insertError } = await supabase.from(dbTableName).insert([transformed]);
+        if (insertError) {
+          console.error(`[Supabase Push] Fallback insert failed on '${dbTableName}':`, insertError.message || insertError);
+        } else {
+          console.log(`[Supabase Push] Fallback insert succeeded on '${dbTableName}'.`);
+        }
+      }
     } else {
-      console.log(`[Supabase Push via API] Save succeeded on '${dbTableName}'.`);
+      console.log(`[Supabase Push] Upsert succeeded on '${dbTableName}'.`);
     }
   } catch (error: any) {
-    console.error(`[Supabase Push via API] Exception writing to Supabase table ${tableName}:`, error.message || error);
+    console.error(`[Supabase Push] Exception writing to Supabase table ${tableName}:`, error.message || error);
   }
 }
 
 export async function deleteFromSupabase(tableName: string, matchColumn: string, matchValue: any) {
-  if (!isSupabaseConfigured) return;
+  if (!isSupabaseConfigured || !supabase) return;
   try {
     const dbTableName = TABLE_MAP[tableName] || tableName;
-    const response = await fetch('/api/supabase', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'delete',
-        tableName: dbTableName,
-        matchColumn,
-        matchValue
-      })
-    });
-    if (!response.ok) {
-      const errRes = await response.json().catch(() => ({ error: 'Unknown response format' }));
-      console.warn(`Error deleting from Supabase table ${tableName} via API:`, errRes.error);
-    }
+    await supabase.from(dbTableName).delete().eq(matchColumn, matchValue);
   } catch (error) {
-    console.warn(`Error deleting from Supabase table ${tableName} via API:`, error);
+    console.warn(`Error deleting from Supabase table ${tableName}:`, error);
   }
 }
 
 export async function syncAllFromSupabase() {
-  if (!isSupabaseConfigured) return;
+  if (!isSupabaseConfigured || !supabase) return;
   try {
     const tables = [
       { name: 'profiles', key: STORAGE_KEYS.PROFILES },
@@ -761,37 +757,23 @@ export async function syncAllFromSupabase() {
       { name: 'delete_requests', key: STORAGE_KEYS.DELETES }
     ];
 
-    const response = await fetch('/api/supabase', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'sync_all',
-        data: {
-          tables: tables.map(t => ({ name: TABLE_MAP[t.name] || t.name }))
-        }
-      })
-    });
-
-    if (!response.ok) {
-      const errRes = await response.json().catch(() => ({ error: 'Unknown response format' }));
-      console.error('Failed to sync data from Supabase via API:', errRes.error);
-      return;
-    }
-
-    const { results } = await response.json();
-    if (results) {
-      for (const t of tables) {
-        const dbName = TABLE_MAP[t.name] || t.name;
-        const rows = results[dbName];
-        if (rows) {
-          const transformed = transformPayloadForPull(t.name, rows);
-          console.log(`[Supabase Sync via API] Successfully synchronized ${transformed.length} rows from table '${dbName}' into ${t.key}.`);
+    for (const t of tables) {
+      try {
+        const dbTableName = TABLE_MAP[t.name] || t.name;
+        const { data, error } = await supabase.from(dbTableName).select('*');
+        if (error) {
+          console.error(`[Supabase Sync] Error fetching table '${dbTableName}':`, error.message || error);
+        } else if (data) {
+          const transformed = transformPayloadForPull(t.name, data);
+          console.log(`[Supabase Sync] Successfully synchronized ${transformed.length} rows from table '${dbTableName}' into ${t.key}.`);
           setLocalStorageItem(t.key, transformed);
         }
+      } catch (e: any) {
+        console.warn(`[Supabase Sync] Exception when syncing table ${t.name}:`, e.message || e);
       }
     }
   } catch (error) {
-    console.error('Failed to sync data from Supabase via API:', error);
+    console.error('Failed to sync data from Supabase:', error);
   }
 }
 
