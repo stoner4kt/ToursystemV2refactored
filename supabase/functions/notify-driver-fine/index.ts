@@ -60,29 +60,35 @@ serve(async (req: Request) => {
     }
 
     const { data: fine, error: fineError } = await supabaseAdmin
-      .from('traffic_fines')
-      .select(`
-        id,
-        booking_id,
-        vehicle_reg,
-        driver_id,
-        fine_timestamp,
-        fine_reference,
-        location,
-        description,
-        amount,
-        notification_email,
-        bookings!traffic_fines_booking_id_fkey(invoice_no, client_name, route),
-        profiles!traffic_fines_driver_id_fkey(name, phone, email)
-      `)
-      .eq('id', traffic_fine_id)
-      .single();
+  .from('traffic_fines')
+  .select(`
+    id,
+    booking_id,
+    vehicle_reg,
+    driver_id,
+    fine_timestamp,
+    fine_reference,
+    location,
+    description,
+    amount,
+    notification_email,
+    bookings!traffic_fines_booking_id_fkey(invoice_no, client_name, route)
+  `)
+  .eq('id', traffic_fine_id)
+  .single();
 
-    if (fineError || !fine) return jsonResponse({ error: 'Traffic fine not found' }, 404);
+if (fineError || !fine) return jsonResponse({ error: 'Traffic fine not found' }, 404);
 
-    const driverEmail = fine.profiles?.email?.trim();
-    const extraEmail = fine.notification_email?.trim();
-    const recipients = Array.from(new Set([driverEmail, extraEmail].filter(Boolean)));
+// Separate lookup because driver_id is a text key (DRV-XXXXXX), not a UUID FK
+const { data: driverProfile } = await supabaseAdmin
+  .from('profiles')
+  .select('name, phone, email')
+  .eq('driver_id', fine.driver_id)
+  .single();
+
+const driverEmail = driverProfile?.email?.trim();
+const extraEmail = fine.notification_email?.trim();
+const recipients = Array.from(new Set([driverEmail, extraEmail].filter(Boolean)));
 
     if (!recipients.length) {
       await supabaseAdmin
