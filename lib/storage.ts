@@ -1758,7 +1758,7 @@ export const bookingsApi = {
       }
     }
 
-    await pushToSupabase('bookings', preparedBooking, 'invoice_no', preparedBooking.invoice_no);
+    await pushToSupabase('bookings', preparedBooking, 'id', preparedBooking.id);
 
     // Call Supabase Edge Function to check vehicle maintenance 2 days before
     if (isSupabaseConfigured && supabase) {
