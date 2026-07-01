@@ -835,11 +835,11 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     }
   };
 
-  const handleSaveFine = (e: React.FormEvent) => {
+  const handleSaveFine = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fineForm.vehicle_reg || !fineForm.fine_reference) return;
 
-    trafficFinesApi.saveFine({
+    await trafficFinesApi.saveFine({
       id: generateUUID(),  // proper UUID so Supabase keeps the same ID we pass to the Edge Function
       booking_id: fineAutofilledDriver?.bookingId || '',
       vehicle_reg: fineForm.vehicle_reg,
