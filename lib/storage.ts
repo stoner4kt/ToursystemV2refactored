@@ -359,14 +359,7 @@ export const isSupabaseConfigured = !!(supabaseUrl && supabaseAnonKey);
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
-// Service Role Client (for admin-level operations like notifications)
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
-export const supabaseAdmin = isSupabaseConfigured && supabaseServiceKey
-  ? createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      supabaseServiceKey
-    )
-  : null;
+
 
 export function generateUUID(): string {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
