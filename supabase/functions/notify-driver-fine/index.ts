@@ -106,7 +106,7 @@ const recipients = Array.from(new Set([driverEmail, extraEmail].filter(Boolean))
       return jsonResponse({ success: true, warning: 'Email provider is not configured.' });
     }
 
-    const driverName = fine.profiles?.name ?? fine.driver_id;
+    const driverName = driverProfile?.name ?? fine.driver_id;
     const booking = fine.bookings ?? {};
     const subject = `Traffic fine notice — ${fine.vehicle_reg} (${booking.invoice_no ?? fine.booking_id})`;
     const html = `
