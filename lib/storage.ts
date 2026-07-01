@@ -513,6 +513,20 @@ export function filterPayloadForTable(dbTableName: string, payload: any): any {
         }
       }
 
+      // Convert empty string to null for nullable text or other non-UUID foreign keys to avoid PG foreign key constraint violations
+      const isNullableTextForeignKey = 
+        key === 'assigned_driver_id' || 
+        key === 'assigned_vehicle_reg' || 
+        key === 'vehicle_reg' || 
+        key === 'driver_id' || 
+        key === 'rented_vehicle_id' || 
+        key === 'rented_vehicle_reg' || 
+        key === 'rented_vehicle_model' || 
+        key === 'booking_id';
+      if (isNullableTextForeignKey && val === '') {
+        val = null;
+      }
+
       if (val !== undefined) {
         filtered[key] = val;
       }
