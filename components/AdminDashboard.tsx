@@ -565,14 +565,24 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   };
 
   const handleOpenEditBooking = (b: Booking) => {
-    setBookingForm({
-      ...b,
-      start_date: new Date(b.start_date).toISOString().substring(0, 16),
-      end_date: new Date(b.end_date).toISOString().substring(0, 16)
-    });
-    setEditReason('');
-    setIsEditMode(true);
-    setShowBookingModal(true);
+    const editAction = () => {
+      setBookingForm({
+        ...b,
+        start_date: new Date(b.start_date).toISOString().substring(0, 16),
+        end_date: new Date(b.end_date).toISOString().substring(0, 16)
+      });
+      setEditReason('');
+      setIsEditMode(true);
+      setShowBookingModal(true);
+    };
+
+    executeWithOtpGuard(
+      'booking_edit',
+      b.invoice_no,
+      editAction,
+      'Administrative OTP clearance is required to edit an existing booking.',
+      true
+    );
   };
 
   const handleBookingDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -642,23 +652,13 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     };
 
     const action = () => {
-      bookingsApi.saveBooking(payload, admin.driver_id, editReason || 'Details modified');
+      bookingsApi.saveBooking(payload, admin.id || admin.driver_id, editReason || 'Details modified');
       setShowBookingModal(false);
       refreshData();
       alert('Booking saved and schedules compiled!');
     };
 
-    if (requireOtp || (isEditMode && (bookingForm.status === 'completed' || bookingForm.status === 'confirmed'))) {
-      executeWithOtpGuard(
-        'booking_request',
-        bookingForm.invoice_no || '',
-        action,
-        'Administrative clearance is required to verify and authorize this booking request.',
-        requireOtp
-      );
-    } else {
-      action();
-    }
+    action();
   };
 
   const requestBookingDelete = (bookingId: string) => {
@@ -668,9 +668,19 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     const cancellationType = window.confirm('Is this a mistake? (Click OK for Mistake, Cancel for Client Cancelled)') 
       ? 'mistake' : 'client_cancelled';
 
-    bookingsApi.requestDelete(bookingId, admin.name, reason, cancellationType);
-    refreshData();
-    alert('🔴 Deletion request submitted and locked. Awaiting administrative review in "Pending Deletions" tab.');
+    const action = () => {
+      bookingsApi.requestDelete(bookingId, admin.name, reason, cancellationType);
+      refreshData();
+      alert('🔴 Deletion request submitted and locked. Awaiting administrative review in "Pending Deletions" tab.');
+    };
+
+    executeWithOtpGuard(
+      'booking_delete',
+      bookingId,
+      action,
+      'Administrative OTP clearance is required to submit a booking deletion request.',
+      true
+    );
   };
 
   // FLEET HANDLERS
@@ -3556,13 +3566,6 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                   className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-black py-2.5 rounded-xl text-xs transition-colors shadow cursor-pointer text-center"
                 >
                   Save Dispatch Schedule
-                </button>
-                <button
-                  type="button"
-                  onClick={() => saveBooking(true)}
-                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-black py-2.5 rounded-xl text-xs transition-colors shadow flex items-center justify-center gap-1.5 cursor-pointer text-center"
-                >
-                  🔒 Save & Request Admin OTP
                 </button>
               </div>
             </div>

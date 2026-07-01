@@ -1470,18 +1470,28 @@ export const bookingsApi = {
       const oldVal = list[idx];
       // Log edit
       const editLogs = getLocalStorageItem<BookingEditLog[]>(STORAGE_KEYS.LOGS, []);
-      editLogs.push({
-        id: generateUUID(),
+      let adminUuid: string | null = null;
+      const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
+      const adminProf = profiles.find(p => p.driver_id === adminId || p.id === adminId);
+      if (adminProf && adminProf.id) {
+        adminUuid = adminProf.id;
+      }
+      
+      const logId = generateUUID();
+      const newLog: BookingEditLog = {
+        id: logId,
         booking_id: booking.invoice_no,
-        admin_id: adminId,
+        admin_id: adminUuid || adminId,
         action: 'edit',
         reason: reason || 'Details update',
         old_values: oldVal,
         new_values: booking,
         approved_at: now,
         created_at: now
-      });
+      };
+      editLogs.push(newLog);
       setLocalStorageItem(STORAGE_KEYS.LOGS, editLogs);
+      pushToSupabase('logs', newLog, 'id', logId);
 
       preparedBooking = {
         ...booking,
@@ -1502,6 +1512,30 @@ export const bookingsApi = {
       list.push(preparedBooking);
     }
     setLocalStorageItem(STORAGE_KEYS.BOOKINGS, list);
+
+    // Ensure foreign key references exist in Supabase before saving the booking
+    if (preparedBooking.assigned_driver_id) {
+      const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
+      const drv = profiles.find(p => p.driver_id === preparedBooking.assigned_driver_id);
+      if (drv) {
+        pushToSupabase('profiles', drv, 'driver_id', drv.driver_id);
+      }
+    }
+    if (preparedBooking.assigned_vehicle_reg) {
+      const vehicles = getLocalStorageItem<Vehicle[]>(STORAGE_KEYS.VEHICLES, []);
+      const veh = vehicles.find(v => v.registration_no === preparedBooking.assigned_vehicle_reg);
+      if (veh) {
+        pushToSupabase('vehicles', veh, 'registration_no', veh.registration_no);
+      }
+    }
+    if (preparedBooking.is_rented_vehicle && preparedBooking.rented_vehicle_id) {
+      const rentedList = getLocalStorageItem<RentedVehicle[]>(STORAGE_KEYS.RENTED_VEHICLES, []);
+      const rv = rentedList.find(r => r.id === preparedBooking.rented_vehicle_id);
+      if (rv) {
+        pushToSupabase('rented_vehicles', rv, 'id', rv.id);
+      }
+    }
+
     pushToSupabase('bookings', preparedBooking, 'invoice_no', preparedBooking.invoice_no);
 
     // Call Supabase Edge Function to check vehicle maintenance 2 days before
