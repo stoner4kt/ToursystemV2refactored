@@ -10,7 +10,7 @@ import {
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, BookingDeleteRequest,
   VehicleExpense, TrafficFine, IncidentReport, BookingEditLog, VehicleChecklist, VehicleDirectChecklist,
   bookingsApi, fleetApi, driversApi, inspectionsApi, reconApi, transferReconApi, expensesApi, trafficFinesApi, incidentsApi, checklistsApi, directChecklistsApi, authApi,
-  downloadCSV, uploadToCloudinary, getSignedUrlForView
+  downloadCSV, uploadToCloudinary, getSignedUrlForView, generateUUID
 } from '@/lib/storage';
 import CalendarGrid from './CalendarGrid';
 import OTPModal from './OTPModal';
@@ -705,7 +705,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
 
     const payload: RentedVehicle = {
       ...(rentedForm as RentedVehicle),
-      id: rentedForm.id || `rv-${Math.random().toString(36).substring(2, 9)}`,
+      id: rentedForm.id || generateUUID(),
       created_at: rentedForm.created_at || new Date().toISOString()
     };
 

@@ -47,6 +47,7 @@ export interface RentedVehicle {
 }
 
 export interface Booking {
+  id?: string;
   invoice_no: string; // Unique primary key
   client_name: string;
   route: string;
@@ -359,6 +360,19 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
 
+export function generateUUID(): string {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    try {
+      return window.crypto.randomUUID();
+    } catch (e) {}
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 // Global variable storage keys
 export const STORAGE_KEYS = {
   PROFILES: 'profiles',
@@ -501,7 +515,15 @@ export function filterPayloadForTable(dbTableName: string, payload: any): any {
       }
 
       // Convert empty string or invalid UUID to null for foreign key UUIDs to prevent PG syntax/validation errors
-      const isUuidForeignKey = key === 'completed_by' || key === 'reviewed_by' || key === 'invited_by' || key === 'requested_by' || key === 'logged_by_admin_id' || key === 'admin_id' || (key.endsWith('_id') && !key.includes('driver_id'));
+      const isUuidForeignKey = 
+        key === 'completed_by' || 
+        key === 'reviewed_by' || 
+        key === 'invited_by' || 
+        key === 'requested_by' || 
+        key === 'logged_by_admin_id' || 
+        key === 'admin_id' || 
+        key.endsWith('_by') ||
+        (key.endsWith('_id') && !key.includes('driver_id'));
       if (isUuidForeignKey) {
         if (val === '' || val === undefined || val === null) {
           val = null;
@@ -1356,15 +1378,19 @@ export const fleetApi = {
   },
   saveRentedVehicle: (rv: RentedVehicle): RentedVehicle => {
     const list = getLocalStorageItem<RentedVehicle[]>(STORAGE_KEYS.RENTED_VEHICLES, []);
-    const idx = list.findIndex(item => item.id === rv.id);
+    const prepared = {
+      ...rv,
+      id: rv.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rv.id) ? rv.id : generateUUID()
+    };
+    const idx = list.findIndex(item => item.id === prepared.id || item.id === rv.id);
     if (idx !== -1) {
-      list[idx] = rv;
+      list[idx] = prepared;
     } else {
-      list.push(rv);
+      list.push(prepared);
     }
     setLocalStorageItem(STORAGE_KEYS.RENTED_VEHICLES, list);
-    pushToSupabase('rented_vehicles', rv, 'id', rv.id);
-    return rv;
+    pushToSupabase('rented_vehicles', prepared, 'id', prepared.id);
+    return prepared;
   },
   deleteRentedVehicle: (id: string) => {
     const list = getLocalStorageItem<RentedVehicle[]>(STORAGE_KEYS.RENTED_VEHICLES, []);
@@ -1445,7 +1471,7 @@ export const bookingsApi = {
       // Log edit
       const editLogs = getLocalStorageItem<BookingEditLog[]>(STORAGE_KEYS.LOGS, []);
       editLogs.push({
-        id: `log-${Math.random().toString(36).substring(2, 9)}`,
+        id: generateUUID(),
         booking_id: booking.invoice_no,
         admin_id: adminId,
         action: 'edit',
@@ -1459,6 +1485,7 @@ export const bookingsApi = {
 
       preparedBooking = {
         ...booking,
+        id: booking.id || oldVal.id || generateUUID(),
         last_modified_at: now,
         modification_reason: reason,
         updated_at: now
@@ -1467,6 +1494,7 @@ export const bookingsApi = {
     } else {
       preparedBooking = {
         ...booking,
+        id: booking.id || generateUUID(),
         maintenance_alert_sent: false,
         created_at: now,
         updated_at: now
@@ -1490,7 +1518,7 @@ export const bookingsApi = {
   requestDelete: (bookingId: string, requestedBy: string, reason: string, cancellationType: 'mistake' | 'client_cancelled') => {
     const deletes = getLocalStorageItem<BookingDeleteRequest[]>(STORAGE_KEYS.DELETES, []);
     const newRequest: BookingDeleteRequest = {
-      id: `del-${Math.random().toString(36).substring(2, 9)}`,
+      id: generateUUID(),
       booking_id: bookingId,
       requested_by: requestedBy,
       reason,
@@ -1794,7 +1822,7 @@ export const expensesApi = {
     if (idx !== -1) {
       list[idx] = prepared;
     } else {
-      prepared.id = expense.id || `exp-${Math.random().toString(36).substring(2, 9)}`;
+      prepared.id = expense.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(expense.id) ? expense.id : generateUUID();
       prepared.created_at = now;
       list.push(prepared);
     }
@@ -1837,7 +1865,7 @@ export const trafficFinesApi = {
     if (idx !== -1) {
       list[idx] = prepared;
     } else {
-      prepared.id = fine.id || `fine-${Math.random().toString(36).substring(2, 9)}`;
+      prepared.id = fine.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(fine.id) ? fine.id : generateUUID();
       prepared.created_at = now;
       list.push(prepared);
     }
@@ -1909,7 +1937,7 @@ export const incidentsApi = {
     if (idx !== -1) {
       list[idx] = prepared;
     } else {
-      prepared.id = incident.id || `inc-${Math.random().toString(36).substring(2, 9)}`;
+      prepared.id = incident.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(incident.id) ? incident.id : generateUUID();
       prepared.created_at = now;
       list.push(prepared);
     }
@@ -1968,7 +1996,7 @@ export const directChecklistsApi = {
     if (idx !== -1) {
       list[idx] = prepared;
     } else {
-      prepared.id = checklist.id || `dc-${Math.random().toString(36).substring(2, 9)}`;
+      prepared.id = checklist.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(checklist.id) ? checklist.id : generateUUID();
       list.push(prepared);
     }
     setLocalStorageItem(STORAGE_KEYS.DIRECT_CHECKLISTS, list);
