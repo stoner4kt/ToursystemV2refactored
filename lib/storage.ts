@@ -1772,7 +1772,7 @@ export const inspectionsApi = {
     setLocalStorageItem(STORAGE_KEYS.INSPECTIONS, list);
     pushToSupabase('inspections', inspection, 'id', inspection.id);
     
-    // Update vehicle mileage
+        // Update vehicle mileage
     const vehicles = getLocalStorageItem<Vehicle[]>(STORAGE_KEYS.VEHICLES, []);
     const vIdx = vehicles.findIndex(v => v.registration_no === inspection.vehicle_reg);
     if (vIdx !== -1 && inspection.mileage_at_inspection > vehicles[vIdx].current_mileage) {
@@ -1788,9 +1788,9 @@ export const inspectionsApi = {
                      (Array.isArray(inspection.faults_json) && inspection.faults_json.length > 0) ||
                      (inspection.faults_json && !Array.isArray(inspection.faults_json) && Object.keys(inspection.faults_json).length > 0);
 
-        // === FAULT ALERT via Edge Function (using Service Role) ===
-    if (hasFault && isSupabaseConfigured && supabaseAdmin) {
-      // Format faults...
+    // === FAULT ALERT via Edge Function (only) ===
+    if (hasFault && isSupabaseConfigured && supabase) {
+      // Format faults as an array of strings for the Edge function
       const failedItems = Object.entries(inspection.checklist_json || {})
         .filter(([_, v]) => v === 'fail' || v === 'flag' || v === 'fault')
         .map(([item, v]) => `${item.replace(/_/g, ' ')} (${v.toUpperCase()})`);
@@ -1809,12 +1809,15 @@ export const inspectionsApi = {
         faultsArray.push('Operational safety warning / fault flagged');
       }
 
-      console.log('[fault-alert] Sending payload with service role:', { 
+      // Get current session for auth header
+      const { data: { session } } = await supabase.auth.getSession();
+
+      console.log('[fault-alert] Sending payload:', { 
         vehicle_reg: inspection.vehicle_reg, 
         faultsCount: faultsArray.length 
       });
 
-      supabaseAdmin.functions.invoke('fault-alert', {
+      supabase.functions.invoke('fault-alert', {
         body: { 
           vehicle_reg: inspection.vehicle_reg,
           driver_id: inspection.driver_id,
@@ -1822,6 +1825,9 @@ export const inspectionsApi = {
           inspection_id: inspection.id,
           invoice_no: inspection.invoice_no,
           notes: inspection.notes
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ''}`
         }
       }).then(({ data, error }) => {
         if (error) {
@@ -1832,7 +1838,9 @@ export const inspectionsApi = {
       }).catch(err => {
         console.error("Error triggering fault-alert function:", err);
       });
-    }return inspection;
+    }
+    
+    return inspection;
   }
 };
 // Weekly Recon Sheets API Layer
