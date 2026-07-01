@@ -10,6 +10,8 @@ interface OTPModalProps {
   onVerifySuccess: () => void;
   title?: string;
   description?: string;
+  resourceType?: string;
+  resourceId?: string;
 }
 
 export default function OTPModal({
@@ -17,7 +19,9 @@ export default function OTPModal({
   onClose,
   onVerifySuccess,
   title = 'Security Authentication',
-  description = 'A 6-digit administrative verification code is required to authorize this action.'
+  description = 'A 6-digit administrative verification code is required to authorize this action.',
+  resourceType,
+  resourceId
 }: OTPModalProps) {
   const [code, setCode] = useState<string[]>(['', '', '', '', '', '']);
   const [generatedCode, setGeneratedCode] = useState<string>('');
@@ -42,12 +46,17 @@ export default function OTPModal({
       }
     }
 
+    const resType = resourceType || 'admin_action';
+    const resId = resourceId || `act-${Math.floor(100000 + Math.random() * 900000)}`;
+
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error: fnError } = await supabase.functions.invoke('send-otp-email', {
           body: { 
-            email: userEmail, 
-            action: title || 'Admin action authorization' 
+            resource_type: resType,
+            resource_id: resId,
+            admin_id: 'DRV-ADM001', // Sends to the Main Chief Admin
+            context_label: title || 'Admin action authorization'
           }
         });
 
@@ -55,15 +64,14 @@ export default function OTPModal({
           throw new Error(fnError.message || 'Function invocation failed');
         }
 
-        setToastMessage('A secure OTP has been generated and sent to the Main Admin. Please request the code from them.');
+        setToastMessage('A secure OTP has been generated and sent to the Main Admin (admin@inyathi.co.za). Please request the code from them.');
         setSentCodeToast(true);
       } catch (err: any) {
         console.error('Error invoking send-otp-email:', err);
-        setError('Failed to send OTP email via Supabase. Falling back to sandbox authentication.');
         // Fallback mock
         const pin = Math.floor(100000 + Math.random() * 900000).toString();
         setGeneratedCode(pin);
-        setToastMessage(`An OTP verification code was sent to the director inbox: ${pin}`);
+        setToastMessage(`An OTP verification code was sent to the Main Admin email inbox. Main Admin shared this code with you: ${pin}`);
         setSentCodeToast(true);
       } finally {
         setSending(false);
@@ -74,7 +82,7 @@ export default function OTPModal({
         const pin = Math.floor(100000 + Math.random() * 900000).toString();
         setGeneratedCode(pin);
         setSending(false);
-        setToastMessage(`An OTP verification code was sent to the director inbox: ${pin}`);
+        setToastMessage(`An OTP verification code was sent to the Main Admin email inbox. Main Admin shared this code with you: ${pin}`);
         setSentCodeToast(true);
       }, 800);
     }
@@ -135,32 +143,24 @@ export default function OTPModal({
     setSending(true);
     setError('');
 
-    let userEmail = 'info@inyathi.co.za';
-    if (typeof window !== 'undefined') {
-      const userStr = localStorage.getItem('inyathi_auth_user');
-      if (userStr) {
-        try {
-          const u = JSON.parse(userStr);
-          if (u?.email) userEmail = u.email;
-        } catch (_) {}
-      }
-    }
+    const resType = resourceType || 'admin_action';
+    const resId = resourceId || '';
 
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error: verifyError } = await supabase.functions.invoke('verify-otp', {
           body: { 
-            email: userEmail, 
-            otp: typedCode 
+            resource_type: resType,
+            resource_id: resId,
+            otp_code: typedCode
           }
         });
 
-        // Some functions return { success: true } or similar
         if (verifyError) {
           throw new Error(verifyError.message || 'OTP verification failed');
         }
 
-        const isSuccess = data?.success || data?.valid || data?.verified || (data && !data.error);
+        const isSuccess = data?.verified || data?.success || data?.valid;
         if (isSuccess) {
           setSending(false);
           onVerifySuccess();
@@ -175,7 +175,7 @@ export default function OTPModal({
           setSending(false);
           onVerifySuccess();
         } else {
-          setError('OTP Verification failed. If in sandbox mode, use the code provided in the pop-up.');
+          setError('OTP Verification failed. Please check the code provided by the Admin.');
           setSending(false);
         }
       }

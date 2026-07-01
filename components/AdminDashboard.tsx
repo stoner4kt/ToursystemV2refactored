@@ -524,8 +524,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   };
 
   // Perform action with OTP Guard if enabled
-  const executeWithOtpGuard = (actionType: string, id: string, onAuthorized: () => void, description?: string) => {
-    if (otpEnabled) {
+  const executeWithOtpGuard = (actionType: string, id: string, onAuthorized: () => void, description?: string, forceOtp?: boolean) => {
+    if (otpEnabled || forceOtp) {
       setOtpActionType(actionType);
       setOtpTargetId(id);
       setOtpCallback(() => onAuthorized);
@@ -627,7 +627,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     }
   };
 
-  const saveBooking = () => {
+  const saveBooking = (requireOtp?: boolean) => {
     if (!bookingForm.invoice_no || !bookingForm.client_name || !bookingForm.route) {
       alert('Please complete all core booking details.');
       return;
@@ -648,8 +648,14 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       alert('Booking saved and schedules compiled!');
     };
 
-    if (isEditMode && (bookingForm.status === 'completed' || bookingForm.status === 'confirmed')) {
-      executeWithOtpGuard('booking_edit', bookingForm.invoice_no || '', action, 'Administrative clearance is required to update a locked or completed booking schedule.');
+    if (requireOtp || (isEditMode && (bookingForm.status === 'completed' || bookingForm.status === 'confirmed'))) {
+      executeWithOtpGuard(
+        'booking_request',
+        bookingForm.invoice_no || '',
+        action,
+        'Administrative clearance is required to verify and authorize this booking request.',
+        requireOtp
+      );
     } else {
       action();
     }
@@ -3543,13 +3549,22 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={saveBooking}
-                className="w-full bg-teal-600 hover:bg-teal-700 text-white font-black py-2.5 rounded-xl text-xs transition-colors shadow"
-              >
-                Save Dispatch Manifest Schedule
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => saveBooking(false)}
+                  className="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-black py-2.5 rounded-xl text-xs transition-colors shadow cursor-pointer text-center"
+                >
+                  Save Dispatch Schedule
+                </button>
+                <button
+                  type="button"
+                  onClick={() => saveBooking(true)}
+                  className="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-black py-2.5 rounded-xl text-xs transition-colors shadow flex items-center justify-center gap-1.5 cursor-pointer text-center"
+                >
+                  🔒 Save & Request Admin OTP
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -5189,6 +5204,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
         onVerifySuccess={handleOtpSuccess}
         title="Admin Verification Code Required"
         description={`Administrative OTP verification is active for this action. A verification passcode has been dispatched to authorized Directors.`}
+        resourceType={otpActionType}
+        resourceId={otpTargetId}
       />
 
     </div>
