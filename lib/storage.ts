@@ -633,7 +633,8 @@ export function transformPayloadForPush(dbTableName: string, data: any): any {
       end_date: endDateStr,
       start_time: data.start_date || null,
       end_time: data.end_date || null,
-      status: data.status === 'pending' ? 'invoiced' : data.status
+      status: data.status === 'pending' ? 'invoiced' : data.status,
+      receipt_number: data.receipt_number && data.receipt_number.trim() !== '' ? data.receipt_number : null
     };
   }
 
