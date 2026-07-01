@@ -840,8 +840,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     if (!fineForm.vehicle_reg || !fineForm.fine_reference) return;
 
     trafficFinesApi.saveFine({
-      id: `fine-${Math.random().toString(36).substring(2, 9)}`,
-      booking_id: fineAutofilledDriver?.bookingId || 'MOCK-FINE',
+      id: generateUUID(),  // proper UUID so Supabase keeps the same ID we pass to the Edge Function
+      booking_id: fineAutofilledDriver?.bookingId || '',
       vehicle_reg: fineForm.vehicle_reg,
       driver_id: fineAutofilledDriver?.driverId || drivers[0]?.driver_id || 'UNKNOWN',
       fine_timestamp: fineForm.fine_timestamp,
@@ -850,9 +850,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       description: fineForm.description,
       amount: Number(fineForm.amount) || 0,
       notification_email: fineForm.notification_email,
-      email_sent: true,
-      email_sent_at: new Date().toISOString(),
-      status: fineForm.status || 'pending',
+      email_sent: false,       // Edge Function will set this to true on success
+      email_sent_at: undefined,
       logged_by_admin_id: admin.driver_id,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -865,7 +864,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     });
     setFineAutofilledDriver(null);
     refreshData();
-    alert('✅ Traffic fine logged. Driver notified and fine schedule synced!');
+    alert('✅ Traffic fine logged. Driver notification dispatched.');
   };
 
   const handleToggleFineStatus = (fineId: string, currentStatus: 'paid' | 'pending') => {
