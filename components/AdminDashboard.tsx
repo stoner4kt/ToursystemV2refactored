@@ -840,8 +840,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     if (!fineForm.vehicle_reg || !fineForm.fine_reference) return;
 
     trafficFinesApi.saveFine({
-      id: `fine-${Math.random().toString(36).substring(2, 9)}`,
-      booking_id: fineAutofilledDriver?.bookingId || 'MOCK-FINE',
+      id: generateUUID(),  // proper UUID so Supabase keeps the same ID we pass to the Edge Function
+      booking_id: fineAutofilledDriver?.bookingId || '',
       vehicle_reg: fineForm.vehicle_reg,
       driver_id: fineAutofilledDriver?.driverId || drivers[0]?.driver_id || 'UNKNOWN',
       fine_timestamp: fineForm.fine_timestamp,
@@ -850,9 +850,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       description: fineForm.description,
       amount: Number(fineForm.amount) || 0,
       notification_email: fineForm.notification_email,
-      email_sent: true,
-      email_sent_at: new Date().toISOString(),
-      status: fineForm.status || 'pending',
+      email_sent: false,       // Edge Function will set this to true on success
+      email_sent_at: undefined,
       logged_by_admin_id: admin.driver_id,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -865,7 +864,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     });
     setFineAutofilledDriver(null);
     refreshData();
-    alert('✅ Traffic fine logged. Driver notified and fine schedule synced!');
+    alert('✅ Traffic fine logged. Driver notification dispatched.');
   };
 
   const handleToggleFineStatus = (fineId: string, currentStatus: 'paid' | 'pending') => {
@@ -879,12 +878,30 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     }
   };
 
-  const handleResendFineEmail = (fine: TrafficFine) => {
-    fine.email_sent = true;
-    fine.email_sent_at = new Date().toISOString();
-    trafficFinesApi.saveFine(fine);
-    refreshData();
-    alert(`📧 Resent notification email for fine ${fine.fine_reference} to ${fine.notification_email}!`);
+  const handleResendFineEmail = async (fine: TrafficFine) => {
+    if (!fine.id) {
+      alert('Cannot resend: fine has no valid ID.');
+      return;
+    }
+    try {
+      const { supabase } = await import('@/lib/storage');
+      if (!supabase) throw new Error('Supabase client not available');
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('No active admin session. Please log in again.');
+
+      const { error } = await supabase.functions.invoke('notify-driver-fine', {
+        body: { traffic_fine_id: fine.id },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) throw new Error(error.message);
+
+      refreshData();
+      alert(`✅ Notification resent for fine ${fine.fine_reference}.`);
+    } catch (err: any) {
+      alert(`❌ Failed to resend notification: ${err.message}`);
+    }
   };
 
   // COMPILING WAGES DATA
