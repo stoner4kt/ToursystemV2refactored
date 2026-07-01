@@ -1780,13 +1780,14 @@ export const inspectionsApi = {
       setLocalStorageItem(STORAGE_KEYS.VEHICLES, vehicles);
       pushToSupabase('vehicles', updatedVehicle, 'registration_no', updatedVehicle.registration_no);
     }
-
+(
     // === FAULT ALERT (Edge Function only) ===
     const hasFault = inspection.has_critical_fault || 
                      (inspection.checklist_json && Object.values(inspection.checklist_json).some(v => v === 'fail' || v === 'flag' || v === 'fault')) ||
                      (Array.isArray(inspection.faults_json) && inspection.faults_json.length > 0) ||
                      (inspection.faults_json && !Array.isArray(inspection.faults_json) && Object.keys(inspection.faults_json).length > 0);
 
+        // === FAULT ALERT via Edge Function (only) ===
     if (hasFault && isSupabaseConfigured && supabase) {
       // Format faults as an array of strings for the Edge function
       const failedItems = Object.entries(inspection.checklist_json || {})
@@ -1807,21 +1808,36 @@ export const inspectionsApi = {
         faultsArray.push('Operational safety warning / fault flagged');
       }
 
+      // Get current session for auth header
+      const { data: { session } } = await supabase.auth.getSession();
+
+      console.log('[fault-alert] Sending payload:', { 
+        vehicle_reg: inspection.vehicle_reg, 
+        faultsCount: faultsArray.length 
+      });
+
       supabase.functions.invoke('fault-alert', {
         body: { 
-          inspection_id: inspection.id,
-          invoice_no: inspection.invoice_no,
           vehicle_reg: inspection.vehicle_reg,
           driver_id: inspection.driver_id,
           faults: faultsArray,
+          inspection_id: inspection.id,
+          invoice_no: inspection.invoice_no,
           notes: inspection.notes
+        },
+        headers: {
+          Authorization: `Bearer ${session?.access_token || ''}`
         }
-      }).catch(err => console.error("Error triggering fault-alert function:", err));
+      }).then(({ data, error }) => {
+        if (error) {
+          console.error("fault-alert function error:", error);
+        } else {
+          console.log("Fault alert dispatched successfully:", data);
+        }
+      }).catch(err => {
+        console.error("Error triggering fault-alert function:", err);
+      });
     }
-    
-    return inspection;
-  }
-};
 
 
 // Weekly Recon Sheets API Layer
