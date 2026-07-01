@@ -1760,7 +1760,7 @@ export const inspectionsApi = {
       return b ? b.location === region : true;
     });
   },
-    saveInspection: (inspection: Inspection): Inspection => {
+      saveInspection: async (inspection: Inspection): Promise<Inspection> => {
     const list = getLocalStorageItem<Inspection[]>(STORAGE_KEYS.INSPECTIONS, []);
     const idx = list.findIndex(ins => ins.id === inspection.id);
     if (idx !== -1) {
@@ -1771,7 +1771,7 @@ export const inspectionsApi = {
     setLocalStorageItem(STORAGE_KEYS.INSPECTIONS, list);
     pushToSupabase('inspections', inspection, 'id', inspection.id);
     
-        // Update vehicle mileage
+    // Update vehicle mileage
     const vehicles = getLocalStorageItem<Vehicle[]>(STORAGE_KEYS.VEHICLES, []);
     const vIdx = vehicles.findIndex(v => v.registration_no === inspection.vehicle_reg);
     if (vIdx !== -1 && inspection.mileage_at_inspection > vehicles[vIdx].current_mileage) {
