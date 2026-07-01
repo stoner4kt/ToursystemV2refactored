@@ -1839,7 +1839,9 @@ export const inspectionsApi = {
       }).catch(err => {
         console.error("Error triggering fault-alert function:", err);
       });
-    }
+    }return inspection;
+  }
+};
 // Weekly Recon Sheets API Layer
 export const reconApi = {
   getRecons: (driverId?: string): ReconSheet[] => {
