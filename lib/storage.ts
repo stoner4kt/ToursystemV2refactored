@@ -472,7 +472,7 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
   traffic_fines: [
     'id', 'booking_id', 'vehicle_reg', 'driver_id', 'fine_timestamp', 'fine_reference', 'location',
     'description', 'amount', 'notification_email', 'email_sent', 'email_sent_at', 'notification_error',
-    'logged_by_admin_id', 'created_at', 'updated_at'
+    'status', 'logged_by_admin_id', 'created_at', 'updated_at'
   ],
   booking_delete_requests: [
     'id', 'booking_id', 'requested_by', 'reason', 'cancellation_type', 'status', 'rejection_reason',
