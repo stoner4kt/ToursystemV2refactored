@@ -852,6 +852,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       notification_email: fineForm.notification_email,
       email_sent: false,       // Edge Function will set this to true on success
       email_sent_at: undefined,
+      status: fineForm.status || 'pending',
       logged_by_admin_id: admin.driver_id,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
