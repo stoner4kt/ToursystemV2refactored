@@ -1996,7 +1996,7 @@ export const expensesApi = {
 
     // Call Supabase Edge Function to notify main admin of expense
     if (isSupabaseConfigured && supabase) {
-      supabase.functions.invoke('notify-expenses', {
+      supabase.functions.invoke('notify-expense-submitted', {
         body: { expense: prepared }
       }).catch(err => console.error("Error triggering notify-expenses function:", err));
     }
@@ -2042,13 +2042,13 @@ export const trafficFinesApi = {
       const drivers = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
       const driver = drivers.find(d => d.driver_id === prepared.driver_id);
       if (driver && driver.email) {
-        supabase.functions.invoke('notify-drivers-fines', {
+        supabase.functions.invoke('notify-drivers-fine', {
           body: {
             fine: prepared,
             driver_email: driver.email,
             driver_name: driver.name
           }
-        }).catch(err => console.error("Error invoking notify-drivers-fines:", err));
+        }).catch(err => console.error("Error invoking notify-drivers-fine:", err));
       }
     }
 
