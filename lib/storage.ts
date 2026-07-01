@@ -1760,7 +1760,7 @@ export const inspectionsApi = {
       return b ? b.location === region : true;
     });
   },
-  saveInspection: (inspection: Inspection): Inspection => {
+    saveInspection: (inspection: Inspection): Inspection => {
     const list = getLocalStorageItem<Inspection[]>(STORAGE_KEYS.INSPECTIONS, []);
     const idx = list.findIndex(ins => ins.id === inspection.id);
     if (idx !== -1) {
@@ -1781,47 +1781,47 @@ export const inspectionsApi = {
       pushToSupabase('vehicles', updatedVehicle, 'registration_no', updatedVehicle.registration_no);
     }
 
-    // Trigger fault alert via Supabase Edge Function (only)
-const hasFault = inspection.has_critical_fault || 
-                 (inspection.checklist_json && Object.values(inspection.checklist_json).some(v => v === 'fail' || v === 'flag' || v === 'fault')) ||
-                 (Array.isArray(inspection.faults_json) && inspection.faults_json.length > 0) ||
-                 (inspection.faults_json && typeof inspection.faults_json === 'object' && Object.keys(inspection.faults_json).length > 0);
+    // === FAULT ALERT (Edge Function only) ===
+    const hasFault = inspection.has_critical_fault || 
+                     (inspection.checklist_json && Object.values(inspection.checklist_json).some(v => v === 'fail' || v === 'flag' || v === 'fault')) ||
+                     (Array.isArray(inspection.faults_json) && inspection.faults_json.length > 0) ||
+                     (inspection.faults_json && !Array.isArray(inspection.faults_json) && Object.keys(inspection.faults_json).length > 0);
 
-if (hasFault && isSupabaseConfigured && supabase) {
-  // Format faults consistently for the fault-alert Edge Function
-  const failedItems = Object.entries(inspection.checklist_json || {})
-    .filter(([_, v]) => v === 'fail' || v === 'flag' || v === 'fault')
-    .map(([item, v]) => `${item.replace(/_/g, ' ')} (${v.toUpperCase()})`);
+    if (hasFault && isSupabaseConfigured && supabase) {
+      // Format faults as an array of strings for the Edge function
+      const failedItems = Object.entries(inspection.checklist_json || {})
+        .filter(([_, v]) => v === 'fail' || v === 'flag' || v === 'fault')
+        .map(([item, v]) => `${item.replace(/_/g, ' ')} (${v.toUpperCase()})`);
 
-  let faultsArray: string[] = [];
-  if (Array.isArray(inspection.faults_json)) {
-    faultsArray = inspection.faults_json;
-  } else if (inspection.faults_json && typeof inspection.faults_json === 'object') {
-    const faultDescEntries = Object.entries(inspection.faults_json)
-      .filter(([_, desc]) => desc && String(desc).trim())
-      .map(([item, desc]) => `${item.replace(/_/g, ' ')}: ${desc}`);
-    faultsArray = [...new Set([...failedItems, ...faultDescEntries])];
-  }
+      let faultsArray: string[] = [];
+      if (Array.isArray(inspection.faults_json)) {
+        faultsArray = inspection.faults_json;
+      } else if (inspection.faults_json && typeof inspection.faults_json === 'object') {
+        const faultDescEntries = Object.entries(inspection.faults_json)
+          .filter(([_, desc]) => desc && String(desc).trim())
+          .map(([item, desc]) => `${item.replace(/_/g, ' ')}: ${desc}`);
+        faultsArray = [...new Set([...failedItems, ...faultDescEntries])];
+      }
 
-  if (faultsArray.length === 0) {
-    faultsArray.push('Operational safety warning / fault flagged');
-  }
+      if (faultsArray.length === 0) {
+        faultsArray.push('Operational safety warning / fault flagged');
+      }
 
-  supabase.functions.invoke('fault-alert', {
-    body: { 
-      inspection_id: inspection.id,
-      invoice_no: inspection.invoice_no,
-      vehicle_reg: inspection.vehicle_reg,
-      driver_id: inspection.driver_id,
-      faults: faultsArray,
-      notes: inspection.notes
+      supabase.functions.invoke('fault-alert', {
+        body: { 
+          inspection_id: inspection.id,
+          invoice_no: inspection.invoice_no,
+          vehicle_reg: inspection.vehicle_reg,
+          driver_id: inspection.driver_id,
+          faults: faultsArray,
+          notes: inspection.notes
+        }
+      }).catch(err => console.error("Error triggering fault-alert function:", err));
     }
-  }).then(({ data, error }) => {
-    if (error) console.error("fault-alert function error:", error);
-    else console.log("Fault alert dispatched successfully:", data);
-  }).catch(err => console.error("Error triggering fault-alert function:", err));
-}
-    };
+    
+    return inspection;
+  }
+};
 
 
 // Weekly Recon Sheets API Layer
