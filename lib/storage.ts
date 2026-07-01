@@ -2015,7 +2015,7 @@ export const trafficFinesApi = {
     initializeStorage();
     return getLocalStorageItem<TrafficFine[]>(STORAGE_KEYS.FINES, []);
   },
-  saveFine: (fine: TrafficFine): TrafficFine => {
+  saveFine: async (fine: TrafficFine): Promise<TrafficFine> => {
     const list = getLocalStorageItem<TrafficFine[]>(STORAGE_KEYS.FINES, []);
     const idx = list.findIndex(f => f.id === fine.id);
     const now = new Date().toISOString();
@@ -2033,7 +2033,7 @@ export const trafficFinesApi = {
       list.push(prepared);
     }
     setLocalStorageItem(STORAGE_KEYS.FINES, list);
-    pushToSupabase('fines', prepared, 'id', prepared.id);
+    await pushToSupabase('fines', prepared, 'id', prepared.id);
 
     // Call Supabase Edge Function to notify drivers of logged fines
 if (isSupabaseConfigured && supabase && prepared.id) {
