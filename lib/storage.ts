@@ -540,9 +540,16 @@ export function transformPayloadForPush(dbTableName: string, data: any): any {
   let prepared = { ...data };
 
   if (dbTableName === 'bookings') {
+    const startDateStr = data.start_date ? data.start_date.split('T')[0] : '';
+    const endDateStr = data.end_date ? data.end_date.split('T')[0] : '';
     prepared = {
       ...prepared,
-      tour_reference: data.tour_reference || data.route || ''
+      tour_reference: data.tour_reference || data.route || '',
+      start_date: startDateStr,
+      end_date: endDateStr,
+      start_time: data.start_date || null,
+      end_time: data.end_date || null,
+      status: data.status === 'pending' ? 'invoiced' : data.status
     };
   }
 
@@ -601,7 +608,10 @@ export function transformPayloadForPull(tableName: string, data: any[]): any[] {
   if (dbTableName === 'bookings') {
     return data.map((row: any) => ({
       ...row,
-      route: row.tour_reference || row.route || ''
+      route: row.tour_reference || row.route || '',
+      start_date: row.start_time || row.start_date,
+      end_date: row.end_time || row.end_date,
+      status: row.status === 'invoiced' && row.payment_status === 'unpaid' ? 'pending' : row.status
     }));
   }
 
