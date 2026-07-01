@@ -1771,7 +1771,7 @@ export const inspectionsApi = {
     setLocalStorageItem(STORAGE_KEYS.INSPECTIONS, list);
     pushToSupabase('inspections', inspection, 'id', inspection.id);
     
-    // Update vehicle mileage
+        // Update vehicle mileage
     const vehicles = getLocalStorageItem<Vehicle[]>(STORAGE_KEYS.VEHICLES, []);
     const vIdx = vehicles.findIndex(v => v.registration_no === inspection.vehicle_reg);
     if (vIdx !== -1 && inspection.mileage_at_inspection > vehicles[vIdx].current_mileage) {
@@ -1780,14 +1780,14 @@ export const inspectionsApi = {
       setLocalStorageItem(STORAGE_KEYS.VEHICLES, vehicles);
       pushToSupabase('vehicles', updatedVehicle, 'registration_no', updatedVehicle.registration_no);
     }
-(
-    // === FAULT ALERT (Edge Function only) ===
+
+    // === Determine if we need to send a fault alert ===
     const hasFault = inspection.has_critical_fault || 
                      (inspection.checklist_json && Object.values(inspection.checklist_json).some(v => v === 'fail' || v === 'flag' || v === 'fault')) ||
                      (Array.isArray(inspection.faults_json) && inspection.faults_json.length > 0) ||
                      (inspection.faults_json && !Array.isArray(inspection.faults_json) && Object.keys(inspection.faults_json).length > 0);
 
-        // === FAULT ALERT via Edge Function (only) ===
+    // === FAULT ALERT via Edge Function (only) ===
     if (hasFault && isSupabaseConfigured && supabase) {
       // Format faults as an array of strings for the Edge function
       const failedItems = Object.entries(inspection.checklist_json || {})
@@ -1838,7 +1838,10 @@ export const inspectionsApi = {
         console.error("Error triggering fault-alert function:", err);
       });
     }
-
+    
+    return inspection;
+  }
+};
 
 // Weekly Recon Sheets API Layer
 export const reconApi = {
