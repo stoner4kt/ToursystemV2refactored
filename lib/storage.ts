@@ -2040,13 +2040,13 @@ export const trafficFinesApi = {
       const drivers = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
       const driver = drivers.find(d => d.driver_id === prepared.driver_id);
       if (driver && driver.email) {
-        supabase.functions.invoke('notify-drivers-fine', {
+        supabase.functions.invoke('notify-driver-fine', {
           body: {
             fine: prepared,
             driver_email: driver.email,
             driver_name: driver.name
           }
-        }).catch(err => console.error("Error invoking notify-drivers-fine:", err));
+        }).catch(err => console.error("Error invoking notify-driver-fine:", err));
       }
     }
 
