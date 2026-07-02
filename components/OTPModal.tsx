@@ -60,7 +60,7 @@ setActiveResId(resId);  // ← add this line immediately after
           body: { 
             resource_type: resType,
             resource_id: resId,
-            admin_id: 'DRV-ADM001', // Sends to the Main Chief Admin
+            admin_id: currentUserId || null, // Sends to the Main Chief Admin
             context_label: title || 'Admin action authorization'
           }
         });
