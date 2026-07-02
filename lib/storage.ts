@@ -2015,7 +2015,7 @@ export const trafficFinesApi = {
     initializeStorage();
     return getLocalStorageItem<TrafficFine[]>(STORAGE_KEYS.FINES, []);
   },
-  saveFine: (fine: TrafficFine): TrafficFine => {
+  saveFine: async (fine: TrafficFine): Promise<TrafficFine> => {
     const list = getLocalStorageItem<TrafficFine[]>(STORAGE_KEYS.FINES, []);
     const idx = list.findIndex(f => f.id === fine.id);
     const now = new Date().toISOString();
@@ -2033,23 +2033,7 @@ export const trafficFinesApi = {
       list.push(prepared);
     }
     setLocalStorageItem(STORAGE_KEYS.FINES, list);
-    pushToSupabase('fines', prepared, 'id', prepared.id);
-
-    // Call Supabase Edge Function to notify drivers of logged fines
-    if (isSupabaseConfigured && supabase && prepared.driver_id) {
-      const drivers = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
-      const driver = drivers.find(d => d.driver_id === prepared.driver_id);
-      if (driver && driver.email) {
-        supabase.functions.invoke('notify-drivers-fine', {
-          body: {
-            fine: prepared,
-            driver_email: driver.email,
-            driver_name: driver.name
-          }
-        }).catch(err => console.error("Error invoking notify-drivers-fine:", err));
-      }
-    }
-
+    await pushToSupabase('fines', prepared, 'id', prepared.id);
     return prepared;
   },
   // Lookup driver active at fine_timestamp with vehicle_reg
