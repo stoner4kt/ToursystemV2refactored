@@ -31,28 +31,28 @@ export default function OTPModal({
 // After:  const [toastMessage, setToastMessage] = useState<string>('');
 // Add:
 const [activeResId, setActiveResId] = useState<string>('');
-  const generateAndSendOTP = async () => {
+    const generateAndSendOTP = async () => {
     setSending(true);
     setError('');
     
-    // Get logged-in user email
+    // Get logged-in user email + ID (UUID)
     let userEmail = 'info@inyathi.com';
+    let currentUserId: string | null = null;
+
     if (typeof window !== 'undefined') {
       const userStr = localStorage.getItem('inyathi_auth_user');
       if (userStr) {
         try {
           const u = JSON.parse(userStr);
           if (u?.email) userEmail = u.email;
+          currentUserId = u?.id || u?.user_id || u?.uid || null;   // ← This is the key
         } catch (_) {}
       }
     }
 
     const resType = resourceType || 'admin_action';
-    
-
-// CHANGE TO:
-const resId = resourceId || activeResId || `act-${Date.now()}`;
-setActiveResId(resId);  // ← add this line immediately after
+    const resId = resourceId || activeResId || `act-${Date.now()}`;
+    setActiveResId(resId);
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -60,7 +60,7 @@ setActiveResId(resId);  // ← add this line immediately after
           body: { 
             resource_type: resType,
             resource_id: resId,
-            admin_id: currentUserId || null, // Sends to the Main Chief Admin
+            admin_id: currentUserId || null,        // ← Now uses real UUID
             context_label: title || 'Admin action authorization'
           }
         });
@@ -72,8 +72,8 @@ setActiveResId(resId);  // ← add this line immediately after
         setToastMessage('A secure OTP has been generated and sent to the Main Admin (alerts@inyathitours.com). Please request the code from them.');
         setSentCodeToast(true);
       } catch (err: any) {
-  console.error('Error invoking send-otp-email:', err);
-  setError('Failed to send OTP. Please check your connection and try again.');
+        console.error('Error invoking send-otp-email:', err);
+        setError('Failed to send OTP. Please check your connection and try again.');
       } finally {
         setSending(false);
       }
@@ -88,7 +88,6 @@ setActiveResId(resId);  // ← add this line immediately after
       }, 800);
     }
   };
-
   useEffect(() => {
     if (isOpen) {
       // Defer state updates to defuse synchronous cascading render warnings
