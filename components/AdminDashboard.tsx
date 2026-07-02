@@ -603,7 +603,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
 
     executeWithOtpGuard(
       'booking_edit',
-      b.id,
+      b.id ?? b.invoice_no,
       editAction,
       'Administrative OTP clearance is required to edit an existing booking.',
       true
