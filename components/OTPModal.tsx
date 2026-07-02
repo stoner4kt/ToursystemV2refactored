@@ -28,7 +28,9 @@ export default function OTPModal({
   const [sending, setSending] = useState<boolean>(false);
   const [sentCodeToast, setSentCodeToast] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string>('');
-
+// After:  const [toastMessage, setToastMessage] = useState<string>('');
+// Add:
+const [activeResId, setActiveResId] = useState<string>('');
   const generateAndSendOTP = async () => {
     setSending(true);
     setError('');
@@ -46,7 +48,11 @@ export default function OTPModal({
     }
 
     const resType = resourceType || 'admin_action';
-    const resId = resourceId || `act-${Math.floor(100000 + Math.random() * 900000)}`;
+    
+
+// CHANGE TO:
+const resId = resourceId || activeResId || `act-${Date.now()}`;
+setActiveResId(resId);  // ← add this line immediately after
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -86,12 +92,17 @@ export default function OTPModal({
   useEffect(() => {
     if (isOpen) {
       // Defer state updates to defuse synchronous cascading render warnings
-      setTimeout(() => {
-        setCode(['', '', '', '', '', '']);
-        setError('');
-        setSentCodeToast(false);
-        generateAndSendOTP();
-      }, 0);
+      
+
+
+// CHANGE TO:
+setTimeout(() => {
+  setCode(['', '', '', '', '', '']);
+  setError('');
+  setSentCodeToast(false);
+  setActiveResId('');   // ← reset so a fresh ID is generated
+  generateAndSendOTP();
+}, 0);
     }
   }, [isOpen]);
 
@@ -139,7 +150,11 @@ export default function OTPModal({
     setError('');
 
     const resType = resourceType || 'admin_action';
-    const resId = resourceId || '';
+    // CURRENT (around line 112):
+
+
+// CHANGE TO:
+const resId = resourceId || activeResId;
 
     if (isSupabaseConfigured && supabase) {
       try {
