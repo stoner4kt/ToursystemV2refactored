@@ -72,15 +72,20 @@ serve(async (req: Request) => {
         description,
         amount,
         notification_email,
-        bookings!traffic_fines_booking_id_fkey(invoice_no, client_name, route),
-        profiles!traffic_fines_driver_id_fkey(name, phone, email)
+        bookings!traffic_fines_booking_id_fkey(invoice_no, client_name, route)
       `)
       .eq('id', traffic_fine_id)
       .single();
 
     if (fineError || !fine) return jsonResponse({ error: 'Traffic fine not found' }, 404);
 
-    const driverEmail = fine.profiles?.email?.trim();
+    const { data: driverProfile } = await supabaseAdmin
+      .from('profiles')
+      .select('name, phone, email')
+      .eq('driver_id', fine.driver_id)
+      .single();
+
+    const driverEmail = driverProfile?.email?.trim();
     const extraEmail = fine.notification_email?.trim();
     const recipients = Array.from(new Set([driverEmail, extraEmail].filter(Boolean)));
 
@@ -100,7 +105,7 @@ serve(async (req: Request) => {
       return jsonResponse({ success: true, warning: 'Email provider is not configured.' });
     }
 
-    const driverName = fine.profiles?.name ?? fine.driver_id;
+    const driverName = driverProfile?.name ?? fine.driver_id;
     const booking = fine.bookings ?? {};
     const subject = `Traffic fine notice — ${fine.vehicle_reg} (${booking.invoice_no ?? fine.booking_id})`;
     const html = `
