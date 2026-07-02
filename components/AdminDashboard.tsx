@@ -9,7 +9,7 @@ import {
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, BookingDeleteRequest,
   VehicleExpense, TrafficFine, IncidentReport, BookingEditLog, VehicleChecklist, VehicleDirectChecklist,
-  bookingsApi, fleetApi, driversApi, inspectionsApi, reconApi, transferReconApi, expensesApi, trafficFinesApi, incidentsApi, checklistsApi, directChecklistsApi, authApi,
+  bookingsApi, fleetApi, driversApi, inspectionsApi, reconApi, transferReconApi, supabase,  expensesApi, trafficFinesApi, incidentsApi, checklistsApi, directChecklistsApi, authApi,
   downloadCSV, uploadToCloudinary, getSignedUrlForView, generateUUID
 } from '@/lib/storage';
 import CalendarGrid from './CalendarGrid';
