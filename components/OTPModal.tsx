@@ -24,7 +24,6 @@ export default function OTPModal({
   resourceId
 }: OTPModalProps) {
   const [code, setCode] = useState<string[]>(['', '', '', '', '', '']);
-  const [generatedCode, setGeneratedCode] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [sending, setSending] = useState<boolean>(false);
   const [sentCodeToast, setSentCodeToast] = useState<boolean>(false);
@@ -35,7 +34,7 @@ export default function OTPModal({
     setError('');
     
     // Get logged-in user email
-    let userEmail = 'info@inyathi.co.za';
+    let userEmail = 'info@inyathi.com';
     if (typeof window !== 'undefined') {
       const userStr = localStorage.getItem('inyathi_auth_user');
       if (userStr) {
@@ -64,15 +63,11 @@ export default function OTPModal({
           throw new Error(fnError.message || 'Function invocation failed');
         }
 
-        setToastMessage('A secure OTP has been generated and sent to the Main Admin (admin@inyathi.co.za). Please request the code from them.');
+        setToastMessage('A secure OTP has been generated and sent to the Main Admin (alerts@inyathitours.com). Please request the code from them.');
         setSentCodeToast(true);
       } catch (err: any) {
-        console.error('Error invoking send-otp-email:', err);
-        // Fallback mock
-        const pin = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedCode(pin);
-        setToastMessage(`An OTP verification code was sent to the Main Admin email inbox. Main Admin shared this code with you: ${pin}`);
-        setSentCodeToast(true);
+  console.error('Error invoking send-otp-email:', err);
+  setError('Failed to send OTP. Please check your connection and try again.');
       } finally {
         setSending(false);
       }
@@ -80,7 +75,7 @@ export default function OTPModal({
       // Simulate sending OTP
       setTimeout(() => {
         const pin = Math.floor(100000 + Math.random() * 900000).toString();
-        setGeneratedCode(pin);
+
         setSending(false);
         setToastMessage(`An OTP verification code was sent to the Main Admin email inbox. Main Admin shared this code with you: ${pin}`);
         setSentCodeToast(true);
@@ -169,23 +164,13 @@ export default function OTPModal({
           setSending(false);
         }
       } catch (err: any) {
-        console.error('Error invoking verify-otp:', err);
-        // Fallback: check if we generated a local code (in case of fallback/offline mock mode)
-        if (generatedCode && typedCode === generatedCode) {
-          setSending(false);
-          onVerifySuccess();
-        } else {
-          setError('OTP Verification failed. Please check the code provided by the Admin.');
-          setSending(false);
-        }
+  console.error('Error invoking verify-otp:', err);
+  setError('Verification failed. Please try again or request a new code.');
+  setSending(false);
       }
     } else {
-      setSending(false);
-      if (typedCode === generatedCode) {
-        onVerifySuccess();
-      } else {
-        setError('Invalid OTP code. Please check and try again.');
-      }
+  setSending(false);
+  setError('Supabase is not configured. OTP verification is unavailable.');
     }
   };
 
@@ -203,11 +188,7 @@ export default function OTPModal({
           <p className="text-xs text-slate-300">
             {toastMessage}
           </p>
-          {generatedCode && (
-            <p className="text-lg font-mono font-black text-center text-amber-300 tracking-widest mt-1 bg-slate-800 py-1.5 rounded border border-slate-700">
-              {generatedCode}
-            </p>
-          )}
+          
           <span className="text-[10px] text-slate-400 text-right mt-0.5 italic">
             Enter the 6-digit code below to proceed.
           </span>
