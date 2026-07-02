@@ -601,14 +601,14 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       setShowBookingModal(true);
     };
 
-    // CHANGE TO:
-executeWithOtpGuard(
-  'booking_edit',
-  b.id,              // ← the booking's actual UUID from bookings.id
-  editAction,
-  'Administrative OTP clearance is required to edit an existing booking.',
-  true
-);;
+    executeWithOtpGuard(
+      'booking_edit',
+      b.id,
+      editAction,
+      'Administrative OTP clearance is required to edit an existing booking.',
+      true
+    );
+};   // <-- this closing brace was missing
 
   const handleBookingDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
