@@ -2034,18 +2034,6 @@ export const trafficFinesApi = {
     }
     setLocalStorageItem(STORAGE_KEYS.FINES, list);
     await pushToSupabase('fines', prepared, 'id', prepared.id);
-
-    // Call Supabase Edge Function to notify drivers of logged fines
-if (isSupabaseConfigured && supabase && prepared.id) {
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    supabase!.functions.invoke('notify-driver-fine', {
-      body: { traffic_fine_id: prepared.id },
-      headers: {
-        Authorization: `Bearer ${session?.access_token ?? ''}`,
-      },
-    }).catch(err => console.error('Error invoking notify-driver-fine:', err));
-  });
-}
     return prepared;
   },
   // Lookup driver active at fine_timestamp with vehicle_reg
