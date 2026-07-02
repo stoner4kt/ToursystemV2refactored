@@ -922,6 +922,19 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     }
   };
 
+      const { error } = await supabase.functions.invoke('notify-driver-fine', {
+        body: { traffic_fine_id: fine.id },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) throw new Error(error.message);
+
+      refreshData();
+      alert(`✅ Notification resent for fine ${fine.fine_reference}.`);
+    } catch (err: any) {
+      alert(`❌ Failed to resend notification: ${err.message}`);
+    }
+  };
   // COMPILING WAGES DATA
   const getCompiledWages = () => {
     const wageDetails: Record<string, { driverName: string; tripReconsAmount: number; transfersAmount: number; total: number; sheetsCount: number }> = {};
