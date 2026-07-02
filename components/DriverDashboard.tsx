@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, VehicleChecklist, TrafficFine,
-  bookingsApi, fleetApi, inspectionsApi, reconApi, transferReconApi, expensesApi, incidentsApi, checklistsApi, trafficFinesApi, getDocumentUrl,
+  bookingsApi, fleetApi, inspectionsApi, reconApi, transferReconApi, expensesApi, incidentsApi, checklistsApi, supabase, trafficFinesApi, getDocumentUrl,
   uploadToCloudinary, getSignedUrlForView, downloadCSV
 } from '@/lib/storage';
 import SignaturePad from './SignaturePad';
@@ -489,16 +489,36 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     alert(isSubmit ? '🚀 Trip Recon Sheet submitted to Directors!' : '💾 Draft saved locally.');
   };
 
-  const handleRequestEdit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeReconForEditRequest || !editRequestReason) return;
+  const handleRequestEdit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (!activeReconForEditRequest || !editRequestReason) return;
 
+  try {
+    // 1. Mark the recon sheet as pending edit
     reconApi.requestEdit(activeReconForEditRequest, editRequestReason);
     setActiveReconForEditRequest(null);
     setEditRequestReason('');
     refreshData();
-    alert('📩 Edit request submitted to Administrator.');
-  };
+
+    // 2. Send OTP email to admin
+    const { data: { session } } = await supabase!.auth.getSession();
+    if (!session?.access_token) throw new Error('No active session');
+
+    const { error } = await supabase!.functions.invoke('send-otp-email', {
+      body: {
+        resource_type: 'recon_edit',
+        resource_id: activeReconForEditRequest,
+        context_label: `Weekly Recon Edit Request — ${editRequestReason}`,
+      },
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+
+    if (error) throw new Error(error.message);
+    alert('📩 Edit request submitted. The Administrator has been notified via OTP email.');
+  } catch (err: any) {
+    alert(`⚠️ Edit request saved, but admin notification failed: ${err.message}`);
+  }
+};
 
   // Helper to get rate amount based on TLA Type
   const getAmountForTlaType = (typeStr: string) => {
@@ -578,11 +598,31 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     alert(isSubmit ? '🚀 Transfer sheet submitted to Directors!' : '💾 Draft saved locally.');
   };
 
-  const handleTransferEditRequest = (id: string, reason: string) => {
+  const handleTransferEditRequest = async (id: string, reason: string) => {
+  try {
+    // 1. Mark the sheet as pending edit in local/Supabase storage
     transferReconApi.requestEdit(id, reason);
     refreshData();
-    alert('📩 Edit request submitted to Administrator.');
-  };
+
+    // 2. Trigger OTP email to admin
+    const { data: { session } } = await supabase!.auth.getSession();
+    if (!session?.access_token) throw new Error('No active session');
+
+    const { error } = await supabase!.functions.invoke('send-otp-email', {
+      body: {
+        resource_type: 'transfer_recon_edit',
+        resource_id: id,
+        context_label: `Transfer Recon Edit Request — ${reason}`,
+      },
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+
+    if (error) throw new Error(error.message);
+    alert('📩 Edit request submitted. The Administrator has been notified via OTP email.');
+  } catch (err: any) {
+    alert(`⚠️ Edit request saved locally, but admin notification failed: ${err.message}`);
+  }
+};
 
   // Log expense, incident and periodic checklists
   const handleLogExpense = (e: React.FormEvent) => {
