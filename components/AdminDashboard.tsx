@@ -839,8 +839,10 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     e.preventDefault();
     if (!fineForm.vehicle_reg || !fineForm.fine_reference) return;
 
+    const fineId = generateUUID();
+
     await trafficFinesApi.saveFine({
-      id: generateUUID(),  // proper UUID so Supabase keeps the same ID we pass to the Edge Function
+      id: fineId,
       booking_id: fineAutofilledDriver?.bookingId || '',
       vehicle_reg: fineForm.vehicle_reg,
       driver_id: fineAutofilledDriver?.driverId || drivers[0]?.driver_id || 'UNKNOWN',
@@ -850,13 +852,29 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       description: fineForm.description,
       amount: Number(fineForm.amount) || 0,
       notification_email: fineForm.notification_email,
-      email_sent: false,       // Edge Function will set this to true on success
+      email_sent: false,
       email_sent_at: undefined,
       status: fineForm.status || 'pending',
       logged_by_admin_id: admin.driver_id,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     });
+
+    // Fine is confirmed saved — now invoke the Edge Function
+    try {
+      const { data: { session } } = await supabase!.auth.getSession();
+      if (!session?.access_token) throw new Error('No active session');
+
+      const { error } = await supabase!.functions.invoke('notify-driver-fine', {
+        body: { traffic_fine_id: fineId },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) throw new Error(error.message);
+      alert('✅ Traffic fine logged and driver notified successfully.');
+    } catch (err: any) {
+      alert(`✅ Fine logged, but notification failed: ${err.message}`);
+    }
 
     setFineForm({
       vehicle_reg: '', fine_timestamp: new Date().toISOString().substring(0, 16),
@@ -865,7 +883,6 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     });
     setFineAutofilledDriver(null);
     refreshData();
-    alert('✅ Traffic fine logged. Driver notification dispatched.');
   };
 
   const handleToggleFineStatus = (fineId: string, currentStatus: 'paid' | 'pending') => {
