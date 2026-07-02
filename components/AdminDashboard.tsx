@@ -524,17 +524,42 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   };
 
   // Perform action with OTP Guard if enabled
-  const executeWithOtpGuard = (actionType: string, id: string, onAuthorized: () => void, description?: string, forceOtp?: boolean) => {
-    if (otpEnabled || forceOtp) {
+  const executeWithOtpGuard = async (
+  actionType: string,
+  id: string,
+  onAuthorized: () => void,
+  description?: string,
+  forceOtp?: boolean
+) => {
+  if (otpEnabled || forceOtp) {
+    try {
+      const { data: { session } } = await supabase!.auth.getSession();
+      if (!session?.access_token) throw new Error('No active session');
+
+      const { error } = await supabase!.functions.invoke('send-otp-email', {
+        body: {
+          resource_type: actionType,
+          resource_id: id,
+          admin_id: admin.id || admin.driver_id,
+          context_label: description ?? actionType.replace(/_/g, ' '),
+        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+
+      if (error) throw new Error(error.message);
+
       setOtpActionType(actionType);
       setOtpTargetId(id);
       setOtpCallback(() => onAuthorized);
       setShowOtpModal(true);
-    } else {
-      const confirmAction = window.confirm(`Authorize action: ${actionType}?`);
-      if (confirmAction) onAuthorized();
+    } catch (err: any) {
+      alert(`❌ Failed to send OTP: ${err.message}`);
     }
-  };
+  } else {
+    const confirmAction = window.confirm(`Authorize action: ${actionType}?`);
+    if (confirmAction) onAuthorized();
+  }
+};
 
   const handleOtpSuccess = () => {
     setShowOtpModal(false);
