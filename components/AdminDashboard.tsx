@@ -1242,7 +1242,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                                   </button>
                                 )}
                               </div>
-                              </div>
+                              
                             </td>
                           <td className="p-3">
                             <span className="font-semibold block">{new Date(b.start_date).toLocaleDateString()}</span>
@@ -1282,7 +1282,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                   </tbody>
                 </table>
               </div>
-
+</div>
               {/* Pending deletions section */}
               {deleteRequests.filter(r => r.status === 'pending').length > 0 && (
                 <div className="mt-8 bg-rose-50/80 border border-rose-150 p-4 rounded-xl space-y-3">
