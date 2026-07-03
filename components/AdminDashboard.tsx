@@ -1158,10 +1158,11 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
               </div>
 
               <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-extrabold text-[10px] uppercase">
-                    <tr>
-                      <th className="p-3">Invoice / Ref</th>
+  <div className="overflow-x-auto">
+  <table className="w-full text-left text-xs border-collapse min-w-[900px]">
+    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-extrabold text-[10px] uppercase">
+      <tr>
+        <th className="p-3">Invoice / Ref</th>
                       <th className="p-3">Client</th>
                       <th className="p-3">Route Details</th>
                       <th className="p-3">Schedule</th>
@@ -1241,6 +1242,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                                   </button>
                                 )}
                               </div>
+                              
                             </td>
                           <td className="p-3">
                             <span className="font-semibold block">{new Date(b.start_date).toLocaleDateString()}</span>
@@ -1280,7 +1282,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                   </tbody>
                 </table>
               </div>
-
+</div>
               {/* Pending deletions section */}
               {deleteRequests.filter(r => r.status === 'pending').length > 0 && (
                 <div className="mt-8 bg-rose-50/80 border border-rose-150 p-4 rounded-xl space-y-3">
