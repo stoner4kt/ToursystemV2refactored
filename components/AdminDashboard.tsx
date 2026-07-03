@@ -5107,7 +5107,145 @@ const [selectedExpenseForModal, setSelectedExpenseForModal] = useState<VehicleEx
           </div>
         </div>
       )}
+{/* ==================== EXPENSE VIEW MODAL ==================== */}
+{selectedExpenseForModal && (() => {
+  const exp = selectedExpenseForModal;
+  const driverName = (exp.driver_id && drivers.find(d => d.driver_id === exp.driver_id)?.name) || exp.driver_id || 'Admin';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white border border-slate-200 w-full max-w-lg rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Expense Review</h3>
+            <p className="text-[10px] text-slate-400 font-medium">Submitted {exp.submitted_at ? new Date(exp.submitted_at).toLocaleString() : 'N/A'}</p>
+          </div>
+          <button
+            onClick={() => setSelectedExpenseForModal(null)}
+            className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+          >
+            ✕
+          </button>
+        </div>
 
+        {/* Details grid */}
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Driver</span>
+            <span className="font-bold text-slate-900">{driverName}</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Vehicle</span>
+            <span className="font-bold text-slate-900">{exp.vehicle_reg}</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Type</span>
+            <span className="font-bold text-slate-900">{exp.expense_type}</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Date</span>
+            <span className="font-bold text-slate-900">{exp.expense_date}</span>
+          </div>
+          <div className="col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Description</span>
+            <span className="font-medium text-slate-800">{exp.description}</span>
+          </div>
+          <div className="col-span-2 bg-teal-50 p-3 rounded-lg border border-teal-100 flex justify-between items-center">
+            <span className="text-teal-600 font-bold text-[10px] uppercase">Amount</span>
+            <span className="font-black text-teal-700 text-base">R {exp.amount}</span>
+          </div>
+        </div>
+
+        {/* Status badge */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Current Status:</span>
+          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+            exp.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            : exp.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200'
+            : 'bg-amber-50 text-amber-700 border-amber-200'
+          }`}>
+            {exp.status}
+          </span>
+          {exp.rejection_reason && (
+            <span className="text-[10px] text-rose-500 italic">Reason: {exp.rejection_reason}</span>
+          )}
+        </div>
+
+        {/* Attachments */}
+        {((exp.document_urls && exp.document_urls.length > 0) || (exp.photo_urls && exp.photo_urls.length > 0)) && (
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase block">Attachments</span>
+            <div className="flex flex-wrap gap-2">
+              {[...(exp.document_urls || []), ...(exp.photo_urls || [])].map((url, idx) => (
+                <button
+                  key={idx}
+                  onClick={async () => {
+                    const signed = await getSignedUrlForView(url);
+                    window.open(signed, '_blank');
+                  }}
+                  className="inline-flex items-center gap-1 text-[10px] bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 px-2 py-1 rounded font-bold"
+                >
+                  <Eye className="w-3 h-3" /> Receipt {idx + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex justify-between items-center pt-3 border-t border-slate-100 gap-2">
+          <button
+            onClick={() => {
+              downloadExpensePDF(exp, driverName);
+            }}
+            className="px-3 py-1.5 border border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 transition-colors"
+          >
+            Download PDF
+          </button>
+
+          {exp.status === 'pending' && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const reason = prompt('Enter rejection reason:');
+                  if (reason) {
+                    expensesApi.saveExpense({ ...exp, status: 'rejected', rejection_reason: reason });
+                    setSelectedExpenseForModal(null);
+                    refreshData();
+                  }
+                }}
+                className="px-4 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-lg hover:bg-rose-100 transition-colors"
+              >
+                ✗ Reject
+              </button>
+              <button
+                onClick={() => {
+                  expensesApi.saveExpense({ ...exp, status: 'approved' });
+                  setSelectedExpenseForModal(null);
+                  refreshData();
+                }}
+                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors shadow-xs"
+              >
+                ✓ Approve
+              </button>
+            </div>
+          )}
+
+          {exp.status !== 'pending' && (
+            <button
+              onClick={() => setSelectedExpenseForModal(null)}
+              className="px-4 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-200 transition-colors"
+            >
+              Close
+            </button>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+})()}
       {/* ==================== DIRECT VEHICLE CHECKLIST CREATION MODAL ==================== */}
       {showLogDirectChecklistModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
