@@ -1525,13 +1525,17 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                   <div className="pt-2 border-t border-slate-100">
                     <span className="text-[10px] font-bold text-slate-400 block mb-1">Active Invite list</span>
                     <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                      {driverInvites.map(i => (
-                        <div key={i.email} className="bg-slate-50 p-2 rounded border border-slate-150 text-[10px]">
-                          <p className="font-bold text-slate-700">{i.full_name}</p>
-                          <p className="text-slate-400">{i.email}</p>
-                          <p className="text-[9px] text-teal-600 mt-0.5">Status: {i.used_at ? 'REGISTERED' : 'PENDING'}</p>
-                        </div>
-                      ))}
+                      {driverInvites.filter(i => !i.used_at).length === 0 ? (
+  <p className="text-[10px] text-slate-400 italic">No pending invites.</p>
+) : (
+  driverInvites.filter(i => !i.used_at).map(i => (
+    <div key={i.email} className="bg-slate-50 p-2 rounded border border-slate-150 text-[10px]">
+      <p className="font-bold text-slate-700">{i.full_name}</p>
+      <p className="text-slate-400">{i.email}</p>
+      <p className="text-[9px] text-amber-500 mt-0.5">⏳ Awaiting signup</p>
+    </div>
+  ))
+)}
                     </div>
                   </div>
                 </div>
