@@ -52,7 +52,7 @@ interface DriverDashboardProps {
 
 export default function DriverDashboard({ driver, onLogout }: DriverDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    'tasks' | 'inspections' | 'recon' | 'checklists' | 'incidents' | 'logging' | 'transfer' | 'documents' | 'fines'
+    'tasks' | 'inspections' | 'recon' | 'checklists' | 'incidents' | 'logging' | 'transfer' | 'documents'
   >('tasks');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [assignedBookings, setAssignedBookings] = useState<Booking[]>([]);
@@ -799,7 +799,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
               { id: 'logging', label: 'Log Expense / Damage', icon: PlusCircle },
               { id: 'transfer', label: 'Transfer Recon', icon: FileText },
               { id: 'documents', label: 'My Documents', icon: Briefcase },
-              { id: 'fines', label: 'My Fines', icon: AlertTriangle },
+              
             ].map(item => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -861,7 +861,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-5xl w-full mx-auto">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-5xl w-full mx-auto pb-24 md:pb-8">
         
         {/* ==================== TASKS TAB ==================== */}
         {activeTab === 'tasks' && (
@@ -1716,7 +1716,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
 
                   {/* TRANSFER ENTRIES TABLE */}
                   <div className="border border-slate-800 rounded-xl overflow-hidden shadow-xs">
-                    <table className="w-full text-left text-xs border-collapse">
+  <div className="overflow-x-auto">
+  <table className="w-full min-w-[680px] text-left text-xs border-collapse">
                       <thead className="bg-slate-900 text-slate-200 text-[10px] uppercase tracking-wider font-extrabold border-b border-slate-800">
                         <tr>
                           <th className="p-3 w-[15%]">Vehicle Reg</th>
@@ -1905,7 +1906,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                       </tbody>
                     </table>
                   </div>
-
+</div>
                   {/* Summary of entries and action buttons */}
                   <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 border border-slate-800 p-4 rounded-xl gap-3">
                     <div className="text-xs text-slate-400">
