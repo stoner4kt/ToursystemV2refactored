@@ -861,7 +861,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-5xl w-full mx-auto">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-5xl w-full mx-auto pb-24 md:pb-8">
         
         {/* ==================== TASKS TAB ==================== */}
         {activeTab === 'tasks' && (
