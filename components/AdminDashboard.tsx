@@ -150,6 +150,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   });
 
   const [showLogExpenseModal, setShowLogExpenseModal] = useState(false);
+
+const [selectedExpenseForModal, setSelectedExpenseForModal] = useState<VehicleExpense | null>(null);
   const [newExpenseForm, setNewExpenseForm] = useState({
     vehicle_reg: '',
     driver_id: '',
@@ -2194,42 +2196,24 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                             </span>
                           </td>
                           <td className="p-3 text-right flex gap-1.5 justify-end items-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const driverName = (exp.driver_id && drivers.find(d => d.driver_id === exp.driver_id)?.name) || exp.driver_id || 'Admin';
-                                downloadExpensePDF(exp, driverName);
-                              }}
-                              className="px-2 py-0.5 border border-slate-200 bg-slate-50 text-slate-700 text-[10px] font-bold rounded hover:bg-slate-100 transition-colors cursor-pointer"
-                            >
-                              Download PDF
-                            </button>
-                            {exp.status === 'pending' && (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    const reason = prompt('Enter rejection reason:');
-                                    if (reason) {
-                                      expensesApi.saveExpense({ ...exp, status: 'rejected', rejection_reason: reason });
-                                      refreshData();
-                                    }
-                                  }}
-                                  className="text-rose-600 font-bold hover:underline text-[11px] cursor-pointer"
-                                >
-                                  Reject
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    expensesApi.saveExpense({ ...exp, status: 'approved' });
-                                    refreshData();
-                                  }}
-                                  className="text-emerald-600 font-bold hover:underline text-[11px] cursor-pointer"
-                                >
-                                  Approve
-                                </button>
-                              </>
-                            )}
-                          </td>
+  <button
+    type="button"
+    onClick={() => setSelectedExpenseForModal(exp)}
+    className="inline-flex items-center gap-1 px-2 py-0.5 border border-teal-200 bg-teal-50 text-teal-700 text-[10px] font-bold rounded hover:bg-teal-100 transition-colors cursor-pointer"
+  >
+    <Eye className="w-3 h-3" /> View
+  </button>
+  <button
+    type="button"
+    onClick={() => {
+      const driverName = (exp.driver_id && drivers.find(d => d.driver_id === exp.driver_id)?.name) || exp.driver_id || 'Admin';
+      downloadExpensePDF(exp, driverName);
+    }}
+    className="px-2 py-0.5 border border-slate-200 bg-slate-50 text-slate-700 text-[10px] font-bold rounded hover:bg-slate-100 transition-colors cursor-pointer"
+  >
+    PDF
+  </button>
+</td>
                         </tr>
                       ))
                     )}
