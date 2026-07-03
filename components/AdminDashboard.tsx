@@ -152,6 +152,8 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   const [showLogExpenseModal, setShowLogExpenseModal] = useState(false);
 
 const [selectedExpenseForModal, setSelectedExpenseForModal] = useState<VehicleExpense | null>(null);
+  // Add after the selectedExpenseForModal line:
+const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useState<TransferReconSheet | null>(null);
   const [newExpenseForm, setNewExpenseForm] = useState({
     vehicle_reg: '',
     driver_id: '',
