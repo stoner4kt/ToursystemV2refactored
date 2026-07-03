@@ -1371,6 +1371,23 @@ export const authApi = {
       window.localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
     }
   },
+  // After the logout method, around line ~1373
+resetPassword: async (email: string): Promise<void> => {
+  if (isSupabaseConfigured && supabase) {
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      email.toLowerCase(),
+      {
+        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/`,
+      }
+    );
+    if (error) {
+      throw new Error(error.message || 'Failed to send password reset email.');
+    }
+  } else {
+    // Offline/demo mode — simulate success
+    await new Promise(res => setTimeout(res, 800));
+  }
+},
   signUpWithInvite: async (email: string, name: string, phone: string, password?: string): Promise<Profile> => {
     initializeStorage();
     if (isSupabaseConfigured && supabase) {
