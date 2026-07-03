@@ -1538,10 +1538,11 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
 
                 {/* Drivers table list */}
                 <div className="col-span-2 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
-                      <tr>
-                        <th className="p-3">Driver ID</th>
+  <div className="overflow-x-auto">
+  <table className="w-full text-left text-xs min-w-[600px]">
+    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
+      <tr>
+        <th className="p-3">Driver ID</th>
                         <th className="p-3">Name Details</th>
                         <th className="p-3">Mobile Contact</th>
                         <th className="p-3">Location</th>
@@ -1579,7 +1580,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                     </tbody>
                   </table>
                 </div>
-
+</div>
               </div>
             </div>
           )}
