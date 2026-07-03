@@ -5246,6 +5246,126 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     </div>
   );
 })()}
+      {/* ==================== TRANSFER RECON SIGN-OFF MODAL ==================== */}
+{selectedTransferReconForModal && (() => {
+  const rec = selectedTransferReconForModal;
+  const drv = drivers.find(d => d.driver_id === rec.driver_id);
+  const driverName = drv ? drv.name : rec.driver_id;
+  const totalWage = rec.transfers.reduce((sum, curr) => sum + curr.amount, 0);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white border border-slate-200 w-full max-w-3xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Transfer Recon Sign-Off Review</h3>
+            <p className="text-[10px] text-slate-400 font-medium">{driverName} • {rec.week_start} to {rec.week_end}</p>
+          </div>
+          <button
+            onClick={() => setSelectedTransferReconForModal(null)}
+            className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Summary bar */}
+        <div className="grid grid-cols-3 gap-3 text-xs">
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Driver</span>
+            <span className="font-bold text-slate-900">{driverName}</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Records</span>
+            <span className="font-bold text-slate-900">{rec.transfers.length} transfers</span>
+          </div>
+          <div className="bg-teal-50 p-3 rounded-lg border border-teal-100">
+            <span className="text-teal-600 text-[10px] font-bold uppercase block mb-0.5">Total Payout</span>
+            <span className="font-black text-teal-700 text-base">R {Number(totalWage || 0).toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Transfer rows table */}
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto max-h-72 overflow-y-auto">
+            <table className="w-full text-left text-[11px] min-w-[700px]">
+              <thead className="bg-slate-100 text-[9px] uppercase font-bold text-slate-500 border-b border-slate-200 sticky top-0">
+                <tr>
+                  <th className="p-2">Reg</th>
+                  <th className="p-2">Vehicle</th>
+                  <th className="p-2">Date</th>
+                  <th className="p-2">Ref Nr</th>
+                  <th className="p-2">T/L/A</th>
+                  <th className="p-2">Description / Route</th>
+                  <th className="p-2">Notes</th>
+                  <th className="p-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {rec.transfers.map((t, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="p-2 font-bold text-slate-800">{t.vehicle_reg || 'N/A'}</td>
+                    <td className="p-2 text-slate-600">{t.vehicle_name || 'N/A'}</td>
+                    <td className="p-2 text-slate-600 font-mono">{t.date}</td>
+                    <td className="p-2 text-slate-600 font-mono">{t.invoice_or_tour_ref}</td>
+                    <td className="p-2 font-semibold text-slate-700">{t.tla_type || 'N/A'}</td>
+                    <td className="p-2 text-slate-600">{t.description || (t.passenger_name && t.passenger_name !== 'N/A' ? t.passenger_name : `${t.pickup_location} → ${t.dropoff_location}`)}</td>
+                    <td className="p-2 text-slate-400 italic">{t.notes || '—'}</td>
+                    <td className="p-2 text-right font-bold text-teal-600">R {t.amount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Status:</span>
+          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+            rec.status === 'reviewed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+          }`}>
+            {rec.status}
+          </span>
+        </div>
+
+        {/* Action footer */}
+        <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+          <button
+            onClick={() => {
+              downloadTransferReconPDF(rec, driverName);
+            }}
+            className="text-xs font-bold text-teal-600 hover:underline flex items-center gap-1"
+          >
+            <Download className="w-4 h-4" /> PDF Report
+          </button>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSelectedTransferReconForModal(null)}
+              className="px-4 py-1.5 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            {rec.status === 'submitted' && (
+              <button
+                onClick={() => {
+                  handleApproveTransfer(rec.id);
+                  setSelectedTransferReconForModal(null);
+                }}
+                className="px-5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors shadow-xs"
+              >
+                ✓ Director Sign-Off
+              </button>
+            )}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+})()}
       {/* ==================== DIRECT VEHICLE CHECKLIST CREATION MODAL ==================== */}
       {showLogDirectChecklistModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
