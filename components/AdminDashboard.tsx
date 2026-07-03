@@ -1810,14 +1810,12 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
                             PDF Report
                           </button>
 
-                          {rec.status === 'submitted' && (
-                            <button
-                              onClick={() => handleApproveTransfer(rec.id)}
-                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 px-4 rounded-xl text-xs transition-colors shadow-xs"
-                            >
-                              Director Sign-Off Approval
-                            </button>
-                          )}
+                          <button
+  onClick={() => setSelectedTransferReconForModal(rec)}
+  className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-teal-700 border border-slate-200 bg-slate-50 hover:bg-teal-50 hover:border-teal-200 py-1.5 px-3 rounded-xl transition-colors"
+>
+  <Eye className="w-3.5 h-3.5" /> Review & Sign Off
+</button>
                         </div>
 
                       </div>
