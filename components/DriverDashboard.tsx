@@ -1716,7 +1716,8 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
 
                   {/* TRANSFER ENTRIES TABLE */}
                   <div className="border border-slate-800 rounded-xl overflow-hidden shadow-xs">
-                    <table className="w-full text-left text-xs border-collapse">
+  <div className="overflow-x-auto">
+  <table className="w-full min-w-[680px] text-left text-xs border-collapse">
                       <thead className="bg-slate-900 text-slate-200 text-[10px] uppercase tracking-wider font-extrabold border-b border-slate-800">
                         <tr>
                           <th className="p-3 w-[15%]">Vehicle Reg</th>
@@ -1905,7 +1906,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                       </tbody>
                     </table>
                   </div>
-
+</div>
                   {/* Summary of entries and action buttons */}
                   <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-900 border border-slate-800 p-4 rounded-xl gap-3">
                     <div className="text-xs text-slate-400">
