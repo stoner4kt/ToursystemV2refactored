@@ -2108,7 +2108,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                     </tbody>
                   </table>
                 </div>
-
+</div>
               </div>
             </div>
           )}
