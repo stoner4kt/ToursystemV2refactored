@@ -3642,8 +3642,17 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       {showVehicleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white border border-slate-200 w-full max-w-md rounded-xl p-5 shadow-2xl space-y-4">
-            <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2">Record Vehicle details</h3>
-            <form onSubmit={saveVehicle} className="space-y-3.5 text-xs">
+  <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+    <h3 className="text-sm font-extrabold text-slate-900">Record Vehicle details</h3>
+    <button
+      type="button"
+      onClick={() => setShowVehicleModal(false)}
+      className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+    >
+      ✕
+    </button>
+  </div>
+  <form onSubmit={saveVehicle} className="space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <span className="text-slate-400 block mb-1">Registration No</span>
