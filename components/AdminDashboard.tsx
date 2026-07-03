@@ -150,6 +150,10 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   });
 
   const [showLogExpenseModal, setShowLogExpenseModal] = useState(false);
+
+const [selectedExpenseForModal, setSelectedExpenseForModal] = useState<VehicleExpense | null>(null);
+  // Add after the selectedExpenseForModal line:
+const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useState<TransferReconSheet | null>(null);
   const [newExpenseForm, setNewExpenseForm] = useState({
     vehicle_reg: '',
     driver_id: '',
@@ -1525,23 +1529,28 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                   <div className="pt-2 border-t border-slate-100">
                     <span className="text-[10px] font-bold text-slate-400 block mb-1">Active Invite list</span>
                     <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                      {driverInvites.map(i => (
-                        <div key={i.email} className="bg-slate-50 p-2 rounded border border-slate-150 text-[10px]">
-                          <p className="font-bold text-slate-700">{i.full_name}</p>
-                          <p className="text-slate-400">{i.email}</p>
-                          <p className="text-[9px] text-teal-600 mt-0.5">Status: {i.used_at ? 'REGISTERED' : 'PENDING'}</p>
-                        </div>
-                      ))}
+                      {driverInvites.filter(i => !i.used_at).length === 0 ? (
+  <p className="text-[10px] text-slate-400 italic">No pending invites.</p>
+) : (
+  driverInvites.filter(i => !i.used_at).map(i => (
+    <div key={i.email} className="bg-slate-50 p-2 rounded border border-slate-150 text-[10px]">
+      <p className="font-bold text-slate-700">{i.full_name}</p>
+      <p className="text-slate-400">{i.email}</p>
+      <p className="text-[9px] text-amber-500 mt-0.5">⏳ Awaiting signup</p>
+    </div>
+  ))
+)}
                     </div>
                   </div>
                 </div>
 
                 {/* Drivers table list */}
                 <div className="col-span-2 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
-                      <tr>
-                        <th className="p-3">Driver ID</th>
+  <div className="overflow-x-auto">
+  <table className="w-full text-left text-xs min-w-[600px]">
+    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
+      <tr>
+        <th className="p-3">Driver ID</th>
                         <th className="p-3">Name Details</th>
                         <th className="p-3">Mobile Contact</th>
                         <th className="p-3">Location</th>
@@ -1579,7 +1588,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                     </tbody>
                   </table>
                 </div>
-
+</div>
               </div>
             </div>
           )}
@@ -1801,14 +1810,12 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                             PDF Report
                           </button>
 
-                          {rec.status === 'submitted' && (
-                            <button
-                              onClick={() => handleApproveTransfer(rec.id)}
-                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-1.5 px-4 rounded-xl text-xs transition-colors shadow-xs"
-                            >
-                              Director Sign-Off Approval
-                            </button>
-                          )}
+                          <button
+  onClick={() => setSelectedTransferReconForModal(rec)}
+  className="inline-flex items-center gap-1 text-xs font-bold text-slate-600 hover:text-teal-700 border border-slate-200 bg-slate-50 hover:bg-teal-50 hover:border-teal-200 py-1.5 px-3 rounded-xl transition-colors"
+>
+  <Eye className="w-3.5 h-3.5" /> Review & Sign Off
+</button>
                         </div>
 
                       </div>
@@ -2024,10 +2031,11 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
 
                 {/* Fines table log */}
                 <div className="col-span-2 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
-                      <tr>
-                        <th className="p-3">Reference / Code</th>
+  <div className="overflow-x-auto">
+  <table className="w-full text-left text-xs min-w-[860px]">
+    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
+      <tr>
+        <th className="p-3">Reference / Code</th>
                         <th className="p-3">Vehicle / Driver</th>
                         <th className="p-3">Violation Time</th>
                         <th className="p-3">Location Details</th>
@@ -2106,7 +2114,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                     </tbody>
                   </table>
                 </div>
-
+</div>
               </div>
             </div>
           )}
@@ -2188,42 +2196,24 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
                             </span>
                           </td>
                           <td className="p-3 text-right flex gap-1.5 justify-end items-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const driverName = (exp.driver_id && drivers.find(d => d.driver_id === exp.driver_id)?.name) || exp.driver_id || 'Admin';
-                                downloadExpensePDF(exp, driverName);
-                              }}
-                              className="px-2 py-0.5 border border-slate-200 bg-slate-50 text-slate-700 text-[10px] font-bold rounded hover:bg-slate-100 transition-colors cursor-pointer"
-                            >
-                              Download PDF
-                            </button>
-                            {exp.status === 'pending' && (
-                              <>
-                                <button
-                                  onClick={() => {
-                                    const reason = prompt('Enter rejection reason:');
-                                    if (reason) {
-                                      expensesApi.saveExpense({ ...exp, status: 'rejected', rejection_reason: reason });
-                                      refreshData();
-                                    }
-                                  }}
-                                  className="text-rose-600 font-bold hover:underline text-[11px] cursor-pointer"
-                                >
-                                  Reject
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    expensesApi.saveExpense({ ...exp, status: 'approved' });
-                                    refreshData();
-                                  }}
-                                  className="text-emerald-600 font-bold hover:underline text-[11px] cursor-pointer"
-                                >
-                                  Approve
-                                </button>
-                              </>
-                            )}
-                          </td>
+  <button
+    type="button"
+    onClick={() => setSelectedExpenseForModal(exp)}
+    className="inline-flex items-center gap-1 px-2 py-0.5 border border-teal-200 bg-teal-50 text-teal-700 text-[10px] font-bold rounded hover:bg-teal-100 transition-colors cursor-pointer"
+  >
+    <Eye className="w-3 h-3" /> View
+  </button>
+  <button
+    type="button"
+    onClick={() => {
+      const driverName = (exp.driver_id && drivers.find(d => d.driver_id === exp.driver_id)?.name) || exp.driver_id || 'Admin';
+      downloadExpensePDF(exp, driverName);
+    }}
+    className="px-2 py-0.5 border border-slate-200 bg-slate-50 text-slate-700 text-[10px] font-bold rounded hover:bg-slate-100 transition-colors cursor-pointer"
+  >
+    PDF
+  </button>
+</td>
                         </tr>
                       ))
                     )}
@@ -3640,8 +3630,17 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       {showVehicleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white border border-slate-200 w-full max-w-md rounded-xl p-5 shadow-2xl space-y-4">
-            <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2">Record Vehicle details</h3>
-            <form onSubmit={saveVehicle} className="space-y-3.5 text-xs">
+  <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+    <h3 className="text-sm font-extrabold text-slate-900">Record Vehicle details</h3>
+    <button
+      type="button"
+      onClick={() => setShowVehicleModal(false)}
+      className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+    >
+      ✕
+    </button>
+  </div>
+  <form onSubmit={saveVehicle} className="space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <span className="text-slate-400 block mb-1">Registration No</span>
@@ -3738,8 +3737,17 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
       {showRentedModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white border border-slate-200 w-full max-w-md rounded-xl p-5 shadow-2xl space-y-4">
-            <h3 className="text-sm font-extrabold text-slate-900 border-b border-slate-100 pb-2">Record Rental-In Vehicle</h3>
-            <form onSubmit={saveRented} className="space-y-3.5 text-xs">
+  <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+    <h3 className="text-sm font-extrabold text-slate-900">Record Rental-In Vehicle</h3>
+    <button
+      type="button"
+      onClick={() => setShowRentedModal(false)}
+      className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+    >
+      ✕
+    </button>
+  </div>
+  <form onSubmit={saveRented} className="space-y-3.5 text-xs">
               <div className="grid grid-cols-2 gap-2">
                 <input
                   type="text" required placeholder="Supplier Name"
@@ -5099,7 +5107,265 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
           </div>
         </div>
       )}
+{/* ==================== EXPENSE VIEW MODAL ==================== */}
+{selectedExpenseForModal && (() => {
+  const exp = selectedExpenseForModal;
+  const driverName = (exp.driver_id && drivers.find(d => d.driver_id === exp.driver_id)?.name) || exp.driver_id || 'Admin';
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white border border-slate-200 w-full max-w-lg rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Expense Review</h3>
+            <p className="text-[10px] text-slate-400 font-medium">Submitted {exp.submitted_at ? new Date(exp.submitted_at).toLocaleString() : 'N/A'}</p>
+          </div>
+          <button
+            onClick={() => setSelectedExpenseForModal(null)}
+            className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+          >
+            ✕
+          </button>
+        </div>
 
+        {/* Details grid */}
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Driver</span>
+            <span className="font-bold text-slate-900">{driverName}</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Vehicle</span>
+            <span className="font-bold text-slate-900">{exp.vehicle_reg}</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Type</span>
+            <span className="font-bold text-slate-900">{exp.expense_type}</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Date</span>
+            <span className="font-bold text-slate-900">{exp.expense_date}</span>
+          </div>
+          <div className="col-span-2 bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Description</span>
+            <span className="font-medium text-slate-800">{exp.description}</span>
+          </div>
+          <div className="col-span-2 bg-teal-50 p-3 rounded-lg border border-teal-100 flex justify-between items-center">
+            <span className="text-teal-600 font-bold text-[10px] uppercase">Amount</span>
+            <span className="font-black text-teal-700 text-base">R {exp.amount}</span>
+          </div>
+        </div>
+
+        {/* Status badge */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Current Status:</span>
+          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+            exp.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            : exp.status === 'rejected' ? 'bg-rose-50 text-rose-700 border-rose-200'
+            : 'bg-amber-50 text-amber-700 border-amber-200'
+          }`}>
+            {exp.status}
+          </span>
+          {exp.rejection_reason && (
+            <span className="text-[10px] text-rose-500 italic">Reason: {exp.rejection_reason}</span>
+          )}
+        </div>
+
+        {/* Attachments */}
+        {((exp.document_urls && exp.document_urls.length > 0) || (exp.photo_urls && exp.photo_urls.length > 0)) && (
+          <div className="space-y-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase block">Attachments</span>
+            <div className="flex flex-wrap gap-2">
+              {[...(exp.document_urls || []), ...(exp.photo_urls || [])].map((url, idx) => (
+                <button
+                  key={idx}
+                  onClick={async () => {
+                    const signed = await getSignedUrlForView(url);
+                    window.open(signed, '_blank');
+                  }}
+                  className="inline-flex items-center gap-1 text-[10px] bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-200 px-2 py-1 rounded font-bold"
+                >
+                  <Eye className="w-3 h-3" /> Receipt {idx + 1}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex justify-between items-center pt-3 border-t border-slate-100 gap-2">
+          <button
+            onClick={() => {
+              downloadExpensePDF(exp, driverName);
+            }}
+            className="px-3 py-1.5 border border-slate-200 bg-slate-50 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-100 transition-colors"
+          >
+            Download PDF
+          </button>
+
+          {exp.status === 'pending' && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const reason = prompt('Enter rejection reason:');
+                  if (reason) {
+                    expensesApi.saveExpense({ ...exp, status: 'rejected', rejection_reason: reason });
+                    setSelectedExpenseForModal(null);
+                    refreshData();
+                  }
+                }}
+                className="px-4 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold rounded-lg hover:bg-rose-100 transition-colors"
+              >
+                ✗ Reject
+              </button>
+              <button
+                onClick={() => {
+                  expensesApi.saveExpense({ ...exp, status: 'approved' });
+                  setSelectedExpenseForModal(null);
+                  refreshData();
+                }}
+                className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors shadow-xs"
+              >
+                ✓ Approve
+              </button>
+            </div>
+          )}
+
+          {exp.status !== 'pending' && (
+            <button
+              onClick={() => setSelectedExpenseForModal(null)}
+              className="px-4 py-1.5 bg-slate-100 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-200 transition-colors"
+            >
+              Close
+            </button>
+          )}
+        </div>
+
+      </div>
+    </div>
+  );
+})()}
+      {/* ==================== TRANSFER RECON SIGN-OFF MODAL ==================== */}
+{selectedTransferReconForModal && (() => {
+  const rec = selectedTransferReconForModal;
+  const drv = drivers.find(d => d.driver_id === rec.driver_id);
+  const driverName = drv ? drv.name : rec.driver_id;
+  const totalWage = rec.transfers.reduce((sum, curr) => sum + curr.amount, 0);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
+      <div className="bg-white border border-slate-200 w-full max-w-3xl rounded-xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+        
+        {/* Header */}
+        <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider">Transfer Recon Sign-Off Review</h3>
+            <p className="text-[10px] text-slate-400 font-medium">{driverName} • {rec.week_start} to {rec.week_end}</p>
+          </div>
+          <button
+            onClick={() => setSelectedTransferReconForModal(null)}
+            className="text-slate-400 hover:text-slate-600 transition-colors text-lg font-bold"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Summary bar */}
+        <div className="grid grid-cols-3 gap-3 text-xs">
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Driver</span>
+            <span className="font-bold text-slate-900">{driverName}</span>
+          </div>
+          <div className="bg-slate-50 p-3 rounded-lg border border-slate-150">
+            <span className="text-slate-400 text-[10px] font-bold uppercase block mb-0.5">Records</span>
+            <span className="font-bold text-slate-900">{rec.transfers.length} transfers</span>
+          </div>
+          <div className="bg-teal-50 p-3 rounded-lg border border-teal-100">
+            <span className="text-teal-600 text-[10px] font-bold uppercase block mb-0.5">Total Payout</span>
+            <span className="font-black text-teal-700 text-base">R {Number(totalWage || 0).toFixed(2)}</span>
+          </div>
+        </div>
+
+        {/* Transfer rows table */}
+        <div className="border border-slate-200 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto max-h-72 overflow-y-auto">
+            <table className="w-full text-left text-[11px] min-w-[700px]">
+              <thead className="bg-slate-100 text-[9px] uppercase font-bold text-slate-500 border-b border-slate-200 sticky top-0">
+                <tr>
+                  <th className="p-2">Reg</th>
+                  <th className="p-2">Vehicle</th>
+                  <th className="p-2">Date</th>
+                  <th className="p-2">Ref Nr</th>
+                  <th className="p-2">T/L/A</th>
+                  <th className="p-2">Description / Route</th>
+                  <th className="p-2">Notes</th>
+                  <th className="p-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {rec.transfers.map((t, idx) => (
+                  <tr key={idx} className="hover:bg-slate-50">
+                    <td className="p-2 font-bold text-slate-800">{t.vehicle_reg || 'N/A'}</td>
+                    <td className="p-2 text-slate-600">{t.vehicle_name || 'N/A'}</td>
+                    <td className="p-2 text-slate-600 font-mono">{t.date}</td>
+                    <td className="p-2 text-slate-600 font-mono">{t.invoice_or_tour_ref}</td>
+                    <td className="p-2 font-semibold text-slate-700">{t.tla_type || 'N/A'}</td>
+                    <td className="p-2 text-slate-600">{t.description || (t.passenger_name && t.passenger_name !== 'N/A' ? t.passenger_name : `${t.pickup_location} → ${t.dropoff_location}`)}</td>
+                    <td className="p-2 text-slate-400 italic">{t.notes || '—'}</td>
+                    <td className="p-2 text-right font-bold text-teal-600">R {t.amount}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase">Status:</span>
+          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+            rec.status === 'reviewed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'
+          }`}>
+            {rec.status}
+          </span>
+        </div>
+
+        {/* Action footer */}
+        <div className="flex justify-between items-center pt-3 border-t border-slate-100">
+          <button
+            onClick={() => {
+              downloadTransferReconPDF(rec, driverName);
+            }}
+            className="text-xs font-bold text-teal-600 hover:underline flex items-center gap-1"
+          >
+            <Download className="w-4 h-4" /> PDF Report
+          </button>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSelectedTransferReconForModal(null)}
+              className="px-4 py-1.5 border border-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            {rec.status === 'submitted' && (
+              <button
+                onClick={() => {
+                  handleApproveTransfer(rec.id);
+                  setSelectedTransferReconForModal(null);
+                }}
+                className="px-5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors shadow-xs"
+              >
+                ✓ Director Sign-Off
+              </button>
+            )}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+})()}
       {/* ==================== DIRECT VEHICLE CHECKLIST CREATION MODAL ==================== */}
       {showLogDirectChecklistModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
