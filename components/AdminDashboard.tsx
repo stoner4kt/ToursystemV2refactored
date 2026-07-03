@@ -2025,10 +2025,11 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
 
                 {/* Fines table log */}
                 <div className="col-span-2 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
-                      <tr>
-                        <th className="p-3">Reference / Code</th>
+  <div className="overflow-x-auto">
+  <table className="w-full text-left text-xs min-w-[860px]">
+    <thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500">
+      <tr>
+        <th className="p-3">Reference / Code</th>
                         <th className="p-3">Vehicle / Driver</th>
                         <th className="p-3">Violation Time</th>
                         <th className="p-3">Location Details</th>
