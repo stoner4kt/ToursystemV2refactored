@@ -52,7 +52,7 @@ interface DriverDashboardProps {
 
 export default function DriverDashboard({ driver, onLogout }: DriverDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    'tasks' | 'inspections' | 'recon' | 'checklists' | 'incidents' | 'logging' | 'transfer' | 'documents' | 'fines'
+    'tasks' | 'inspections' | 'recon' | 'checklists' | 'incidents' | 'logging' | 'transfer' | 'documents'
   >('tasks');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [assignedBookings, setAssignedBookings] = useState<Booking[]>([]);
@@ -799,7 +799,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
               { id: 'logging', label: 'Log Expense / Damage', icon: PlusCircle },
               { id: 'transfer', label: 'Transfer Recon', icon: FileText },
               { id: 'documents', label: 'My Documents', icon: Briefcase },
-              { id: 'fines', label: 'My Fines', icon: AlertTriangle },
+              
             ].map(item => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
