@@ -601,24 +601,30 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
   const handleTransferEditRequest = async (id: string, reason: string) => {
   try {
     // 1. Mark the sheet as pending edit in local/Supabase storage
+    const sheet = transfersSheets.find(ts => ts.id === id);
     transferReconApi.requestEdit(id, reason);
     refreshData();
 
-    // 2. Trigger OTP email to admin
+    // 2. Notify admin via alert email (no OTP — driver is requesting, not authorising)
     const { data: { session } } = await supabase!.auth.getSession();
     if (!session?.access_token) throw new Error('No active session');
 
-    const { error } = await supabase!.functions.invoke('send-otp-email', {
+    const { error } = await supabase!.functions.invoke('notify-transfer-edit-request', {
       body: {
-        resource_type: 'transfer_recon_edit',
-        resource_id: id,
-        context_label: `Transfer Recon Edit Request — ${reason}`,
+        transfer_recon_id: id,
+        driver_id: driver.driver_id,
+        driver_name: driver.name,
+        driver_email: (driver as any).email ?? undefined,
+        driver_phone: (driver as any).phone ?? undefined,
+        reason,
+        week_start: sheet?.week_start,
+        week_end: sheet?.week_end,
       },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 
     if (error) throw new Error(error.message);
-    alert('📩 Edit request submitted. The Administrator has been notified via OTP email.');
+    alert('📩 Edit request submitted. The Administrator has been notified and will approve or reject your request.');
   } catch (err: any) {
     alert(`⚠️ Edit request saved locally, but admin notification failed: ${err.message}`);
   }

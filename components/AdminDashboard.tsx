@@ -560,7 +560,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
       alert(`❌ Failed to send OTP: ${err.message}`);
     }
   } else {
-    const confirmAction = window.confirm(`Authorize action: ${actionType}?`);
+    const confirmAction = window.confirm(`Authorize: ${description ?? actionType.replace(/_/g, ' ')}?`);
     if (confirmAction) onAuthorized();
   }
 };
@@ -821,7 +821,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
       refreshData();
     };
 
-    executeWithOtpGuard('transfer_approval', id, action);
+    executeWithOtpGuard('transfer_approval', id, action, `Approve Director Sign-Off for Transfer Recon — ${match.id}`);
   };
 
   const handleReviewEditRequest = (id: string, type: 'weekly' | 'transfer', action: 'approved' | 'rejected') => {
@@ -836,7 +836,9 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
       refreshData();
     };
 
-    executeWithOtpGuard('review_edit_request', id, execute);
+    const actionLabel = action === 'approved' ? 'Approve' : 'Reject';
+    const typeLabel = type === 'transfer' ? 'Transfer Recon' : 'Weekly Recon';
+    executeWithOtpGuard('review_edit_request', id, execute, `${actionLabel} Edit Request for ${typeLabel} — ${id}`);
   };
 
   // FINES HANDLERS
