@@ -930,197 +930,6 @@ export async function syncAllFromSupabase() {
   }
 }
 
-// Initial Seed Data for local storage fallback
-const SEED_PROFILES: Profile[] = [
-  {
-    driver_id: 'DRV-ADM001',
-    name: 'Chief Admin',
-    phone: '+27 82 123 4567',
-    email: 'admin@inyathi.co.za',
-    role: 'admin',
-    is_active: true,
-    location: 'Cape Town',
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z'
-  },
-  {
-    driver_id: 'DRV-9F3E21',
-    name: 'Thabo Ndlovu',
-    phone: '+27 73 987 6543',
-    email: 'thabo@inyathi.co.za',
-    role: 'driver',
-    is_active: true,
-    location: 'Cape Town',
-    created_at: '2026-01-10T08:00:00Z',
-    updated_at: '2026-01-10T08:00:00Z'
-  },
-  {
-    driver_id: 'DRV-2D8C9A',
-    name: 'Sipho Zulu',
-    phone: '+27 84 555 1234',
-    email: 'sipho@inyathi.co.za',
-    role: 'driver',
-    is_active: true,
-    location: 'Joburg',
-    created_at: '2026-02-15T09:00:00Z',
-    updated_at: '2026-02-15T09:00:00Z'
-  },
-  {
-    driver_id: 'DRV-7A5F4B',
-    name: 'Liam Botha',
-    phone: '+27 82 345 6789',
-    email: 'liam@inyathi.co.za',
-    role: 'driver',
-    is_active: true,
-    location: 'Cape Town',
-    created_at: '2026-03-01T10:00:00Z',
-    updated_at: '2026-03-01T10:00:00Z'
-  }
-];
-
-const SEED_VEHICLES: Vehicle[] = [
-  {
-    registration_no: 'CA 234-890',
-    make: 'Toyota',
-    model: 'Quantum GL 14-Seater',
-    year: 2022,
-    current_mileage: 124500,
-    next_service_km: 130000,
-    status: 'active',
-    color: '#0D9488', // Teal-600
-    location: 'Cape Town',
-    notes: 'Primary long-distance tour vehicle. Excellent condition.',
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z'
-  },
-  {
-    registration_no: 'CA 765-432',
-    make: 'Mercedes-Benz',
-    model: 'Sprinter 519 CDI 22-Seater',
-    year: 2021,
-    current_mileage: 185200,
-    next_service_km: 190000,
-    status: 'active',
-    color: '#4F46E5', // Indigo-600
-    location: 'Cape Town',
-    notes: 'Luxury large coach. Aircon and USB chargers operational.',
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z'
-  },
-  {
-    registration_no: 'GP 889-LP',
-    make: 'Toyota',
-    model: 'Quantum GL 14-Seater',
-    year: 2023,
-    current_mileage: 48900,
-    next_service_km: 50000,
-    status: 'active',
-    color: '#0891B2', // Cyan-600
-    location: 'Joburg',
-    notes: 'Low mileage. Spotless interior.',
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z'
-  },
-  {
-    registration_no: 'GP 112-RT',
-    make: 'Volkswagen',
-    model: 'Crafter 50 22-Seater',
-    year: 2020,
-    current_mileage: 215400,
-    next_service_km: 216000,
-    status: 'maintenance',
-    color: '#EA580C', // Orange-600
-    location: 'Joburg',
-    notes: 'In for scheduled front brake disc replacements.',
-    created_at: '2026-01-01T00:00:00Z',
-    updated_at: '2026-01-01T00:00:00Z'
-  }
-];
-
-const SEED_RENTED_VEHICLES: RentedVehicle[] = [
-  {
-    id: 'rv-01',
-    supplier: 'AVIS Safari Fleet',
-    reg_no: 'CA 998-112',
-    make: 'Toyota',
-    model: 'Land Cruiser Double Cab',
-    start_date: '2026-06-20',
-    end_date: '2026-07-05',
-    daily_rate: 2200,
-    supplier_ref: 'AVS-908273',
-    status: 'active',
-    notes: 'Rented for safari package overflow in Cape Town region.',
-    created_at: '2026-06-20T08:00:00Z'
-  }
-];
-
-const SEED_BOOKINGS: Booking[] = [
-  {
-    invoice_no: 'INV-2026-001',
-    client_name: 'Go2Africa Safari Group',
-    route: 'Cape Town - Stellenbosch - Franschhoek - Cape Town',
-    tour_reference: 'WINELANDS-77A',
-    start_date: '2026-06-24T08:00:00Z',
-    end_date: '2026-06-26T18:00:00Z',
-    assigned_driver_id: 'DRV-9F3E21', // Thabo
-    assigned_vehicle_reg: 'CA 234-890', // Quantum
-    status: 'confirmed',
-    payment_status: 'paid',
-    receipt_number: 'REC-90821-CT',
-    booking_documents: [],
-    itinerary_url: '',
-    maintenance_alert_sent: false,
-    is_rented_vehicle: false,
-    location: 'Cape Town',
-    notes: 'Premium group. Driver food allowance included.',
-    created_at: '2026-06-15T09:30:00Z',
-    updated_at: '2026-06-15T09:30:00Z'
-  },
-  {
-    invoice_no: 'INV-2026-002',
-    client_name: 'German Tour Union',
-    route: 'OR Tambo - Pilanesberg National Park - OR Tambo',
-    tour_reference: 'PILANES-88',
-    start_date: '2026-06-28T06:00:00Z',
-    end_date: '2026-07-02T19:00:00Z',
-    assigned_driver_id: 'DRV-2D8C9A', // Sipho
-    assigned_vehicle_reg: 'GP 889-LP', // Joburg Quantum
-    status: 'pending',
-    payment_status: 'unpaid',
-    booking_documents: [],
-    itinerary_url: '',
-    maintenance_alert_sent: false,
-    is_rented_vehicle: false,
-    location: 'Joburg',
-    notes: 'Awaiting balance payment. Critical to check vehicle AC.',
-    created_at: '2026-06-20T11:00:00Z',
-    updated_at: '2026-06-20T11:00:00Z'
-  },
-  {
-    invoice_no: 'INV-2026-003',
-    client_name: 'Inbound Luxury Safari',
-    route: 'Cape Town - Aquila Game Reserve - Cape Town',
-    tour_reference: 'AQUILA-23',
-    start_date: '2026-06-25T07:00:00Z',
-    end_date: '2026-06-27T17:00:00Z',
-    assigned_driver_id: 'DRV-7A5F4B', // Liam
-    assigned_vehicle_reg: 'CA 998-112', // Rented land cruiser
-    status: 'confirmed',
-    payment_status: 'paid',
-    receipt_number: 'REC-LUX99-A',
-    booking_documents: [],
-    itinerary_url: '',
-    maintenance_alert_sent: false,
-    is_rented_vehicle: true,
-    rented_vehicle_id: 'rv-01',
-    rented_vehicle_reg: 'CA 998-112',
-    rented_vehicle_model: 'Toyota Land Cruiser',
-    location: 'Cape Town',
-    notes: 'Using rented Land Cruiser for offroad access at Aquila.',
-    created_at: '2026-06-21T14:20:00Z',
-    updated_at: '2026-06-21T14:20:00Z'
-  }
-];
 
 // LocalStorage Helper functions
 function getLocalStorageItem<T>(key: string, defaultValue: T): T {
@@ -1147,17 +956,19 @@ function setLocalStorageItem<T>(key: string, value: T): void {
 export function initializeStorage() {
   if (typeof window === 'undefined') return;
 
+  // Profiles, vehicles, bookings, rented vehicles — start empty.
+  // All real data comes from Supabase via syncAllFromSupabase().
   if (!window.localStorage.getItem(STORAGE_KEYS.PROFILES)) {
-    setLocalStorageItem(STORAGE_KEYS.PROFILES, SEED_PROFILES);
+    setLocalStorageItem(STORAGE_KEYS.PROFILES, []);
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.VEHICLES)) {
-    setLocalStorageItem(STORAGE_KEYS.VEHICLES, SEED_VEHICLES);
+    setLocalStorageItem(STORAGE_KEYS.VEHICLES, []);
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.RENTED_VEHICLES)) {
-    setLocalStorageItem(STORAGE_KEYS.RENTED_VEHICLES, SEED_RENTED_VEHICLES);
+    setLocalStorageItem(STORAGE_KEYS.RENTED_VEHICLES, []);
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.BOOKINGS)) {
-    setLocalStorageItem(STORAGE_KEYS.BOOKINGS, SEED_BOOKINGS);
+    setLocalStorageItem(STORAGE_KEYS.BOOKINGS, []);
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.INSPECTIONS)) {
     setLocalStorageItem(STORAGE_KEYS.INSPECTIONS, []);
@@ -1169,15 +980,7 @@ export function initializeStorage() {
     setLocalStorageItem(STORAGE_KEYS.TRANSFER_RECON_SHEETS, []);
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.INVITES)) {
-    setLocalStorageItem(STORAGE_KEYS.INVITES, [
-      {
-        email: 'invitee@inyathi.co.za',
-        full_name: 'Invited Driver',
-        location: 'Cape Town',
-        invited_by: 'DRV-ADM001',
-        invited_at: new Date().toISOString()
-      }
-    ]);
+    setLocalStorageItem(STORAGE_KEYS.INVITES, []);
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.LOGS)) {
     setLocalStorageItem(STORAGE_KEYS.LOGS, []);
@@ -1186,66 +989,10 @@ export function initializeStorage() {
     setLocalStorageItem(STORAGE_KEYS.DELETES, []);
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.EXPENSES)) {
-    setLocalStorageItem(STORAGE_KEYS.EXPENSES, [
-      {
-        id: 'exp-01',
-        vehicle_reg: 'CA 234-890',
-        driver_id: 'DRV-9F3E21',
-        expense_type: 'Tyres',
-        description: 'Puncture repair in Stellenbosch',
-        amount: 250,
-        expense_date: '2026-06-24',
-        document_urls: [],
-        photo_urls: [],
-        status: 'approved',
-        submitted_at: '2026-06-24T12:00:00Z',
-        reviewed_by: 'Chief Admin',
-        reviewed_at: '2026-06-24T14:00:00Z',
-        alert_sent: false,
-        created_at: '2026-06-24T12:00:00Z',
-        updated_at: '2026-06-24T14:00:00Z'
-      }
-    ]);
+    setLocalStorageItem(STORAGE_KEYS.EXPENSES, []);
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.FINES)) {
-    setLocalStorageItem(STORAGE_KEYS.FINES, [
-      {
-        id: 'fine-ct101',
-        booking_id: 'INV-2026-001',
-        vehicle_reg: 'CA 234-890',
-        driver_id: 'DRV-9F3E21', // Thabo Ndlovu
-        fine_timestamp: '2026-06-24T10:15:00Z',
-        fine_reference: 'TF-990812-CT',
-        location: 'M3 Highway Cape Town',
-        description: 'Speeding violation 72km/h in 60km/h zone',
-        amount: 500,
-        notification_email: 'thabo@inyathi.co.za',
-        email_sent: true,
-        email_sent_at: '2026-06-24T12:30:00Z',
-        status: 'pending',
-        logged_by_admin_id: 'DRV-ADM001',
-        created_at: '2026-06-24T12:30:00Z',
-        updated_at: '2026-06-24T12:30:00Z'
-      },
-      {
-        id: 'fine-jb202',
-        booking_id: 'INV-2026-002',
-        vehicle_reg: 'GP 889-LP',
-        driver_id: 'DRV-2D8C9A', // Sipho Zulu
-        fine_timestamp: '2026-06-18T14:45:00Z',
-        fine_reference: 'TF-110293-GP',
-        location: 'N1 North Midrand',
-        description: 'Failed to signal lane change',
-        amount: 250,
-        notification_email: 'sipho@inyathi.co.za',
-        email_sent: true,
-        email_sent_at: '2026-06-19T09:00:00Z',
-        status: 'paid',
-        logged_by_admin_id: 'DRV-ADM001',
-        created_at: '2026-06-19T09:00:00Z',
-        updated_at: '2026-06-19T09:00:00Z'
-      }
-    ]);
+    setLocalStorageItem(STORAGE_KEYS.FINES, []);
   }
   if (!window.localStorage.getItem(STORAGE_KEYS.INCIDENTS)) {
     setLocalStorageItem(STORAGE_KEYS.INCIDENTS, []);
@@ -1260,7 +1007,7 @@ export function initializeStorage() {
     window.localStorage.setItem(STORAGE_KEYS.REGION, 'Cape Town');
   }
   if (window.localStorage.getItem(STORAGE_KEYS.OTP_ENABLED) === null) {
-    window.localStorage.setItem(STORAGE_KEYS.OTP_ENABLED, 'false'); // Default flag is false
+    window.localStorage.setItem(STORAGE_KEYS.OTP_ENABLED, 'true'); // Always on in production
   }
 }
 
@@ -1374,12 +1121,13 @@ export const authApi = {
   // After the logout method, around line ~1373
 resetPassword: async (email: string): Promise<void> => {
   if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase.auth.resetPasswordForEmail(
-      email.toLowerCase(),
-      {
-        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/`,
-      }
-    );
+    // REPLACE WITH:
+const { error } = await supabase.auth.resetPasswordForEmail(
+  email.toLowerCase(),
+  {
+    redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`,
+  }
+);
     if (error) {
       throw new Error(error.message || 'Failed to send password reset email.');
     }
