@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, 
-  Settings, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera,
+  Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera,
   LayoutGrid, List, Search, SquarePen
 } from 'lucide-react';
 import { 
@@ -54,7 +53,7 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'fleet' | 'rented' | 'drivers' | 'recons' | 'transfers' | 'wages' | 'fines' | 'expenses' | 'incidents' | 'inspections' | 'checklists' | 'settings'>('dashboard');
   const [region, setRegion] = useState<'Cape Town' | 'Joburg'>('Cape Town');
-  const [otpEnabled, setOtpEnabled] = useState(false);
+  const [otpEnabled, setOtpEnabled] = useState(true);
 
   // Data states
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -1071,8 +1070,8 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
                 { id: 'wages', label: 'Wages & Payroll', icon: Landmark },
                 { id: 'fines', label: 'Traffic Fines', icon: AlertOctagon },
                 { id: 'expenses', label: 'Vehicle Expenses', icon: Landmark },
-                { id: 'incidents', label: 'Incident Reports', icon: AlertTriangle },
-                { id: 'settings', label: 'Security Gate', icon: Settings }
+                { id: 'incidents', label: 'Incident Reports', icon: AlertTriangle }
+                
               ].map(item => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -3282,47 +3281,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
             </div>
           )}
 
-          {/* ==================== SECURITY SETTINGS TAB ==================== */}
-          {activeTab === 'settings' && (
-            <div className="space-y-6">
-              
-              <div className="bg-white border border-slate-200 p-6 rounded-xl shadow-xs max-w-lg space-y-4">
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-1.5">
-                  <ShieldCheck className="w-5 h-5 text-teal-600" />
-                  Security Gate Clearance Settings
-                </h2>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  In production, INYATHI uses dual-factor administrative OTP email validation before allowing critical edits, deleting confirmed bookings, deactivating staff, or approving trip sheets.
-                </p>
-
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs font-bold text-slate-800 block">OTP Security Gate Mode</span>
-                    <span className="text-[10px] text-slate-500 font-medium">Toggle code-verification requirement for demo purposes.</span>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      const updated = !otpEnabled;
-                      setOtpEnabled(updated);
-                      authApi.setOtpEnabled(updated);
-                    }}
-                    className={`px-4 py-2 rounded-xl text-xs font-extrabold transition-all border ${
-                      otpEnabled 
-                        ? 'bg-amber-500 text-white border-amber-600 shadow-md' 
-                        : 'bg-slate-200 text-slate-500 border-slate-300'
-                    }`}
-                  >
-                    {otpEnabled ? '🔒 OTP STRICT' : '🔓 Plain Confirm Dialog (Bypassed)'}
-                  </button>
-                </div>
-
-                <div className="p-3.5 bg-teal-50 border border-teal-100 rounded-lg text-xs text-teal-800 leading-relaxed">
-                  💡 <strong>DEVELOPER TIP:</strong> When <strong className="text-teal-900">OTP STRICT</strong> is enabled, attempting to sign-off weekly trip sheets or complete deletes will prompt a code popup. A mock email notification with the active numeric code will slide in at the top right of the screen so you can easily type it in!
-                </div>
-              </div>
-            </div>
-          )}
+          
 
         </main>
       </div>
