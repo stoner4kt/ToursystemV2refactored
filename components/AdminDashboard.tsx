@@ -693,7 +693,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     action();
   };
 
-  const requestBookingDelete = (bookingId: string) => {
+  const requestBookingDelete = (bookingId: string, otpId?: string) => {
     const reason = prompt('Please enter the cancellation reason:');
     if (!reason) return;
     
@@ -708,7 +708,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
 
     executeWithOtpGuard(
       'booking_delete',
-      bookingId,
+      otpId ?? bookingId,
       action,
       'Administrative OTP clearance is required to submit a booking deletion request.',
       true
@@ -734,9 +734,10 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
   };
 
   const deleteVehicle = (regNo: string) => {
+    const otpId = generateUUID();
     executeWithOtpGuard(
       'vehicle_delete',
-      regNo,
+      otpId,
       () => {
         fleetApi.deleteVehicle(regNo);
         refreshData();
@@ -1299,7 +1300,7 @@ const handleApproveRecon = (id: string, notes: string) => {
                               Edit
                             </button>
                             <button
-                              onClick={() => requestBookingDelete(b.invoice_no)}
+                              onClick={() => requestBookingDelete(b.invoice_no, b.id)}
                               className="text-rose-500 hover:text-rose-700 font-bold hover:underline"
                             >
                               Delete
