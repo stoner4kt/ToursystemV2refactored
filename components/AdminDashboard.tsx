@@ -536,8 +536,12 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
 ) => {
   if (otpEnabled || forceOtp) {
     try {
-      const { data: { session } } = await supabase!.auth.getSession();
-      if (!session?.access_token) throw new Error('No active session');
+      let { data: { session } } = await supabase!.auth.getSession();
+      if (!session?.access_token) {
+        const { data: refreshed } = await supabase!.auth.refreshSession();
+        session = refreshed.session;
+      }
+      if (!session?.access_token) throw new Error('No active session — please log in again.');
 
       const { error } = await supabase!.functions.invoke('send-otp-email', {
         body: {
@@ -689,7 +693,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     action();
   };
 
-  const requestBookingDelete = (bookingId: string) => {
+  const requestBookingDelete = (bookingId: string, otpId?: string) => {
     const reason = prompt('Please enter the cancellation reason:');
     if (!reason) return;
     
@@ -704,7 +708,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
 
     executeWithOtpGuard(
       'booking_delete',
-      bookingId,
+      otpId ?? bookingId,
       action,
       'Administrative OTP clearance is required to submit a booking deletion request.',
       true
@@ -730,10 +734,17 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
   };
 
   const deleteVehicle = (regNo: string) => {
-    if (confirm(`Remove vehicle ${regNo} from owned fleet list?`)) {
-      fleetApi.deleteVehicle(regNo);
-      refreshData();
-    }
+    const otpId = generateUUID();
+    executeWithOtpGuard(
+      'vehicle_delete',
+      otpId,
+      () => {
+        fleetApi.deleteVehicle(regNo);
+        refreshData();
+      },
+      `OTP required to remove vehicle ${regNo} from fleet`,
+      true
+    );
   };
 
   // RENTED HANDLERS
@@ -783,23 +794,37 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
       refreshData();
     };
 
-    executeWithOtpGuard('driver_deactivate', driverId, action);
+    executeWithOtpGuard(
+      'driver_deactivate',
+      driverId,
+      action,
+      `OTP required to ${currentStatus ? 'suspend' : 'reactivate'} driver`,
+      true
+    );
   };
 
   // RECON AUDITING
-  const handleApproveRecon = (id: string, notes: string) => {
+const handleApproveRecon = (id: string, notes: string) => {
     const match = weeklyRecons.find(r => r.id === id);
     if (!match) return;
 
-    reconApi.saveRecon({
-      ...match,
-      director_sign_off: true,
-      status: 'reviewed',
-      reviewed_by: admin.name,
-      reviewed_at: new Date().toISOString(),
-      admin_review_notes: notes
-    });
-    refreshData();
+    executeWithOtpGuard(
+      'recon_edit',
+      id,
+      () => {
+        reconApi.saveRecon({
+          ...match,
+          director_sign_off: true,
+          status: 'reviewed',
+          reviewed_by: admin.name,
+          reviewed_at: new Date().toISOString(),
+          admin_review_notes: notes
+        });
+        refreshData();
+      },
+      'OTP required for Director Sign-Off approval',
+      true
+    );
   };
 
   const handleApproveTransfer = (id: string) => {
@@ -818,12 +843,27 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
   const handleReviewEditRequest = (id: string, type: 'weekly' | 'transfer', action: 'approved' | 'rejected') => {
     const notes = action === 'rejected' ? prompt('Enter rejection reason:') || 'Incomplete details' : '';
 
-    if (type === 'weekly') {
-      reconApi.reviewEditRequest(id, action, notes);
+    const doAction = () => {
+      if (type === 'weekly') {
+        reconApi.reviewEditRequest(id, action, notes);
+      } else {
+        transferReconApi.reviewEditRequest(id, action, notes);
+      }
+      refreshData();
+    };
+
+    if (action === 'approved') {
+      const resourceType = type === 'weekly' ? 'recon_edit' : 'transfer_recon_edit';
+      executeWithOtpGuard(
+        resourceType,
+        id,
+        doAction,
+        `OTP required to approve driver edit request`,
+        true
+      );
     } else {
-      transferReconApi.reviewEditRequest(id, action, notes);
+      doAction();
     }
-    refreshData();
   };
 
   // FINES HANDLERS
@@ -1260,7 +1300,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
                               Edit
                             </button>
                             <button
-                              onClick={() => requestBookingDelete(b.invoice_no)}
+                              onClick={() => requestBookingDelete(b.invoice_no, b.id)}
                               className="text-rose-500 hover:text-rose-700 font-bold hover:underline"
                             >
                               Delete
@@ -1291,7 +1331,12 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
                         </div>
                         <div className="flex gap-1.5">
                           <button
-                            onClick={() => executeWithOtpGuard('booking_delete_reject', req.id, () => bookingsApi.reviewDeleteRequest(req.id, admin.driver_id, 'rejected', 'Retained by Admin'))}
+                            onClick={() => {
+  if (window.confirm('Reject this deletion request?')) {
+    bookingsApi.reviewDeleteRequest(req.id, admin.driver_id, 'rejected', 'Retained by Admin');
+    refreshData();
+  }
+}}
                             className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1 px-2.5 rounded"
                           >
                             Reject
@@ -1457,10 +1502,16 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
                             </button>
                             <button
                               onClick={() => {
-                                if (confirm('Remove rented vehicle record?')) {
-                                  fleetApi.deleteRentedVehicle(rv.id);
-                                  refreshData();
-                                }
+                                executeWithOtpGuard(
+                                  'rented_vehicle_delete',
+                                  rv.id,
+                                  () => {
+                                    fleetApi.deleteRentedVehicle(rv.id);
+                                    refreshData();
+                                  },
+                                  `OTP required to remove rented vehicle ${rv.reg_no}`,
+                                  true
+                                );
                               }}
                               className="text-rose-600 font-bold hover:underline"
                             >
