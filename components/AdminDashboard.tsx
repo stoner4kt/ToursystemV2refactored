@@ -730,10 +730,16 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
   };
 
   const deleteVehicle = (regNo: string) => {
-    if (confirm(`Remove vehicle ${regNo} from owned fleet list?`)) {
-      fleetApi.deleteVehicle(regNo);
-      refreshData();
-    }
+    executeWithOtpGuard(
+      'vehicle_delete',
+      regNo,
+      () => {
+        fleetApi.deleteVehicle(regNo);
+        refreshData();
+      },
+      `OTP required to remove vehicle ${regNo} from fleet`,
+      true
+    );
   };
 
   // RENTED HANDLERS
@@ -818,12 +824,27 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
   const handleReviewEditRequest = (id: string, type: 'weekly' | 'transfer', action: 'approved' | 'rejected') => {
     const notes = action === 'rejected' ? prompt('Enter rejection reason:') || 'Incomplete details' : '';
 
-    if (type === 'weekly') {
-      reconApi.reviewEditRequest(id, action, notes);
+    const doAction = () => {
+      if (type === 'weekly') {
+        reconApi.reviewEditRequest(id, action, notes);
+      } else {
+        transferReconApi.reviewEditRequest(id, action, notes);
+      }
+      refreshData();
+    };
+
+    if (action === 'approved') {
+      const resourceType = type === 'weekly' ? 'recon_edit' : 'transfer_recon_edit';
+      executeWithOtpGuard(
+        resourceType,
+        id,
+        doAction,
+        `OTP required to approve driver edit request`,
+        true
+      );
     } else {
-      transferReconApi.reviewEditRequest(id, action, notes);
+      doAction();
     }
-    refreshData();
   };
 
   // FINES HANDLERS
@@ -1457,10 +1478,16 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
                             </button>
                             <button
                               onClick={() => {
-                                if (confirm('Remove rented vehicle record?')) {
-                                  fleetApi.deleteRentedVehicle(rv.id);
-                                  refreshData();
-                                }
+                                executeWithOtpGuard(
+                                  'rented_vehicle_delete',
+                                  rv.id,
+                                  () => {
+                                    fleetApi.deleteRentedVehicle(rv.id);
+                                    refreshData();
+                                  },
+                                  `OTP required to remove rented vehicle ${rv.reg_no}`,
+                                  true
+                                );
                               }}
                               className="text-rose-600 font-bold hover:underline"
                             >
