@@ -493,30 +493,42 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
   e.preventDefault();
   if (!activeReconForEditRequest || !editRequestReason) return;
 
+  // Capture before clearing state
+  const sheet = recons.find(r => r.id === activeReconForEditRequest);
+  const reconId = activeReconForEditRequest;
+  const reason = editRequestReason;
+
   try {
-    // 1. Mark the recon sheet as pending edit
-    reconApi.requestEdit(activeReconForEditRequest, editRequestReason);
+    // 1. Mark the recon sheet as pending edit in local/Supabase storage
+    reconApi.requestEdit(reconId, reason);
     setActiveReconForEditRequest(null);
     setEditRequestReason('');
     refreshData();
 
-    // 2. Send OTP email to admin
+    // 2. Notify admin via alert email (no OTP — driver is requesting, not authorising)
     const { data: { session } } = await supabase!.auth.getSession();
     if (!session?.access_token) throw new Error('No active session');
 
-    const { error } = await supabase!.functions.invoke('send-otp-email', {
+    const { error } = await supabase!.functions.invoke('notify-recon-edit-request', {
       body: {
-        resource_type: 'recon_edit',
-        resource_id: activeReconForEditRequest,
-        context_label: `Weekly Recon Edit Request — ${editRequestReason}`,
+        recon_id: reconId,
+        driver_id: driver.driver_id,
+        driver_name: driver.name,
+        driver_email: (driver as any).email ?? undefined,
+        driver_phone: (driver as any).phone ?? undefined,
+        reason,
+        week_start: sheet?.week_start,
+        week_end: sheet?.week_end,
+        vehicle_reg: sheet?.vehicle_reg,
+        tour_reference: sheet?.tour_reference,
       },
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 
     if (error) throw new Error(error.message);
-    alert('📩 Edit request submitted. The Administrator has been notified via OTP email.');
+    alert('📩 Edit request submitted. The Administrator has been notified and will approve or reject your request.');
   } catch (err: any) {
-    alert(`⚠️ Edit request saved, but admin notification failed: ${err.message}`);
+    alert(`⚠️ Edit request saved locally, but admin notification failed: ${err.message}`);
   }
 };
 

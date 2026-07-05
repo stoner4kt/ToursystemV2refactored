@@ -791,53 +791,39 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     const match = weeklyRecons.find(r => r.id === id);
     if (!match) return;
 
-    const action = () => {
-      reconApi.saveRecon({
-        ...match,
-        director_sign_off: true,
-        status: 'reviewed',
-        reviewed_by: admin.name,
-        reviewed_at: new Date().toISOString(),
-        admin_review_notes: notes
-      });
-      refreshData();
-    };
-
-    executeWithOtpGuard('recon_approval', id, action, 'Director clearance needed to sign-off and approve weekly financial sheet.');
+    reconApi.saveRecon({
+      ...match,
+      director_sign_off: true,
+      status: 'reviewed',
+      reviewed_by: admin.name,
+      reviewed_at: new Date().toISOString(),
+      admin_review_notes: notes
+    });
+    refreshData();
   };
 
   const handleApproveTransfer = (id: string) => {
     const match = transferRecons.find(r => r.id === id);
     if (!match) return;
 
-    const action = () => {
-      transferReconApi.saveRecon({
-        ...match,
-        status: 'reviewed',
-        reviewed_by: admin.name,
-        reviewed_at: new Date().toISOString()
-      });
-      refreshData();
-    };
-
-    executeWithOtpGuard('transfer_approval', id, action, `Approve Director Sign-Off for Transfer Recon — ${match.id}`);
+    transferReconApi.saveRecon({
+      ...match,
+      status: 'reviewed',
+      reviewed_by: admin.name,
+      reviewed_at: new Date().toISOString()
+    });
+    refreshData();
   };
 
   const handleReviewEditRequest = (id: string, type: 'weekly' | 'transfer', action: 'approved' | 'rejected') => {
     const notes = action === 'rejected' ? prompt('Enter rejection reason:') || 'Incomplete details' : '';
 
-    const execute = () => {
-      if (type === 'weekly') {
-        reconApi.reviewEditRequest(id, action, notes);
-      } else {
-        transferReconApi.reviewEditRequest(id, action, notes);
-      }
-      refreshData();
-    };
-
-    const actionLabel = action === 'approved' ? 'Approve' : 'Reject';
-    const typeLabel = type === 'transfer' ? 'Transfer Recon' : 'Weekly Recon';
-    executeWithOtpGuard('review_edit_request', id, execute, `${actionLabel} Edit Request for ${typeLabel} — ${id}`);
+    if (type === 'weekly') {
+      reconApi.reviewEditRequest(id, action, notes);
+    } else {
+      transferReconApi.reviewEditRequest(id, action, notes);
+    }
+    refreshData();
   };
 
   // FINES HANDLERS
