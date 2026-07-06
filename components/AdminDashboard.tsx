@@ -199,7 +199,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     invoice_no: '', client_name: '', route: '', tour_reference: '',
     start_date: '',
     end_date: '',
-    assigned_driver_id: '', assigned_vehicle_reg: '', status: 'pending',
+    assigned_driver_id: '', assigned_vehicle_reg: '', status: 'invoiced',
     payment_status: 'unpaid', receipt_number: '', booking_documents: [], is_rented_vehicle: false,
     rented_vehicle_id: '', rented_vehicle_reg: '', rented_vehicle_model: '', notes: '',
     rental_mode: 'staff_driver', rental_client_id: undefined,
