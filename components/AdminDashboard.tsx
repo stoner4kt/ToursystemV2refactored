@@ -597,19 +597,24 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
       : new Date(Date.now() + 24 * 3600 * 1000).toISOString().substring(0, 16);
 // In openNewBooking (around line 599), make it async:
 const { data } = await supabase.rpc('next_invoice_no');
-const invoice_no = data || `INV-${Date.now()}`; // fallback if RPC fails
-    setBookingForm({
-      invoice_no:,
-      client_name: '', route: '', tour_reference: '', start_date: startStr, end_date: endStr,
-      assigned_driver_id: drivers[0]?.driver_id || '', assigned_vehicle_reg: vehicles[0]?.registration_no || '',
-      status: 'pending', payment_status: 'unpaid', receipt_number: '', booking_documents: [],
-      is_rented_vehicle: false, rented_vehicle_id: '', rented_vehicle_reg: '', rented_vehicle_model: '', notes: '',
-      rental_mode: 'staff_driver', rental_client_id: undefined,
-    });
-    setEditReason('');
-    setIsEditMode(false);
-    setShowBookingModal(true);
-  };
+  const invoice_no = data || `INV-${Date.now()}`;
+
+  setBookingForm({
+    invoice_no,
+    client_name: '', route: '', tour_reference: '',
+    start_date: startStr, end_date: endStr,
+    assigned_driver_id: drivers[0]?.driver_id || '',
+    assigned_vehicle_reg: vehicles[0]?.registration_no || '',
+    status: 'invoiced', payment_status: 'unpaid',
+    receipt_number: '', booking_documents: [],
+    is_rented_vehicle: false, rented_vehicle_id: '',
+    rented_vehicle_reg: '', rented_vehicle_model: '', notes: '',
+    rental_mode: 'staff_driver', rental_client_id: undefined,
+  });
+  setEditReason('');
+  setIsEditMode(false);
+  setShowBookingModal(true);
+};
 
   const handleOpenEditBooking = (b: Booking) => {
     const editAction = () => {
