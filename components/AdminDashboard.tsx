@@ -695,13 +695,14 @@ const invoice_no = data || `INV-${Date.now()}`;
       return;
     }
 
-    const payload: Booking = {
-      ...(bookingForm as Booking),
-      start_date: new Date(bookingForm.start_date || '').toISOString(),
-      end_date: new Date(bookingForm.end_date || '').toISOString(),
-      location: region,
-      updated_at: new Date().toISOString()
-    };
+  const payload: Booking = {
+  ...(bookingForm as Booking),
+  tour_reference: bookingForm.route || bookingForm.tour_reference || '',
+  start_date: new Date(bookingForm.start_date || '').toISOString(),
+  end_date: new Date(bookingForm.end_date || '').toISOString(),
+  location: region,
+  updated_at: new Date().toISOString()
+};
 
     
 // AFTER
