@@ -1538,8 +1538,16 @@ if (preparedBooking.rental_client_id) {
   }
 }
 
-await pushToSupabase('bookings', preparedBooking, 'id', preparedBooking.id);
-    await pushToSupabase('bookings', preparedBooking, 'id', preparedBooking.id);
+
+// AFTER
+const pushed = await pushToSupabase('bookings', preparedBooking, 'id', preparedBooking.id);
+if (!pushed) {
+  // Roll back localStorage to avoid ghost entries
+  const rollback = getLocalStorageItem<Booking[]>(STORAGE_KEYS.BOOKINGS, []);
+  const rolledBack = rollback.filter(b => b.id !== preparedBooking.id);
+  if (idx === -1) setLocalStorageItem(STORAGE_KEYS.BOOKINGS, rolledBack); // new booking only
+  throw new Error('Failed to save booking to database. Please try again.');
+}
 
     // Call Supabase Edge Function to check vehicle maintenance 2 days before
     if (isSupabaseConfigured && supabase) {
