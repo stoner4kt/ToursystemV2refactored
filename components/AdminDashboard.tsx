@@ -5656,12 +5656,15 @@ const handleApproveRecon = (id: string, notes: string) => {
         <RentalClientForm
           mode={bookingForm.rental_mode as 'self_drive' | 'external_driver'}
           editTarget={rentalClientEditTarget}
-          onSave={async (client) => {
-            await rentalClientsApi.saveRentalClient(client);
-            refreshData();
-            setBookingForm(prev => ({ ...prev, rental_client_id: client.id }));
-            setShowRentalClientModal(false);
-          }}
+          
+// AFTER — refresh AFTER setting the form so the new rental_client is in localStorage
+// before the subsequent saveBooking call reads it
+onSave={async (client) => {
+  await rentalClientsApi.saveRentalClient(client);  // pushes to Supabase
+  setBookingForm(prev => ({ ...prev, rental_client_id: client.id }));
+  setShowRentalClientModal(false);
+  refreshData();  // moved to last — state update is already queued above
+}}
           onClose={() => setShowRentalClientModal(false)}
         />
       )}
