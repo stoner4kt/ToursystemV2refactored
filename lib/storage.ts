@@ -1532,7 +1532,22 @@ export const bookingsApi = {
         await pushToSupabase('rented_vehicles', rv, 'id', rv.id);
       }
     }
+// Add this block immediately before the final pushToSupabase('bookings', ...) call:
 
+if (preparedBooking.rental_client_id) {
+  const rentalClients = getLocalStorageItem<RentalClient[]>(STORAGE_KEYS.RENTAL_CLIENTS, []);
+  const rc = rentalClients.find(c => c.id === preparedBooking.rental_client_id);
+  if (rc) {
+    await pushToSupabase('rental_clients', rc, 'id', rc.id);
+  } else {
+    // FK would be dangling — null it out rather than fail the booking write
+    console.warn('[saveBooking] rental_client_id', preparedBooking.rental_client_id,
+      'not found in local storage — clearing to avoid FK violation');
+    preparedBooking = { ...preparedBooking, rental_client_id: undefined };
+  }
+}
+
+await pushToSupabase('bookings', preparedBooking, 'id', preparedBooking.id);
     await pushToSupabase('bookings', preparedBooking, 'id', preparedBooking.id);
 
     // Call Supabase Edge Function to check vehicle maintenance 2 days before
