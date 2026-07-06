@@ -64,7 +64,8 @@ status: 'pending' | 'invoiced' | 'confirmed' | 'active' | 'in-transit' | 'comple
       | 'vehicle_out' | 'return_inspection_pending' | 'returned'
       | 'damage_review' | 'closed';
 // (No change to the union itself, but change the DEFAULT so the form never initializes with 'pending')
-  payment_status: 'paid' | 'unpaid';
+// AFTER
+payment_status: 'paid' | 'unpaid' | 'partially_paid';
   receipt_number?: string;
   booking_documents: Array<{
     id: string;
