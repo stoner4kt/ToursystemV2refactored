@@ -588,7 +588,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
   };
 
   // BOOKING HANDLERS
-  const handleOpenNewBooking = (date?: Date) => {
+  const handleOpenNewBooking = async (date?: Date) => {
     const startStr = date 
       ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 8, 0).toISOString().substring(0, 16)
       : new Date().toISOString().substring(0, 16);
@@ -599,7 +599,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
 const { data } = await supabase.rpc('next_invoice_no');
 const invoice_no = data || `INV-${Date.now()}`; // fallback if RPC fails
     setBookingForm({
-      invoice_no: `INV-2026-${Math.floor(100 + Math.random() * 900)}`,
+      invoice_no:,
       client_name: '', route: '', tour_reference: '', start_date: startStr, end_date: endStr,
       assigned_driver_id: drivers[0]?.driver_id || '', assigned_vehicle_reg: vehicles[0]?.registration_no || '',
       status: 'pending', payment_status: 'unpaid', receipt_number: '', booking_documents: [],
