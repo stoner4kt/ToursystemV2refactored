@@ -719,7 +719,8 @@ export function transformPayloadForPush(dbTableName: string, data: any): any {
     const endDateStr = data.end_date ? data.end_date.split('T')[0] : '';
     prepared = {
       ...prepared,
-      tour_reference: data.tour_reference || data.route || '',
+      // lib/storage.ts line 717 — make this more defensive:
+tour_reference: (data.tour_reference || '').trim() || (data.route || '').trim() || '',
       start_date: startDateStr,
       end_date: endDateStr,
       start_time: data.start_date || null,
