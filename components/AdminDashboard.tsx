@@ -596,8 +596,8 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
       ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 18, 0).toISOString().substring(0, 16)
       : new Date(Date.now() + 24 * 3600 * 1000).toISOString().substring(0, 16);
 // In openNewBooking (around line 599), make it async:
-const { data } = await supabase.rpc('next_invoice_no');
-  const invoice_no = data || `INV-${Date.now()}`;
+const { data } = await supabase?.rpc('next_invoice_no') ?? { data: null };
+const invoice_no = data || `INV-${Date.now()}`;
 
   setBookingForm({
     invoice_no,
