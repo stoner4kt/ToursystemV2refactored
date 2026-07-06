@@ -639,7 +639,17 @@ export function filterPayloadForTable(dbTableName: string, payload: any): any {
       if (isNullableTextForeignKey && val === '') {
         val = null;
       }
-
+const isNullableTimestamp =
+  key === 'rental_agreement_uploaded_at' ||
+  key === 'completed_at' ||
+  key === 'receipt_uploaded_at' ||
+  key === 'itinerary_uploaded_at' ||
+  key === 'locked_at' ||
+  key === 'last_modified_at' ||
+  key === 'maintenance_alert_sent_at';
+if (isNullableTimestamp && val === '') {
+  val = null;
+}
       if (val !== undefined) {
         filtered[key] = val;
       }
