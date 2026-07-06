@@ -595,7 +595,9 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     const endStr = date
       ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 18, 0).toISOString().substring(0, 16)
       : new Date(Date.now() + 24 * 3600 * 1000).toISOString().substring(0, 16);
-
+// In openNewBooking (around line 599), make it async:
+const { data } = await supabase.rpc('next_invoice_no');
+const invoice_no = data || `INV-${Date.now()}`; // fallback if RPC fails
     setBookingForm({
       invoice_no: `INV-2026-${Math.floor(100 + Math.random() * 900)}`,
       client_name: '', route: '', tour_reference: '', start_date: startStr, end_date: endStr,
