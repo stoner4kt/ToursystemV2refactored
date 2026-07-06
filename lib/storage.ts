@@ -875,45 +875,35 @@ export function transformPayloadForPull(tableName: string, data: any[]): any[] {
   return withBookingResolved;
 }
 
-export async function pushToSupabase(tableName: string, data: any, matchColumn: string, matchValue: any) {
-  if (!isSupabaseConfigured || !supabase) {
-    console.log(`Supabase not configured or client null. Skipping push to ${tableName}.`);
-    return;
-  }
+// lib/storage.ts — change pushToSupabase signature + body
+
+export async function pushToSupabase(
+  tableName: string, data: any, matchColumn: string, matchValue: any
+): Promise<boolean> {          // ← was void
+  if (!isSupabaseConfigured || !supabase) return true; // graceful skip
+
   try {
     const dbTableName = TABLE_MAP[tableName] || tableName;
     const transformed = transformPayloadForPush(dbTableName, data);
-    console.log(`[Supabase Push] Attempting upsert on '${dbTableName}' for matching ${matchColumn} = ${matchValue}`);
     const { error } = await supabase.from(dbTableName).upsert(transformed, { onConflict: matchColumn });
-    if (error) {
-      console.warn(`[Supabase Push] Upsert failed for '${dbTableName}', trying manual fallback. Error:`, error.message || error);
-      // Fallback manual upsert
-      const { data: existing, error: selectError } = await supabase.from(dbTableName).select(matchColumn).eq(matchColumn, matchValue).maybeSingle();
-      if (selectError) {
-        console.error(`[Supabase Push] Fallback select error on '${dbTableName}':`, selectError.message || selectError);
-      }
-      if (existing) {
-        console.log(`[Supabase Push] Row exists in '${dbTableName}', performing update.`);
-        const { error: updateError } = await supabase.from(dbTableName).update(transformed).eq(matchColumn, matchValue);
-        if (updateError) {
-          console.error(`[Supabase Push] Fallback update failed on '${dbTableName}':`, updateError.message || updateError);
-        } else {
-          console.log(`[Supabase Push] Fallback update succeeded on '${dbTableName}'.`);
-        }
-      } else {
-        console.log(`[Supabase Push] Row does not exist in '${dbTableName}', performing insert.`);
-        const { error: insertError } = await supabase.from(dbTableName).insert([transformed]);
-        if (insertError) {
-          console.error(`[Supabase Push] Fallback insert failed on '${dbTableName}':`, insertError.message || insertError);
-        } else {
-          console.log(`[Supabase Push] Fallback insert succeeded on '${dbTableName}'.`);
-        }
-      }
+
+    if (!error) return true;
+
+    // Fallback
+    const { data: existing } = await supabase
+      .from(dbTableName).select(matchColumn).eq(matchColumn, matchValue).maybeSingle();
+
+    if (existing) {
+      const { error: upErr } = await supabase.from(dbTableName).update(transformed).eq(matchColumn, matchValue);
+      if (upErr) throw new Error(upErr.message);
     } else {
-      console.log(`[Supabase Push] Upsert succeeded on '${dbTableName}'.`);
+      const { error: insErr } = await supabase.from(dbTableName).insert([transformed]);
+      if (insErr) throw new Error(insErr.message);
     }
+    return true;
   } catch (error: any) {
-    console.error(`[Supabase Push] Exception writing to Supabase table ${tableName}:`, error.message || error);
+    console.error(`[Supabase Push] Exception on table ${tableName}:`, error.message || error);
+    return false;      // ← was a swallowed exception
   }
 }
 
