@@ -703,14 +703,19 @@ const invoice_no = data || `INV-${Date.now()}`;
       updated_at: new Date().toISOString()
     };
 
-    const action = async () => {
-      await bookingsApi.saveBooking(payload, admin.id || admin.driver_id, editReason || 'Details modified');
-      setShowBookingModal(false);
-      refreshData();
-      alert('Booking saved and schedules compiled!');
-    };
-
-    action();
+    
+// AFTER
+const action = async () => {
+  try {
+    await bookingsApi.saveBooking(payload, admin.id || admin.driver_id, editReason || 'Details modified');
+    setShowBookingModal(false);
+    refreshData();
+    alert('✅ Booking saved successfully!');
+  } catch (err: any) {
+    alert(`❌ Failed to save booking: ${err.message || 'Unknown error'}\n\nPlease check the console for details.`);
+  }
+};
+action();
   };
 
   const requestBookingDelete = (bookingId: string, otpId?: string) => {
