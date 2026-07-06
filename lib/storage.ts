@@ -56,10 +56,14 @@ export interface Booking {
   end_date: string; // ISO string
   assigned_driver_id: string; // profiles.driver_id
   assigned_vehicle_reg: string; // vehicles.registration_no (empty if rented)
-  status: 'pending' | 'confirmed' | 'invoiced' | 'active' | 'in-transit' | 'completed' | 'cancelled'
-        | 'documents_pending' | 'inspection_pending' | 'ready_for_handover'
-        | 'vehicle_out' | 'return_inspection_pending' | 'returned'
-        | 'damage_review' | 'closed';
+  
+// AFTER — keep 'pending' only as a UI-side display alias, never sent to DB
+// The transformPayloadForPush already converts it, so this is safe:
+status: 'pending' | 'invoiced' | 'confirmed' | 'active' | 'in-transit' | 'completed' | 'cancelled'
+      | 'documents_pending' | 'inspection_pending' | 'ready_for_handover'
+      | 'vehicle_out' | 'return_inspection_pending' | 'returned'
+      | 'damage_review' | 'closed';
+// (No change to the union itself, but change the DEFAULT so the form never initializes with 'pending')
   payment_status: 'paid' | 'unpaid';
   receipt_number?: string;
   booking_documents: Array<{
