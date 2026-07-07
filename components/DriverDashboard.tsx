@@ -910,9 +910,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                       <h3 className="text-sm font-extrabold text-white mt-1.5 leading-snug">{b.client_name}</h3>
                       <p className="text-xs text-slate-400 mt-0.5 font-medium">{b.route}</p>
                     </div>
-                    <span className="text-xs font-bold text-teal-400">
-                      {b.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
-                    </span>
+                    
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
