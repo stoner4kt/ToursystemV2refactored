@@ -634,7 +634,7 @@ CREATE TABLE public.rental_clients (
     phone text,
     email text,
     address text,
-    id_number text,
+    profile_type text DEFAULT 'self_drive'::text,
     linked_client_company text,
     rental_agreement_url text,
     rental_agreement_filename text,

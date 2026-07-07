@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, RefreshCw, CheckCircle, FileText, User, Phone, Mail, MapPin, CreditCard, Building2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, RefreshCw, CheckCircle, FileText, User, Phone, Mail, MapPin, Building2 } from 'lucide-react';
 import { RentalClient, generateUUID, uploadToCloudinary, getSignedUrlForView } from '@/lib/storage';
 
 interface RentalClientFormProps {
@@ -11,44 +11,25 @@ interface RentalClientFormProps {
   onClose: () => void;
 }
 
-const emptyForm = (): Omit<RentalClient, 'id' | 'created_at' | 'updated_at'> => ({
-  full_name: '',
-  phone: '',
-  email: '',
-  address: '',
-  id_number: '',
-  linked_client_company: '',
-  rental_agreement_url: '',
-  rental_agreement_filename: '',
-  rental_agreement_uploaded_at: '',
-  notes: '',
+const emptyForm = (editTarget?: RentalClient | null): Omit<RentalClient, 'id' | 'created_at' | 'updated_at'> => ({
+  full_name: editTarget?.full_name || '',
+  phone: editTarget?.phone || '',
+  email: editTarget?.email || '',
+  address: editTarget?.address || '',
+  linked_client_company: editTarget?.linked_client_company || '',
+  rental_agreement_url: editTarget?.rental_agreement_url || '',
+  rental_agreement_filename: editTarget?.rental_agreement_filename || '',
+  rental_agreement_uploaded_at: editTarget?.rental_agreement_uploaded_at || '',
+  notes: editTarget?.notes || '',
 });
 
 export default function RentalClientForm({ mode, editTarget, onSave, onClose }: RentalClientFormProps) {
-  const [form, setForm] = useState(emptyForm());
+  const [form, setForm] = useState(() => emptyForm(editTarget));
   const [saving, setSaving] = useState(false);
   const [uploadingAgreement, setUploadingAgreement] = useState(false);
 
   const isExternalDriver = mode === 'external_driver';
   const title = isExternalDriver ? 'External Driver Profile' : 'Client / Renter Profile';
-
-  // Populate form when editing an existing record
-  useEffect(() => {
-    if (editTarget) {
-      setForm({
-        full_name: editTarget.full_name || '',
-        phone: editTarget.phone || '',
-        email: editTarget.email || '',
-        address: editTarget.address || '',
-        id_number: editTarget.id_number || '',
-        linked_client_company: editTarget.linked_client_company || '',
-        rental_agreement_url: editTarget.rental_agreement_url || '',
-        rental_agreement_filename: editTarget.rental_agreement_filename || '',
-        rental_agreement_uploaded_at: editTarget.rental_agreement_uploaded_at || '',
-        notes: editTarget.notes || '',
-      });
-    }
-  }, [editTarget]);
 
   const handleAgreementUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -170,21 +151,8 @@ export default function RentalClientForm({ mode, editTarget, onSave, onClose }: 
             </div>
           </div>
 
-          {/* ID Number + Address */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-[10px] font-black uppercase text-slate-400 block mb-1 flex items-center gap-1">
-                <CreditCard className="w-3 h-3" /> ID / Passport No.
-              </label>
-              <input
-                type="text"
-                placeholder="SA ID or passport"
-                value={form.id_number}
-                onChange={e => setForm(prev => ({ ...prev, id_number: e.target.value }))}
-                className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-slate-800 font-mono focus:outline-none focus:border-teal-500"
-              />
-            </div>
-            <div>
+          {/* Address */}
+          <div>
               <label className="text-[10px] font-black uppercase text-slate-400 block mb-1 flex items-center gap-1">
                 <MapPin className="w-3 h-3" /> Address
               </label>
@@ -195,7 +163,6 @@ export default function RentalClientForm({ mode, editTarget, onSave, onClose }: 
                 onChange={e => setForm(prev => ({ ...prev, address: e.target.value }))}
                 className="w-full bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-slate-800 focus:outline-none focus:border-teal-500"
               />
-            </div>
           </div>
 
           {/* Linked Company — only for external_driver */}
