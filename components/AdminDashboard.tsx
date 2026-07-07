@@ -176,6 +176,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
   const [showLogChecklistModal, setShowLogChecklistModal] = useState(false);
   const [newChecklistForm, setNewChecklistForm] = useState({
     driver_id: '',
+    vehicle_reg: '',
     week_start: new Date().toISOString().substring(0, 10),
     week_end: new Date(new Date().getTime() + 7 * 24 * 3600 * 1000).toISOString().substring(0, 10),
     checklist_data: {
@@ -422,6 +423,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     const newChecklist: VehicleChecklist = {
       id: `chk-${Math.random().toString(36).substring(2, 9)}`,
       driver_id: newChecklistForm.driver_id,
+      vehicle_reg: newChecklistForm.vehicle_reg || '',
       week_start: newChecklistForm.week_start,
       week_end: newChecklistForm.week_end,
       status: 'submitted',
