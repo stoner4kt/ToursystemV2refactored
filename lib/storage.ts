@@ -523,7 +523,7 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     'edit_request_approved_by', 'edit_request_approved_at', 'edit_request_rejected_reason',
     'edit_request_rejected_at', 'edit_request_rejection_reason', 'slip_image_urls'
   ],
-  driver_invites: ['email', 'full_name', 'invited_by', 'invited_at', 'used_at', 'location'],
+  driver_invites: ['email', 'full_name', 'phone', 'invited_by', 'invited_at', 'used_at', 'location'],
   transfer_recon_sheets: [
     'id', 'driver_id', 'week_start', 'week_end', 'transfers', 'status', 'submitted_at',
     'reviewed_by', 'reviewed_at', 'created_at', 'updated_at',
@@ -1446,6 +1446,7 @@ export const driversApi = {
            email: invite.email,
            name: invite.full_name,
            fullName: invite.full_name,
+           phone: invite.phone,
            location: invite.location
          }
        }).catch(err => console.error("Error triggering driver-invite function:", err));
