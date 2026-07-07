@@ -800,6 +800,7 @@ action();
 
     driversApi.createInvite({
       email: inviteEmail,
+      phone: invitePhone,
       full_name: inviteName,
       location: region,
       invited_by: admin.id || admin.driver_id,
@@ -808,6 +809,7 @@ action();
 
     setInviteEmail('');
     setInviteName('');
+    setInvitePhone('');
     refreshData();
     alert(`✉️ Invitation voucher successfully generated for ${inviteName}! They can now register using this email.`);
   };
@@ -1601,6 +1603,19 @@ const handleApproveRecon = (id: string, notes: string) => {
                         onChange={(e) => setInviteEmail(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-slate-800"
                       />
+                      <div>
+  <span className="text-slate-400 block mb-1">
+    Mobile Number <span className="text-rose-500">*</span>
+  </span>
+  <input
+    type="tel"
+    required
+    placeholder="e.g. +27 82 123 4567"
+    value={invitePhone}
+    onChange={(e) => setInvitePhone(e.target.value)}
+    className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-slate-800"
+  />
+</div>
                     </div>
                     <button
                       type="submit"
@@ -1660,14 +1675,26 @@ const handleApproveRecon = (id: string, notes: string) => {
                               {d.is_active ? 'Active' : 'Suspended'}
                             </span>
                           </td>
-                          <td className="p-3 text-right">
-                            <button
-                              onClick={() => handleDeactivateDriver(d.driver_id, d.is_active)}
-                              className={`font-bold ${d.is_active ? 'text-rose-600 hover:text-rose-800' : 'text-emerald-600 hover:text-emerald-800'}`}
-                            >
-                              {d.is_active ? 'Suspend' : 'Activate'}
-                            </button>
-                          </td>
+                          <td className="p-3 text-right flex gap-2 justify-end">
+  <button
+    onClick={() => {
+      const newPhone = prompt(`Update phone for ${d.name}:`, d.phone || '');
+      if (newPhone !== null) {
+        driversApi.saveDriver({ ...d, phone: newPhone });
+        refreshData();
+      }
+    }}
+    className="font-bold text-slate-500 hover:text-slate-800 text-xs"
+  >
+    Edit Phone
+  </button>
+  <button
+    onClick={() => handleDeactivateDriver(d.driver_id, d.is_active)}
+    className={`font-bold ${d.is_active ? 'text-rose-600 hover:text-rose-800' : 'text-emerald-600 hover:text-emerald-800'}`}
+  >
+    {d.is_active ? 'Suspend' : 'Activate'}
+  </button>
+</td>
                         </tr>
                       ))}
                     </tbody>
