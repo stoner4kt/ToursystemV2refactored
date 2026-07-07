@@ -264,6 +264,7 @@ export interface TransferReconSheet {
 export interface DriverInvite {
   email: string;
   full_name: string;
+  phone: string;
   location: 'Cape Town' | 'Joburg';
   invited_by: string;
   invited_at: string;
