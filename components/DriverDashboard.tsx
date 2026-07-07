@@ -57,6 +57,9 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [assignedBookings, setAssignedBookings] = useState<Booking[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [checklistVehicleOptions, setChecklistVehicleOptions] = useState<
+  { label: string; value: string }[]
+>([]);
   
   // Inspection State
   const [showInspectionModal, setShowInspectionModal] = useState(false);
