@@ -926,7 +926,9 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                 <p className="text-[10px] text-teal-500/80 mt-1 italic">Contact dispatch to check vehicle scheduling.</p>
               </div>
             ) : (
-              assignedBookings.map(b => (
+              [...assignedBookings]
+                .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
+                .map(b => (
                 <div key={b.invoice_no} className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col gap-3">
                   <div className="flex justify-between items-start">
                     <div>
@@ -1077,7 +1079,9 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
               </div>
             ) : (
               <div className="space-y-3">
-                {inspectionsList.map(ins => (
+                {[...inspectionsList]
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  .map(ins => (
                   <div key={ins.id} className="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-3 shadow-lg text-xs">
                     <div className="flex justify-between items-start">
                       <div>
@@ -1506,7 +1510,9 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                 {recons.length === 0 ? (
                   <p className="text-xs text-slate-500 italic text-center py-6">No reconciliation sheets logged yet.</p>
                 ) : (
-                  recons.map(rec => (
+                  [...recons]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map(rec => (
                     <div key={rec.id} className="bg-slate-950/90 border border-slate-800 rounded-xl p-4 shadow flex flex-col gap-2">
                       <div className="flex justify-between items-center">
                         <div>
@@ -2066,7 +2072,9 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
 
                   return (
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {previousSheets.map(ts => {
+                      {[...previousSheets]
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .map(ts => {
                         const totalWage = ts.transfers.reduce((sum, curr) => sum + Number(curr.amount || 0), 0);
                         return (
                           <div key={ts.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-xs flex flex-col justify-between gap-3">
@@ -2579,7 +2587,9 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                 <div className="pt-2">
                   <h3 className="text-xs font-bold text-slate-400 mb-2">My Weekly Audited Checklists</h3>
                   <div className="space-y-1.5">
-                    {driverChecklists.map(c => (
+                    {[...driverChecklists]
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                      .map(c => (
                       <div key={c.id} className="bg-slate-950 p-2.5 border border-slate-800 rounded-lg flex justify-between items-center text-[11px]">
                         <div>
                           <p className="font-extrabold text-white">Period: {c.week_start} - {c.week_end}</p>
@@ -2612,7 +2622,9 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {driverFines.map(f => (
+                    {[...driverFines]
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                      .map(f => (
                       <div key={f.id} className="bg-slate-950 p-3.5 border border-slate-800 rounded-xl space-y-2 text-[11px]">
                         <div className="flex justify-between items-start">
                           <div>
