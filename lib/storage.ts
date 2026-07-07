@@ -217,6 +217,7 @@ export interface ReconSheet {
   edit_request_status: 'none' | 'pending' | 'approved' | 'rejected';
   edit_request_reason?: string;
   edit_request_rejection_reason?: string;
+  was_edited?: boolean;
 
   status: 'draft' | 'submitted' | 'reviewed';
   submitted_at?: string;
@@ -253,6 +254,7 @@ export interface TransferReconSheet {
   edit_request_status: 'none' | 'pending' | 'approved' | 'rejected';
   edit_request_reason?: string;
   edit_request_rejection_reason?: string;
+  was_edited?: boolean;
 
   submitted_at?: string;
   reviewed_by?: string;
@@ -1838,9 +1840,11 @@ export const reconApi = {
       const recon = list[idx];
       recon.edit_request_status = action;
       if (action === 'approved') {
-        recon.status = 'draft'; // Put back into draft for editing
+        recon.status = 'draft';
+        recon.was_edited = true;
       } else {
         recon.edit_request_rejection_reason = adminNotes;
+        recon.was_edited = true;
       }
       recon.updated_at = new Date().toISOString();
       list[idx] = recon;
@@ -1899,9 +1903,11 @@ export const transferReconApi = {
       const recon = list[idx];
       recon.edit_request_status = action;
       if (action === 'approved') {
-        recon.status = 'draft'; // Put back into draft for editing
+        recon.status = 'draft';
+        recon.was_edited = true;// Put back into draft for editing
       } else {
         recon.edit_request_rejection_reason = adminNotes;
+        recon.was_edited = true;
       }
       recon.updated_at = new Date().toISOString();
       list[idx] = recon;
