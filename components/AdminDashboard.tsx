@@ -439,6 +439,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     setShowLogChecklistModal(false);
     setNewChecklistForm({
       driver_id: '',
+      vehicle_reg: '',
       week_start: new Date().toISOString().substring(0, 10),
       week_end: new Date(new Date().getTime() + 7 * 24 * 3600 * 1000).toISOString().substring(0, 10),
       checklist_data: {
