@@ -1578,7 +1578,7 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                           </button>
                         )}
 
-                        {rec.status === 'submitted' && rec.edit_request_status === 'none' && (
+                        {rec.status === 'submitted' && rec.edit_request_status === 'none' && !rec.was_edited && (
                           <button
                             onClick={() => setActiveReconForEditRequest(rec.id)}
                             className="text-[10px] font-bold text-amber-400 hover:bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg transition-colors"
@@ -1586,6 +1586,11 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                             Request Edit
                           </button>
                         )}
+                        {rec.was_edited && rec.status === 'submitted' && (
+  <span className="text-[10px] text-slate-500 italic px-2.5 py-1.5">
+    Edit already used — contact admin for further changes.
+  </span>
+)}
                       </div>
 
                       {/* Request Edit Dialog inline */}
