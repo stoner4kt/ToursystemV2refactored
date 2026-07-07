@@ -890,8 +890,9 @@ export function transformPayloadForPull(tableName: string, data: any[]): any[] {
 
 export async function pushToSupabase(
   tableName: string, data: any, matchColumn: string, matchValue: any
-): Promise<boolean> {          // ← was void
-  if (!isSupabaseConfigured || !supabase) return true; // graceful skip
+): Promise<boolean> {
+  if (!isSupabaseConfigured || !supabase) return true;
+  console.log('[DEBUG] pushToSupabase called:', tableName, matchValue, 'configured:', isSupabaseConfigured, 'supabase:', !!supabase);
 
   try {
     const dbTableName = TABLE_MAP[tableName] || tableName;
@@ -1644,7 +1645,8 @@ export const rentalClientsApi = {
     return getLocalStorageItem<RentalClient[]>(STORAGE_KEYS.RENTAL_CLIENTS, []);
   },
   saveRentalClient: async (client: RentalClient): Promise<RentalClient> => {
-    const list = rentalClientsApi.getRentalClients();
+  console.log('[DEBUG] saveRentalClient called, isSupabaseConfigured:', isSupabaseConfigured);
+  const list = rentalClientsApi.getRentalClients();
     const idx = list.findIndex(c => c.id === client.id);
     const now = new Date().toISOString();
     const prepared: RentalClient = { ...client, updated_at: now, created_at: client.created_at || now };
