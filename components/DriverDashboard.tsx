@@ -247,6 +247,23 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     const myFines = trafficFinesApi.getFines().filter(f => f.driver_id === driver.driver_id);
     setDriverFines(myFines);
 
+    // Build options: fleet active vehicles + active rented vehicles
+const rentedVehs = fleetApi.getRentedVehicles().filter(r => r.status === 'active');
+
+const fleetOptions = allVehs
+  .filter(v => v.status === 'active')
+  .map(v => ({ label: `${v.registration_no} — ${v.make} ${v.model}`, value: v.registration_no }));
+
+const rentedOptions = rentedVehs
+  .map(r => ({ label: `${r.reg_no} (Rented: ${r.make} ${r.model})`, value: r.reg_no }));
+
+const combined = [...fleetOptions, ...rentedOptions];
+setChecklistVehicleOptions(combined);
+
+// Seed default selection
+if (combined.length > 0 && !checklistForm.vehicle_reg) {
+  setChecklistForm(prev => ({ ...prev, vehicle_reg: combined[0].value }));
+}
     // Seed default selection for checklists
     if (allVehs.length > 0) {
       setReconForm(prev => ({ ...prev, vehicle_reg: allVehs[0].registration_no }));
@@ -2176,7 +2193,23 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
             <p className="text-[10px] text-slate-400">
               Submit your standard 12-point weekly safety checklist audit for compliance records. Use OK or WARN (Action Required) to log actual condition.
             </p>
-
+{/* Vehicle Selection */}
+<div>
+  <span className="text-[10px] text-slate-400 block mb-1">
+    Vehicle <span className="text-rose-400">*</span>
+  </span>
+  <select
+    required
+    value={checklistForm.vehicle_reg || ''}
+    onChange={(e) => setChecklistForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
+    className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-xs text-white"
+  >
+    <option value="" disabled>Select a vehicle...</option>
+    {checklistVehicleOptions.map(opt => (
+      <option key={opt.value} value={opt.value}>{opt.label}</option>
+    ))}
+  </select>
+</div>
             <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3">
               <form onSubmit={submitPeriodicChecklist} className="space-y-3 text-xs">
                 <div className="grid grid-cols-2 gap-2 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
