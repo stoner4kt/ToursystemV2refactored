@@ -226,6 +226,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
+  const [invitePhone, setInvitePhone] = useState('');
 
   // Fine form State
   const [fineForm, setFineForm] = useState({
