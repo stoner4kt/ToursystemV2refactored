@@ -63,6 +63,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [rentedVehicles, setRentedVehicles] = useState<RentedVehicle[]>([]);
   const [drivers, setDrivers] = useState<Profile[]>([]);
+  const [reviewingReconId, setReviewingReconId] = useState<string | null>(null);
   const [driverInvites, setDriverInvites] = useState<any[]>([]);
   const [weeklyRecons, setWeeklyRecons] = useState<ReconSheet[]>([]);
   const [transferRecons, setTransferRecons] = useState<TransferReconSheet[]>([]);
@@ -1773,27 +1774,93 @@ const handleApproveRecon = (id: string, notes: string) => {
                           </div>
                         </div>
 
+                        
                         {/* Edit request approval banner */}
                         {rec.edit_request_status === 'pending' && (
-                          <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex justify-between items-center text-xs">
-                            <div>
-                              <p className="font-black text-amber-800 uppercase text-[9px]">Pending Edit Authorization Request</p>
-                              <p className="text-slate-600 mt-0.5">Reason: &quot;{rec.edit_request_reason}&quot;</p>
-                            </div>
-                            <div className="flex gap-1">
+                          <div className="border border-amber-200 rounded-lg overflow-hidden">
+                            {/* Header row */}
+                            <div className="bg-amber-50 p-3 flex justify-between items-center text-xs">
+                              <div>
+                                <p className="font-black text-amber-800 uppercase text-[9px]">⏳ Pending Edit Authorization Request</p>
+                                <p className="text-slate-600 mt-0.5">Reason: &quot;{rec.edit_request_reason}&quot;</p>
+                              </div>
                               <button
-                                onClick={() => handleReviewEditRequest(rec.id, 'weekly', 'rejected')}
-                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1 px-2 rounded"
+                                onClick={() => setReviewingReconId(reviewingReconId === rec.id ? null : rec.id)}
+                                className="text-amber-700 font-bold border border-amber-300 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors text-[10px] whitespace-nowrap ml-3"
                               >
-                                Reject
-                              </button>
-                              <button
-                                onClick={() => handleReviewEditRequest(rec.id, 'weekly', 'approved')}
-                                className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1 px-3.5 rounded shadow-xs"
-                              >
-                                Approve Edit
+                                {reviewingReconId === rec.id ? '▲ Hide Sheet' : '▼ Review Sheet'}
                               </button>
                             </div>
+
+                            {/* Expandable full recon detail */}
+                            {reviewingReconId === rec.id && (
+                              <div className="bg-white border-t border-amber-100 p-4 space-y-3 text-xs">
+                                <p className="text-[10px] font-black uppercase text-slate-400 border-b pb-1.5">
+                                  Full Recon Sheet — Review Before Acting
+                                </p>
+
+                                {/* Identity & dates */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded border border-slate-200">
+                                  <div><span className="text-slate-400 block text-[9px]">Tour Ref</span><strong>{rec.tour_reference || 'N/A'}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Vehicle</span><strong>{rec.vehicle_reg}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Week Start</span><strong>{rec.week_start}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Week End</span><strong>{rec.week_end}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Start KM</span><strong>{rec.start_km}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">End KM</span><strong>{rec.end_km}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Total KM</span><strong>{rec.total_distance_km}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Hours</span><strong>{rec.total_hours}</strong></div>
+                                </div>
+
+                                {/* Financials */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded border border-slate-200">
+                                  <div><span className="text-slate-400 block text-[9px]">Trip Budget</span><strong>R {Number(rec.trip_budget || 0).toFixed(2)}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Driver Food</span><strong>R {Number(rec.driver_food || 0).toFixed(2)}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Driver Rate</span><strong>R {Number(rec.driver_rate || 0).toFixed(2)}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Flights</span><strong>R {Number(rec.flights_to_from || 0).toFixed(2)}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Accommodation</span><strong>R {Number(rec.accommodation || 0).toFixed(2)}</strong></div>
+                                  <div className="col-span-2 md:col-span-3">
+                                    <span className="text-slate-400 block text-[9px]">Total Profit / Loss</span>
+                                    <strong className={Number(rec.total_profit_loss || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                                      R {Number(rec.total_profit_loss || 0).toFixed(2)}
+                                    </strong>
+                                  </div>
+                                </div>
+
+                                {/* Wellness */}
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 bg-slate-50 p-2.5 rounded border border-slate-200">
+                                  <div><span className="text-slate-400 block text-[9px]">Fatigue Level</span><strong>{rec.fatigue_level}/10</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Stress Level</span><strong>{rec.stress_level}/10</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Vehicle Issues</span><strong className="text-rose-600">{rec.vehicle_issues || 'None'}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Accidents</span><strong className="text-rose-600">{rec.accidents_incidents || 'None'}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Traffic Violations</span><strong>{rec.traffic_violations || 'None'}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Safety Concerns</span><strong>{rec.safety_concerns || 'None'}</strong></div>
+                                </div>
+
+                                {/* Driver notes */}
+                                {rec.driver_notes && (
+                                  <div className="bg-slate-50 p-2 rounded border border-slate-200">
+                                    <span className="text-[9px] text-slate-400 block font-bold uppercase mb-0.5">Driver Notes</span>
+                                    <p className="text-slate-700">{rec.driver_notes}</p>
+                                  </div>
+                                )}
+
+                                {/* Action buttons */}
+                                <div className="flex gap-2 justify-end pt-1 border-t border-slate-100">
+                                  <button
+                                    onClick={() => { setReviewingReconId(null); handleReviewEditRequest(rec.id, 'weekly', 'rejected'); }}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1.5 px-3 rounded-lg text-xs"
+                                  >
+                                    Reject Request
+                                  </button>
+                                  <button
+                                    onClick={() => { setReviewingReconId(null); handleReviewEditRequest(rec.id, 'weekly', 'approved'); }}
+                                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-4 rounded-lg text-xs shadow-xs"
+                                  >
+                                    🔐 Approve Edit
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -1897,25 +1964,73 @@ const handleApproveRecon = (id: string, notes: string) => {
 
                         {/* Edit request banner */}
                         {rec.edit_request_status === 'pending' && (
-                          <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex justify-between items-center text-xs">
-                            <div>
-                              <p className="font-black text-amber-800 uppercase text-[9px]">Edit Authorization Request</p>
-                              <p className="text-slate-600 mt-0.5">Reason: &quot;{rec.edit_request_reason}&quot;</p>
-                            </div>
-                            <div className="flex gap-1">
+                          <div className="border border-amber-200 rounded-lg overflow-hidden">
+                            <div className="bg-amber-50 p-3 flex justify-between items-center text-xs">
+                              <div>
+                                <p className="font-black text-amber-800 uppercase text-[9px]">⏳ Edit Authorization Request</p>
+                                <p className="text-slate-600 mt-0.5">Reason: &quot;{rec.edit_request_reason}&quot;</p>
+                              </div>
                               <button
-                                onClick={() => handleReviewEditRequest(rec.id, 'transfer', 'rejected')}
-                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1 px-2.5 rounded"
+                                onClick={() => setReviewingReconId(reviewingReconId === rec.id ? null : rec.id)}
+                                className="text-amber-700 font-bold border border-amber-300 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors text-[10px] whitespace-nowrap ml-3"
                               >
-                                Reject
-                              </button>
-                              <button
-                                onClick={() => handleReviewEditRequest(rec.id, 'transfer', 'approved')}
-                                className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1 px-3 rounded shadow-xs"
-                              >
-                                Approve Edit
+                                {reviewingReconId === rec.id ? '▲ Hide Sheet' : '▼ Review Sheet'}
                               </button>
                             </div>
+
+                            {reviewingReconId === rec.id && (
+                              <div className="bg-white border-t border-amber-100 p-4 space-y-3 text-xs">
+                                <p className="text-[10px] font-black uppercase text-slate-400 border-b pb-1.5">
+                                  Transfer Sheet — Review Before Acting
+                                </p>
+
+                                {/* Transfers table */}
+                                <div className="overflow-x-auto rounded border border-slate-200">
+                                  <table className="w-full text-[10px]">
+                                    <thead className="bg-slate-50 text-slate-500 uppercase">
+                                      <tr>
+                                        <th className="p-2 text-left font-bold">Date</th>
+                                        <th className="p-2 text-left font-bold">Ref</th>
+                                        <th className="p-2 text-left font-bold">Type</th>
+                                        <th className="p-2 text-left font-bold">Description</th>
+                                        <th className="p-2 text-left font-bold">Amount</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {rec.transfers.map((t, i) => (
+                                        <tr key={i} className="border-t border-slate-100">
+                                          <td className="p-2 text-slate-600">{t.date}</td>
+                                          <td className="p-2 text-slate-600 font-mono">{t.invoice_or_tour_ref}</td>
+                                          <td className="p-2">{t.tla_type || 'N/A'}</td>
+                                          <td className="p-2 text-slate-500">{t.description || t.passenger_name || `${t.pickup_location} → ${t.dropoff_location}`}</td>
+                                          <td className="p-2 font-bold text-teal-600">R {t.amount}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+
+                                <div className="bg-slate-50 p-2 rounded border border-slate-200 flex justify-between">
+                                  <span className="text-slate-400 text-[9px] uppercase font-bold">Total Wage</span>
+                                  <strong className="text-teal-600">R {rec.transfers.reduce((s, t) => s + Number(t.amount || 0), 0).toFixed(2)}</strong>
+                                </div>
+
+                                <div className="flex gap-2 justify-end pt-1 border-t border-slate-100">
+                                  <button
+                                    onClick={() => { setReviewingReconId(null); handleReviewEditRequest(rec.id, 'transfer', 'rejected'); }}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1.5 px-3 rounded-lg text-xs"
+                                  >
+                                    Reject Request
+                                  </button>
+                                  <button
+                                    onClick={() => { setReviewingReconId(null); handleReviewEditRequest(rec.id, 'transfer', 'approved'); }}
+                                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-4 rounded-lg text-xs shadow-xs"
+                                  >
+                                    🔐 Approve Edit
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
