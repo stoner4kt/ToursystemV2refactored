@@ -513,7 +513,7 @@ CREATE TABLE public.otp_verifications (
     verified_at timestamp with time zone,
     attempts integer DEFAULT 0,
     locked_until timestamp with time zone,
-    CONSTRAINT otp_verifications_resource_type_check CHECK ((resource_type = ANY (ARRAY['recon_edit'::text, 'booking_edit'::text, 'booking_delete'::text, 'expense_approval'::text, 'incident_delete'::text, 'transfer_recon_edit'::text, 'vehicle_delete'::text, 'rented_vehicle_delete'::text, 'driver_deactivate'::text])))
+    CONSTRAINT otp_verifications_resource_type_check CHECK ((resource_type = ANY (ARRAY['recon_edit'::text, 'booking_edit'::text, 'booking_delete'::text, 'expense_approval'::text, 'incident_delete'::text, 'transfer_recon_edit'::text, 'vehicle_delete'::text, 'rented_vehicle_delete'::text, 'driver_deactivate'::text, 'rental_client_delete'::text])))
 );
 
 

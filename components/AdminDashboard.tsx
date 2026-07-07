@@ -832,9 +832,9 @@ action();
 
     executeWithOtpGuard(
       'driver_deactivate',
-      driverId,
+      match.id || generateUUID(),
       action,
-      `OTP required to ${currentStatus ? 'suspend' : 'reactivate'} driver`,
+      `OTP required to ${currentStatus ? 'suspend' : 'reactivate'} driver ${driverId}`,
       true
     );
   };
