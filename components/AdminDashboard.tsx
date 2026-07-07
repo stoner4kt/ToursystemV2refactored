@@ -1241,7 +1241,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                         <td colSpan={8} className="p-6 text-center text-slate-400 italic">No bookings scheduled in this region.</td>
                       </tr>
                     ) : (
-                      bookings.map(b => {
+                      [...bookings]
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .map(b => {
                         const preTrip = inspections.find(ins => ins.invoice_no === b.invoice_no && ins.inspection_type === 'pre-trip');
                         const postTrip = inspections.find(ins => ins.invoice_no === b.invoice_no && ins.inspection_type === 'post-trip');
 
@@ -1714,7 +1716,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                 {weeklyRecons.length === 0 ? (
                   <p className="text-xs text-slate-400 italic bg-white p-6 border border-slate-200 rounded-xl text-center">No weekly trip recon sheets submitted yet.</p>
                 ) : (
-                  weeklyRecons.map(rec => {
+                  [...weeklyRecons]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map(rec => {
                     const drv = drivers.find(d => d.driver_id === rec.driver_id);
                     const driverName = drv ? drv.name : rec.driver_id;
 
@@ -1833,7 +1837,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                 {transferRecons.length === 0 ? (
                   <p className="text-xs text-slate-400 italic bg-white p-6 border border-slate-200 rounded-xl text-center">No transfer sheets submitted yet.</p>
                 ) : (
-                  transferRecons.map(rec => {
+                  [...transferRecons]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map(rec => {
                     const drv = drivers.find(d => d.driver_id === rec.driver_id);
                     const driverName = drv ? drv.name : rec.driver_id;
                     const totalWage = rec.transfers.reduce((sum, curr) => sum + curr.amount, 0);
@@ -2163,7 +2169,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                           <td colSpan={8} className="p-4 text-center text-slate-400 italic">No fines logged currently.</td>
                         </tr>
                       ) : (
-                        trafficFines.map(f => {
+                        [...trafficFines]
+                          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                          .map(f => {
                           const drv = drivers.find(d => d.driver_id === f.driver_id);
                           const driverName = drv ? drv.name : f.driver_id;
                           return (
@@ -2276,7 +2284,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                         <td colSpan={7} className="p-4 text-center text-slate-400 italic">No receipts reported by drivers currently.</td>
                       </tr>
                     ) : (
-                      vehicleExpenses.map(exp => (
+                      [...vehicleExpenses]
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .map(exp => (
                         <tr key={exp.id} className="hover:bg-slate-50/50">
                           <td className="p-3">
                             <span className="font-bold text-slate-900 block">{exp.description}</span>
@@ -2356,7 +2366,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                 {incidentReports.length === 0 ? (
                   <p className="text-xs text-slate-400 italic bg-white p-6 border border-slate-200 rounded-xl text-center col-span-2">No accident incident records logged yet.</p>
                 ) : (
-                  incidentReports.map(inc => (
+                  [...incidentReports]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map(inc => (
                     <div key={inc.id} className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs space-y-3">
                       <div className="flex justify-between items-start">
                         <div>
