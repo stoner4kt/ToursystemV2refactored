@@ -17,7 +17,7 @@ import RentalClientForm from './RentalClientForm';
 import CalendarGrid from './CalendarGrid';
 import OTPModal from './OTPModal';
 import SignaturePad from './SignaturePad';
-import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF, downloadIncidentPDF, downloadExpensePDF } from '@/lib/pdf';
+import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF, downloadIncidentPDF, downloadExpensePDF, downloadRentalClientPDF } from '@/lib/pdf';
 
 export const INSPECTION_CATEGORIES = {
   'Documents & Compliance': [
@@ -54,7 +54,7 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'fleet' | 'rented' | 'drivers' | 'recons' | 'transfers' | 'wages' | 'fines' | 'expenses' | 'incidents' | 'inspections' | 'checklists' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'fleet' | 'rented' | 'drivers' | 'recons' | 'transfers' | 'wages' | 'fines' | 'expenses' | 'incidents' | 'inspections' | 'checklists' | 'rental_clients' | 'settings'>('dashboard');
   const [region, setRegion] = useState<'Cape Town' | 'Joburg'>('Cape Town');
   const [otpEnabled, setOtpEnabled] = useState(true);
 
@@ -104,6 +104,9 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   const [rentalClients, setRentalClients] = useState<RentalClient[]>([]);
   const [showRentalClientModal, setShowRentalClientModal] = useState(false);
   const [rentalClientEditTarget, setRentalClientEditTarget] = useState<RentalClient | null>(null);
+  const [rentalClientMode, setRentalClientMode] = useState<'self_drive' | 'external_driver'>('self_drive');
+  const [rentalClientSearch, setRentalClientSearch] = useState('');
+  const [rentalClientTypeFilter, setRentalClientTypeFilter] = useState<'all' | 'self_drive' | 'external_driver'>('all');
   const [rentalInspections, setRentalInspections] = useState<RentalInspection[]>([]);
 
   // Inspections and Checklists states
@@ -829,12 +832,46 @@ action();
 
     executeWithOtpGuard(
       'driver_deactivate',
-      driverId,
+      match.id || generateUUID(),
       action,
-      `OTP required to ${currentStatus ? 'suspend' : 'reactivate'} driver`,
+      `OTP required to ${currentStatus ? 'suspend' : 'reactivate'} driver ${driverId}`,
       true
     );
   };
+
+  const openRentalClientModal = (mode: 'self_drive' | 'external_driver', client?: RentalClient) => {
+    setRentalClientMode(mode);
+    setRentalClientEditTarget(client || null);
+    setShowRentalClientModal(true);
+  };
+
+  const requestRentalClientDelete = (client: RentalClient) => {
+    const profileLabel = client.profile_type === 'external_driver' ? 'external driver' : 'rental client';
+    const reason = prompt(`Please enter the reason for deleting ${client.full_name}'s ${profileLabel} profile:`);
+    if (!reason) return;
+
+    executeWithOtpGuard(
+      'rental_client_delete',
+      client.id,
+      async () => {
+        await rentalClientsApi.deleteRentalClient(client.id);
+        refreshData();
+        alert(`Deletion request verified. ${client.full_name}'s profile was deleted.`);
+      },
+      `OTP required to delete ${client.full_name}'s ${profileLabel} profile. Reason: ${reason}`,
+      true
+    );
+  };
+
+  const filteredRentalClients = rentalClients.filter(client => {
+    const profileType = client.profile_type || 'self_drive';
+    const matchesType = rentalClientTypeFilter === 'all' || profileType === rentalClientTypeFilter;
+    const haystack = [client.full_name, client.email, client.phone, client.address, client.linked_client_company, client.notes]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return matchesType && haystack.includes(rentalClientSearch.toLowerCase());
+  });
 
   // RECON AUDITING
 const handleApproveRecon = (id: string, notes: string) => {
@@ -1122,6 +1159,7 @@ const handleApproveRecon = (id: string, notes: string) => {
                 { id: 'fleet', label: 'Owned Fleet', icon: Car },
                 { id: 'rented', label: 'Rented-In Vehicles', icon: Car },
                 { id: 'drivers', label: 'Manage Drivers', icon: Users },
+                { id: 'rental_clients', label: 'Rental Clients', icon: Users },
                 { id: 'inspections', label: 'Compliance Checks', icon: ShieldCheck },
                 { id: 'checklists', label: 'Vehicle Checklists', icon: ClipboardCheck },
                 { id: 'recons', label: 'Trip Recons', icon: FileText },
@@ -1705,6 +1743,31 @@ const handleApproveRecon = (id: string, notes: string) => {
                 </div>
 </div>
               </div>
+            </div>
+          )}
+
+
+          {/* ==================== RENTAL CLIENTS DASHBOARD TAB ==================== */}
+          {activeTab === 'rental_clients' && (
+            <div className="space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Rental Clients & External Drivers</h2>
+                  <p className="text-xs text-slate-500">View, add, export, download PDF profiles, and delete rental profiles with OTP verification.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => downloadCSV(filteredRentalClients, 'rental_clients_and_external_drivers.csv')} className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-slate-300 flex items-center gap-1 transition-colors"><Download className="w-4 h-4" /> Export Sheet</button>
+                  <button onClick={() => openRentalClientModal('self_drive')} className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 transition-colors"><Plus className="w-4 h-4" /> Add Client</button>
+                  <button onClick={() => openRentalClientModal('external_driver')} className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 transition-colors"><Plus className="w-4 h-4" /> Add External Driver</button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col md:flex-row gap-2">
+                <div className="relative flex-1"><Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" /><input value={rentalClientSearch} onChange={e => setRentalClientSearch(e.target.value)} placeholder="Search by name, contact, company, address, or notes..." className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-teal-500" /></div>
+                <select value={rentalClientTypeFilter} onChange={e => setRentalClientTypeFilter(e.target.value as any)} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700"><option value="all">All Profiles</option><option value="self_drive">Clients / Renters</option><option value="external_driver">External Drivers</option></select>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-left text-xs min-w-[900px]"><thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500"><tr><th className="p-3">Profile</th><th className="p-3">Type</th><th className="p-3">Contact</th><th className="p-3">Address</th><th className="p-3">Linked Company</th><th className="p-3">Agreement</th><th className="p-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredRentalClients.length === 0 ? (<tr><td colSpan={7} className="p-6 text-center text-slate-400 italic">No rental clients or external drivers found.</td></tr>) : filteredRentalClients.map(client => { const profileType = client.profile_type || 'self_drive'; return (<tr key={client.id} className="hover:bg-slate-50/60"><td className="p-3"><span className="font-bold block text-slate-900">{client.full_name}</span><span className="text-[10px] text-slate-400">Created {new Date(client.created_at).toLocaleDateString()}</span></td><td className="p-3"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${profileType === 'external_driver' ? 'bg-amber-50 text-amber-700' : 'bg-violet-50 text-violet-700'}`}>{profileType === 'external_driver' ? 'External Driver' : 'Client / Renter'}</span></td><td className="p-3"><span className="block font-semibold text-slate-700">{client.phone || '—'}</span><span className="text-[10px] text-slate-400">{client.email || '—'}</span></td><td className="p-3 text-slate-600 max-w-[180px] truncate">{client.address || '—'}</td><td className="p-3 text-slate-600">{client.linked_client_company || '—'}</td><td className="p-3">{client.rental_agreement_url ? <button onClick={async () => window.open(await getSignedUrlForView(client.rental_agreement_url!), '_blank')} className="text-teal-600 hover:text-teal-800 font-bold">View</button> : <span className="text-slate-400">—</span>}</td><td className="p-3"><div className="flex justify-end gap-2"><button onClick={() => openRentalClientModal(profileType, client)} className="text-slate-600 hover:text-slate-900 font-bold">Edit</button><button onClick={() => downloadRentalClientPDF(client)} className="text-teal-600 hover:text-teal-800 font-bold">PDF</button><button onClick={() => requestRentalClientDelete(client)} className="text-rose-600 hover:text-rose-800 font-bold">Delete</button></div></td></tr>); })}</tbody></table></div></div>
             </div>
           )}
 
@@ -3671,7 +3734,7 @@ const handleApproveRecon = (id: string, notes: string) => {
                         </select>
                         <button
                           type="button"
-                          onClick={() => { setRentalClientEditTarget(null); setShowRentalClientModal(true); }}
+                          onClick={() => openRentalClientModal(bookingForm.rental_mode as 'self_drive' | 'external_driver')}
                           className="bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 px-2 rounded text-xs font-bold"
                           title="Create new renter"
                         >
@@ -5825,13 +5888,13 @@ const handleApproveRecon = (id: string, notes: string) => {
       {/* ==================== RENTAL CLIENT FORM MODAL ==================== */}
       {showRentalClientModal && (
         <RentalClientForm
-          mode={bookingForm.rental_mode as 'self_drive' | 'external_driver'}
+          mode={rentalClientMode}
           editTarget={rentalClientEditTarget}
           
 // AFTER — refresh AFTER setting the form so the new rental_client is in localStorage
 // before the subsequent saveBooking call reads it
 onSave={async (client) => {
-  await rentalClientsApi.saveRentalClient(client);  // pushes to Supabase
+  await rentalClientsApi.saveRentalClient({ ...client, profile_type: rentalClientMode });  // pushes to Supabase
   setBookingForm(prev => ({ ...prev, rental_client_id: client.id }));
   setShowRentalClientModal(false);
   refreshData();  // moved to last — state update is already queued above

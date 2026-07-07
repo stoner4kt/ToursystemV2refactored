@@ -101,7 +101,7 @@ export interface RentalClient {
   phone?: string;
   email?: string;
   address?: string;
-  id_number?: string;
+  profile_type?: 'self_drive' | 'external_driver';
   linked_client_company?: string;
   rental_agreement_url?: string;
   rental_agreement_filename?: string;
@@ -569,7 +569,7 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     'created_at', 'updated_at'
   ],
   rental_clients: [
-    'id', 'full_name', 'phone', 'email', 'address', 'id_number',
+    'id', 'full_name', 'phone', 'email', 'address', 'profile_type',
     'linked_client_company', 'rental_agreement_url', 'rental_agreement_filename',
     'rental_agreement_uploaded_at', 'notes', 'created_at', 'updated_at'
   ],
