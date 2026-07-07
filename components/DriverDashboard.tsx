@@ -2163,7 +2163,7 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                                 </button>
                               )}
 
-                              {ts.status === 'submitted' && ts.edit_request_status === 'none' && (
+                            {ts.status === 'submitted' && ts.edit_request_status === 'none' && !ts.was_edited && (
                                 <button
                                   onClick={() => {
                                     setActiveReconForEditRequest(ts.id);
@@ -2173,6 +2173,11 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                                   Request Edit
                                 </button>
                               )}
+                              {ts.was_edited && ts.status === 'submitted' && (
+  <span className="text-[10px] text-slate-500 italic px-2.5 py-1.5">
+    Edit already used — contact admin for further changes.
+  </span>
+)}
 
                               {ts.edit_request_status === 'pending' && (
                                 <span className="text-[10px] font-bold text-amber-400 bg-amber-950/30 border border-amber-900/60 px-2.5 py-1.5 rounded-lg">
