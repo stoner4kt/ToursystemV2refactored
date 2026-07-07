@@ -743,12 +743,16 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
     if (!checklistForm.mileage) {
       alert('Please fill current mileage.');
       return;
+      if (!checklistForm.vehicle_reg) {
+  alert('Please select a vehicle.');
+  return;
+      }
     }
 
     const newChecklist: VehicleChecklist = {
       id: `chk-${Math.random().toString(36).substring(2, 9)}`,
       driver_id: driver.driver_id,
-      vehicle_reg: '',
+      vehicle_reg: checklistForm.vehicle_reg || '',
       week_start: checklistForm.week_start || '',
       week_end: checklistForm.week_end || '',
       status: 'submitted',
