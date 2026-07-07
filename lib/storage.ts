@@ -371,6 +371,7 @@ export interface IncidentReport {
 export interface VehicleChecklist {
   id: string;
   driver_id: string;
+  vehicle_reg: string;
   week_start: string;
   week_end: string;
   status: 'draft' | 'submitted';
