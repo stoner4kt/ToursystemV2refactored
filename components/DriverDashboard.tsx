@@ -156,6 +156,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     injuries: false
   });
   const [checklistForm, setChecklistForm] = useState<Partial<VehicleChecklist>>({
+    vehicle_reg: '',   
     week_start: '',
     week_end: '',
     checklist_data: {
