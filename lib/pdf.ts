@@ -13,6 +13,21 @@ function downloadBlob(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url);
 }
 
+function drawInyathiPdfHeader(page: any, height: number, title: string, font: any, boldFont: any) {
+  const logoX = 50;
+  const logoY = height - 82;
+  page.drawCircle({ x: logoX + 29, y: logoY + 29, size: 29, color: rgb(1, 1, 1), borderColor: rgb(0.82, 0.86, 0.9), borderWidth: 1 });
+  page.drawRectangle({ x: logoX + 8, y: logoY + 29, width: 20, height: 26, color: rgb(0.04, 0.56, 0.39) });
+  page.drawRectangle({ x: logoX + 27, y: logoY + 29, width: 8, height: 26, color: rgb(0.96, 0.72, 0.22) });
+  page.drawRectangle({ x: logoX + 35, y: logoY + 29, width: 17, height: 26, color: rgb(0.02, 0.02, 0.02) });
+  page.drawRectangle({ x: logoX + 8, y: logoY + 7, width: 22, height: 22, color: rgb(0.79, 0.15, 0.21) });
+  page.drawRectangle({ x: logoX + 30, y: logoY + 7, width: 22, height: 22, color: rgb(0.14, 0.29, 0.61) });
+  page.drawText('IN', { x: logoX + 15, y: logoY + 20, size: 18, font: boldFont, color: rgb(1, 1, 1) });
+  page.drawText('INYATHI CHARTERS, TOURS & RENTALS', { x: 120, y: height - 50, size: 18, font: boldFont, color: rgb(0.05, 0.58, 0.53) });
+  page.drawText(title, { x: 120, y: height - 75, size: 14, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
+  page.drawLine({ start: { x: 50, y: height - 96 }, end: { x: 550, y: height - 96 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+}
+
 export async function downloadInspectionPDF(inspection: Inspection, driverName: string) {
   try {
     const pdfDoc = await PDFDocument.create();
@@ -22,9 +37,7 @@ export async function downloadInspectionPDF(inspection: Inspection, driverName: 
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     // Draw Header
-    page.drawText('INYATHI FLEET MANAGEMENT', { x: 50, y: height - 50, size: 20, font: boldFont, color: rgb(0.05, 0.58, 0.53) });
-    page.drawText('VEHICLE INSPECTION REPORT', { x: 50, y: height - 75, size: 14, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawLine({ start: { x: 50, y: height - 90 }, end: { x: 550, y: height - 90 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+    drawInyathiPdfHeader(page, height, 'VEHICLE INSPECTION REPORT', font, boldFont);
 
     // Details Grid
     let y = height - 120;
@@ -182,9 +195,7 @@ export async function downloadReconPDF(recon: ReconSheet, driverName: string) {
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     // Draw Header
-    page.drawText('INYATHI FLEET MANAGEMENT', { x: 50, y: height - 50, size: 20, font: boldFont, color: rgb(0.05, 0.58, 0.53) });
-    page.drawText('WEEKLY TRIP RECONCILIATION SHEET', { x: 50, y: height - 75, size: 14, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawLine({ start: { x: 50, y: height - 90 }, end: { x: 550, y: height - 90 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+    drawInyathiPdfHeader(page, height, 'WEEKLY TRIP RECONCILIATION SHEET', font, boldFont);
 
     // Details Grid
     let y = height - 120;
@@ -321,9 +332,7 @@ export async function downloadTransferReconPDF(recon: TransferReconSheet, driver
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     // Draw Header
-    page.drawText('INYATHI FLEET MANAGEMENT', { x: 50, y: height - 50, size: 20, font: boldFont, color: rgb(0.05, 0.58, 0.53) });
-    page.drawText('WEEKLY TRANSFER PAYMENT RECONCILIATION', { x: 50, y: height - 75, size: 13, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawLine({ start: { x: 50, y: height - 90 }, end: { x: 550, y: height - 90 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+    drawInyathiPdfHeader(page, height, 'WEEKLY TRANSFER PAYMENT RECONCILIATION', font, boldFont);
 
     // Details Grid
     let y = height - 120;
@@ -407,9 +416,7 @@ export async function downloadChecklistPDF(checklist: VehicleChecklist, driverNa
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     // Draw Header
-    page.drawText('INYATHI FLEET MANAGEMENT', { x: 50, y: height - 50, size: 20, font: boldFont, color: rgb(0.05, 0.58, 0.53) });
-    page.drawText('PERIODIC VEHICLE CONDITION CHECKLIST', { x: 50, y: height - 75, size: 13, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawLine({ start: { x: 50, y: height - 90 }, end: { x: 550, y: height - 90 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+    drawInyathiPdfHeader(page, height, 'PERIODIC VEHICLE CONDITION CHECKLIST', font, boldFont);
 
     // Details Grid
     let y = height - 120;
@@ -475,9 +482,7 @@ export async function downloadIncidentPDF(incident: IncidentReport, driverName: 
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     // Draw Header
-    page.drawText('INYATHI FLEET MANAGEMENT', { x: 50, y: height - 50, size: 20, font: boldFont, color: rgb(0.05, 0.58, 0.53) });
-    page.drawText('OFFICIAL INCIDENT REPORT', { x: 50, y: height - 75, size: 14, font: boldFont, color: rgb(0.8, 0.1, 0.1) });
-    page.drawLine({ start: { x: 50, y: height - 90 }, end: { x: 550, y: height - 90 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+    drawInyathiPdfHeader(page, height, 'OFFICIAL INCIDENT REPORT', font, boldFont);
 
     // Details Grid
     let y = height - 120;
@@ -560,9 +565,7 @@ export async function downloadExpensePDF(expense: VehicleExpense, driverName: st
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
     // Draw Header
-    page.drawText('INYATHI FLEET MANAGEMENT', { x: 50, y: height - 50, size: 20, font: boldFont, color: rgb(0.05, 0.58, 0.53) });
-    page.drawText('VEHICLE EXPENSE & DAMAGE RECORD', { x: 50, y: height - 75, size: 14, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawLine({ start: { x: 50, y: height - 90 }, end: { x: 550, y: height - 90 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+    drawInyathiPdfHeader(page, height, 'VEHICLE EXPENSE & DAMAGE RECORD', font, boldFont);
 
     // Details Grid
     let y = height - 120;
@@ -644,9 +647,7 @@ export async function downloadRentalClientPDF(client: RentalClient) {
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
     const profileType = client.profile_type === 'external_driver' ? 'EXTERNAL DRIVER PROFILE' : 'CLIENT / RENTER PROFILE';
 
-    page.drawText('INYATHI FLEET MANAGEMENT', { x: 50, y: height - 50, size: 20, font: boldFont, color: rgb(0.05, 0.58, 0.53) });
-    page.drawText(profileType, { x: 50, y: height - 75, size: 14, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
-    page.drawLine({ start: { x: 50, y: height - 90 }, end: { x: 550, y: height - 90 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+    drawInyathiPdfHeader(page, height, profileType, font, boldFont);
 
     let y = height - 125;
     const details = [

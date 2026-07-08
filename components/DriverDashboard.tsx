@@ -12,6 +12,7 @@ import {
   uploadToCloudinary, getSignedUrlForView, downloadCSV
 } from '@/lib/storage';
 import SignaturePad from './SignaturePad';
+import BrandLogo from './BrandLogo';
 import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF } from '@/lib/pdf';
 
 export const INSPECTION_CATEGORIES = {
@@ -837,11 +838,7 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="bg-teal-600 px-1.5 py-0.5 rounded text-white font-extrabold tracking-tight text-xs">IN</div>
-          <div>
-            <h1 className="text-[10px] font-black tracking-widest text-slate-400 leading-none">INYATHI PWA</h1>
-            <p className="text-xs font-bold text-teal-400 leading-tight mt-0.5">{driver.name}</p>
-          </div>
+          <BrandLogo variant="dark" size="sm" subtitle={driver.name} />
         </div>
         
         <div className="flex items-center gap-1">
@@ -875,12 +872,7 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
         <div className="space-y-6">
           <div className="flex items-center justify-between border-b border-slate-800 pb-4">
             <div className="flex items-center gap-2.5">
-              <div className="bg-teal-600 w-8 h-8 rounded-lg text-white font-extrabold tracking-tight flex items-center justify-center text-sm shadow">IN</div>
-              <div>
-                <h2 className="text-xs font-black tracking-widest text-teal-400 uppercase leading-none">INYATHI</h2>
-                <p className="text-xs font-semibold text-slate-400 leading-none mt-1">{driver.name}</p>
-                <p className="text-[9px] font-bold uppercase text-slate-500 tracking-wider mt-0.5">DRIVER PORTAL</p>
-              </div>
+              <BrandLogo variant="dark" size="md" subtitle="Driver Portal" />
             </div>
             <button 
               onClick={() => setIsSidebarOpen(false)}

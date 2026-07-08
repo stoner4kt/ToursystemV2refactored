@@ -17,6 +17,7 @@ import RentalClientForm from './RentalClientForm';
 import CalendarGrid from './CalendarGrid';
 import OTPModal from './OTPModal';
 import SignaturePad from './SignaturePad';
+import BrandLogo from './BrandLogo';
 import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF, downloadIncidentPDF, downloadExpensePDF, downloadRentalClientPDF } from '@/lib/pdf';
 
 export const INSPECTION_CATEGORIES = {
@@ -1110,11 +1111,7 @@ const handleApproveRecon = (id: string, notes: string) => {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="bg-teal-600 p-2 rounded-xl text-white font-extrabold tracking-tight">IN</div>
-          <div>
-            <h1 className="text-sm font-black text-slate-900 tracking-tight">INYATHI Admin Dashboard</h1>
-            <p className="text-[10px] font-semibold text-slate-500">Supervisory Back-Office</p>
-          </div>
+          <BrandLogo size="md" subtitle="Admin Dashboard" />
         </div>
 
         {/* Region and Auth selectors */}
@@ -1175,7 +1172,7 @@ const handleApproveRecon = (id: string, notes: string) => {
         >
           <div className="space-y-6">
             <div className="px-1 sm:px-3 flex items-center justify-between gap-3">
-              <p className="text-[9px] uppercase font-black tracking-wider text-slate-500">Fleet Logistics</p>
+              <BrandLogo variant="dark" size="lg" subtitle="Fleet Logistics" />
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(false)}

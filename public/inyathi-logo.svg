@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" role="img" aria-labelledby="title desc">
+<title id="title">Inyathi Charters, Tours and Rentals logo</title>
+<desc id="desc">Professional Inyathi logo featuring a buffalo, South African colours, and brand text.</desc>
+<rect width="900" height="1200" fill="#fff"/>
+<path d="M110 390 190 310 270 250 390 255 480 235 570 285 705 300 805 410 850 575 760 690 720 835 590 965 480 970 420 850 315 820 230 710 135 650 75 520Z" fill="#f8fafc" stroke="#e2e8f0" stroke-width="3"/>
+<path d="M120 395 240 320 320 285 375 430 245 505Z" fill="#0b8f63"/><path d="M318 285 365 270 460 410 415 450Z" fill="#f6b73c"/><path d="M370 255 500 260 650 320 465 410Z" fill="#050505"/><path d="M110 500 245 505 315 660 130 690 70 585Z" fill="#c92535"/><path d="M555 470 815 440 850 575 705 735 555 720Z" fill="#254a9b"/><path d="M455 910 570 970 470 1000Z" fill="#0b8f63"/><path d="M580 910 680 940 590 1000Z" fill="#254a9b"/>
+<path d="M90 435c50-140 195-125 300-40 35 28 85 28 120 0 105-85 250-100 300 40-75-58-150-38-218 20-40 35-80 48-142 28-62 20-102 7-142-28-68-58-143-78-218-20Z" fill="#fff" stroke="#050505" stroke-width="18" stroke-linejoin="round"/>
+<path d="M150 405c45-62 120-50 185 5 44 37 92 54 115 54s71-17 115-54c65-55 140-67 185-5-56-19-108 4-158 45-43 36-91 59-142 52-51 7-99-16-142-52-50-41-102-64-158-45Z" fill="none" stroke="#050505" stroke-width="11" stroke-linecap="round"/>
+<ellipse cx="450" cy="565" rx="150" ry="205" fill="#fff" stroke="#050505" stroke-width="18"/>
+<path d="M365 500c30-55 75-70 85-70s55 15 85 70c-35-25-55-25-85-15-30-10-50-10-85 15Z" fill="#050505"/><path d="M350 585c35 22 65 20 85-5m30 0c20 25 50 27 85 5" fill="none" stroke="#050505" stroke-width="16" stroke-linecap="round"/><ellipse cx="380" cy="535" rx="38" ry="30" fill="#fff" stroke="#050505" stroke-width="10"/><ellipse cx="520" cy="535" rx="38" ry="30" fill="#fff" stroke="#050505" stroke-width="10"/><circle cx="392" cy="540" r="11" fill="#050505"/><circle cx="508" cy="540" r="11" fill="#050505"/><path d="M410 638c20-25 60-25 80 0l-25 45h-30Z" fill="#fff" stroke="#050505" stroke-width="14" stroke-linejoin="round"/><path d="M392 700c34 38 82 38 116 0" fill="none" stroke="#050505" stroke-width="14" stroke-linecap="round"/>
+<text x="450" y="900" text-anchor="middle" font-family="Impact, Haettenschweiler, 'Arial Black', sans-serif" font-size="145" font-weight="900" letter-spacing="8">INYATHI</text>
+<text x="450" y="965" text-anchor="middle" font-family="Arial Black, sans-serif" font-size="44" font-weight="900" letter-spacing="4" fill="#333">CHARTERS, TOURS &amp; RENTALS</text>
+</svg>
