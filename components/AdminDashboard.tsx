@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera, Archive,
-  LayoutGrid, List, Search, SquarePen
+  LayoutGrid, List, Search, SquarePen, Menu
 } from 'lucide-react';
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, BookingDeleteRequest,
@@ -56,6 +56,7 @@ interface AdminDashboardProps {
 export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'bookings_archive' | 'fleet' | 'rented' | 'drivers' | 'recons' | 'transfers' | 'wages' | 'fines' | 'expenses' | 'incidents' | 'inspections' | 'checklists' | 'rental_clients' | 'settings'>('dashboard');
   const [region, setRegion] = useState<'Cape Town' | 'Joburg'>('Cape Town');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [otpEnabled, setOtpEnabled] = useState(true);
 
   // Data states
@@ -1101,6 +1102,14 @@ const handleApproveRecon = (id: string, notes: string) => {
       {/* Top Header */}
       <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between sticky top-0 z-40 shadow-xs">
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all"
+            aria-label="Open admin navigation menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <div className="bg-teal-600 p-2 rounded-xl text-white font-extrabold tracking-tight">IN</div>
           <div>
             <h1 className="text-sm font-black text-slate-900 tracking-tight">INYATHI Admin Dashboard</h1>
@@ -1147,16 +1156,37 @@ const handleApproveRecon = (id: string, notes: string) => {
       </header>
 
       {/* Main Container */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div className="flex-1 overflow-hidden">
+        {isSidebarOpen && (
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm"
+            aria-label="Close admin navigation menu overlay"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
         
-        {/* Left Sidebar Menu */}
-        <aside className="w-full lg:w-64 bg-slate-900 text-slate-400 p-4 flex flex-col justify-between shrink-0 border-r border-slate-800">
+        {/* Slide-out Sidebar Menu */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 w-[min(88vw,22rem)] bg-slate-900 text-slate-400 p-4 flex flex-col justify-between shrink-0 border-r border-slate-800 shadow-2xl transition-transform duration-300 ease-out ${
+            isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+          aria-hidden={!isSidebarOpen}
+        >
           <div className="space-y-6">
-            <div className="px-3">
+            <div className="px-1 sm:px-3 flex items-center justify-between gap-3">
               <p className="text-[9px] uppercase font-black tracking-wider text-slate-500">Fleet Logistics</p>
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
+                aria-label="Close admin navigation menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <nav className="space-y-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-1 lg:block">
+            <nav className="grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto pr-1 max-h-[calc(100vh-13rem)]">
               {[
                 { id: 'dashboard', label: 'Month Calendar', icon: CalendarIcon },
                 { id: 'bookings', label: 'Bookings List', icon: ClipboardCheck },
@@ -1180,8 +1210,11 @@ const handleApproveRecon = (id: string, notes: string) => {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveTab(item.id as any)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded-lg transition-all ${
+                    onClick={() => {
+                      setActiveTab(item.id as any);
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-3 text-xs font-semibold rounded-lg transition-all ${
                       isActive 
                         ? 'bg-teal-600 text-white font-extrabold shadow' 
                         : 'hover:bg-slate-800/60 hover:text-slate-200'
@@ -1215,7 +1248,7 @@ const handleApproveRecon = (id: string, notes: string) => {
         </aside>
 
         {/* Content View */}
-        <main className="flex-1 p-4 sm:p-6 overflow-y-auto bg-slate-50 min-w-0">
+        <main className="h-full p-4 sm:p-6 overflow-y-auto bg-slate-50 min-w-0">
 
           {/* ==================== DASHBOARD CALENDAR TAB ==================== */}
           {activeTab === 'dashboard' && (
