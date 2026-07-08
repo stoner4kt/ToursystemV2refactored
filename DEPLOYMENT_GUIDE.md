@@ -7,10 +7,10 @@ This guide describes how to connect your existing Supabase database (containing 
 ## 1. Environment Variables Configuration
 
 Do **not** share your Supabase Secret keys in public forums or chat rooms. Instead, supply them securely during deployment as Environment Variables.
-
+And set your secrets in the supabase dashboard for edge functions 
 Your application expects the following environment variables:
 
-| Variable Name | Description | Source |
+| Variable Name | Description | Source |These are set inside your Vercel/Cloudflare/Render at deployment time 
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project URL | Settings -> API inside Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Your Supabase public anonymous key | Settings -> API inside Supabase |
@@ -132,11 +132,38 @@ Ensure that your database (`stoner4kt/ToursystemV1`) matches the structure expec
 *   `reason` (Text)
 *   `status` (Text) - `'pending'`, `'approved'`, or `'rejected'`
 
----
+---More tables and columns have been add as features were added to the original build 
+---Check supabase/schema/**
 
-## 3. Deploying to Vercel
+3Deploy edge functions to supabase via dashboard in supabase/functions/**
+
+And set secrets: (Will be shared separately) if you are deploying a fresh project these secrets have to be set along with the deployed functions 
+
+RESEND_API_KEY: 
+
+ADMIN_EMAIL: Email which will receive the otps and notifications also known as Main Admin 
+
+SENDER_EMAIL: Email shown on email sent by the system 
+
+FINE_EMAIL_FROM: Email drivers see on the fines notification sent to them 
+
+CLOUDINARY_CLOUD_NAME:
+
+CLOUDINARY_API_KEY:
+
+CLOUDINARY_UPLOAD_PRESET:
+
+CLOUDINARY_API_SECRET:
+....
+
+SET THE SITE & REDIRECT URL IN SUPABASRE DASHBOARD 
+SET Site Url in supabase : https://domain.com/
+SET Redirect Url in supabase https://domain.com/reset-password/**
+
+## 4. Deploying to Vercel
 
 Vercel has native support for Next.js and builds everything automatically:
+Envs have to be set and so for edge functions in the supabase dashboard 
 
 1.  Push your code to a GitHub, GitLab, or Bitbucket repository.
 2.  Log in to [Vercel](https://vercel.com) and click **"Add New Project"**.
@@ -148,7 +175,7 @@ Vercel has native support for Next.js and builds everything automatically:
 
 ---
 
-## 4. Deploying to Netlify
+## 5. Deploying to Netlify
 
 To deploy on Netlify:
 

@@ -52,7 +52,7 @@ interface DriverDashboardProps {
 
 export default function DriverDashboard({ driver, onLogout }: DriverDashboardProps) {
   const [activeTab, setActiveTab] = useState<
-    'tasks' | 'inspections' | 'recon' | 'checklists' | 'incidents' | 'logging' | 'transfer' | 'documents'
+    'tasks' | 'completed' | 'inspections' | 'recon' | 'checklists' | 'incidents' | 'logging' | 'transfer' | 'documents'
   >('tasks');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [assignedBookings, setAssignedBookings] = useState<Booking[]>([]);
@@ -314,8 +314,53 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
     return () => clearTimeout(timer);
   }, [driver, refreshData]);
 
+  // Returns true if today is the day before or on the given date
+  const isWithinInspectionWindow = (targetDateStr: string): boolean => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const target = new Date(targetDateStr);
+    target.setHours(0, 0, 0, 0);
+
+    const dayBefore = new Date(target);
+    dayBefore.setDate(target.getDate() - 1);
+
+    return today >= dayBefore && today <= target;
+  };
+
+  const ACTIVE_STATUSES = new Set([
+    'active', 'in-transit', 'vehicle_out',
+    'inspection_pending', 'return_inspection_pending', 'ready_for_handover'
+  ]);
+
+  const getActiveBookingCount = (): number => {
+    return assignedBookings.filter(b => ACTIVE_STATUSES.has(b.status)).length;
+  };
+
   // Pre-Trip / Post-Trip Inspections Submission
   const handleOpenInspection = (booking: Booking, type: 'pre-trip' | 'post-trip') => {
+    if (type === 'pre-trip') {
+      if (!isWithinInspectionWindow(booking.start_date)) {
+        const startDate = new Date(booking.start_date).toLocaleDateString();
+        alert(`⛔ Pre-Trip inspection can only be submitted on the day before or on the departure date (${startDate}).`);
+        return;
+      }
+
+      const activeCount = getActiveBookingCount();
+      if (activeCount >= 1) {
+        alert("⛔ You already have an active booking. You cannot start another trip until your current booking is completed.");
+        return;
+      }
+    }
+
+    if (type === 'post-trip') {
+      if (!isWithinInspectionWindow(booking.end_date)) {
+        const endDate = new Date(booking.end_date).toLocaleDateString();
+        alert(`⛔ Post-Trip inspection can only be submitted on the day before or on the return date (${endDate}).`);
+        return;
+      }
+    }
+
     setSelectedBookingForInspection(booking);
     setInspectionType(type);
     
@@ -768,6 +813,18 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
     alert('✅ Weekly Vehicle Condition checklist logged successfully.');
   };
 
+  const COMPLETED_STATUSES = new Set([
+    'completed', 'cancelled', 'closed', 'returned', 'damage_review'
+  ]);
+
+  const activeAndUpcomingBookings = assignedBookings.filter(
+    b => !COMPLETED_STATUSES.has(b.status)
+  );
+
+  const completedBookings = assignedBookings.filter(
+    b => COMPLETED_STATUSES.has(b.status)
+  );
+
   return (
     <div className="min-h-screen bg-slate-900 font-sans text-slate-100 selection:bg-teal-500 selection:text-white flex flex-col md:flex-row">
       
@@ -836,6 +893,7 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
           <nav className="space-y-1 overflow-y-auto max-h-[60vh] scrollbar-none">
             {[
               { id: 'tasks', label: 'My Tasks', icon: CheckCircle },
+              { id: 'completed', label: 'Completed Tours', icon: Sparkles },
               { id: 'inspections', label: 'Inspection Sheet', icon: Search },
               { id: 'recon', label: 'Recon Sheet', icon: FileText },
               { id: 'checklists', label: 'Vehicle Checklists', icon: ClipboardCheck },
@@ -915,14 +973,14 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
     <div className="grid grid-cols-2 gap-3">
       <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
         <div className="text-4xl font-black text-orange-400">
-          {assignedBookings.filter(b => new Date(b.start_date) > new Date()).length}
+          {activeAndUpcomingBookings.filter(b => new Date(b.start_date) > new Date()).length}
         </div>
         <div className="text-xs font-bold text-slate-400 mt-1">Upcoming</div>
       </div>
       
       <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
         <div className="text-4xl font-black text-teal-400">
-          {assignedBookings.filter(b => {
+          {activeAndUpcomingBookings.filter(b => {
             const now = new Date();
             const start = new Date(b.start_date);
             const end = new Date(b.end_date);
@@ -934,14 +992,14 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
       
       <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
         <div className="text-4xl font-black text-emerald-400">
-          {assignedBookings.filter(b => new Date(b.end_date) < new Date()).length}
+          {activeAndUpcomingBookings.filter(b => new Date(b.end_date) < new Date()).length}
         </div>
         <div className="text-xs font-bold text-slate-400 mt-1">Completed</div>
       </div>
       
       <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
         <div className="text-4xl font-black text-white">
-          {assignedBookings.length}
+          {activeAndUpcomingBookings.length}
         </div>
         <div className="text-xs font-bold text-slate-400 mt-1">Total</div>
       </div>
@@ -953,19 +1011,24 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
         My Assigned Tours
       </h2>
       <span className="text-xs font-bold text-slate-400">
-        {assignedBookings.length} Active Trip{assignedBookings.length !== 1 ? 's' : ''}
+        {activeAndUpcomingBookings.length} Active Trip{activeAndUpcomingBookings.length !== 1 ? 's' : ''}
       </span>
     </div>
 
-            {assignedBookings.length === 0 ? (
+            {activeAndUpcomingBookings.length === 0 ? (
               <div className="bg-slate-950/60 border border-slate-800/80 p-8 rounded-xl text-center">
                 <p className="text-xs text-slate-500 font-medium">No tours assigned to you right now.</p>
                 <p className="text-[10px] text-teal-500/80 mt-1 italic">Contact dispatch to check vehicle scheduling.</p>
               </div>
             ) : (
-              [...assignedBookings]
+              [...activeAndUpcomingBookings]
                 .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
-                .map(b => (
+                .map(b => {
+                  const hasOtherActive = assignedBookings
+                    .filter(other => other.invoice_no !== b.invoice_no)
+                    .some(other => ACTIVE_STATUSES.has(other.status));
+
+                  return (
                 <div key={b.invoice_no} className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col gap-3">
                   <div className="flex justify-between items-start">
                     <div>
@@ -1052,13 +1115,15 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                             <div className="text-xs font-bold py-2 bg-emerald-950/40 border border-emerald-900/60 text-emerald-400 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed">
                               <CheckCircle className="w-4 h-4 text-emerald-400" /> Pre-Trip Logged
                             </div>
+                          ) : hasOtherActive ? (
+                            <div className="text-xs font-bold py-2 bg-amber-950/30 border border-amber-800/50 text-amber-500 rounded-lg flex flex-col items-center justify-center cursor-not-allowed px-2 text-center">
+                              ⚠️ Trip In Progress
+                              <span className="text-[9px] font-medium text-amber-600/80 mt-0.5">Complete your active booking first</span>
+                            </div>
+                          ) : isWithinInspectionWindow(b.start_date) ? (
+                            <button onClick={() => handleOpenInspection(b, 'pre-trip')} className="text-xs font-semibold py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-all shadow-md text-center cursor-pointer">🛡️ Pre-Trip Safety Check</button>
                           ) : (
-                            <button
-                              onClick={() => handleOpenInspection(b, 'pre-trip')}
-                              className="text-xs font-semibold py-2 bg-teal-600 hover:bg-teal-500 text-white rounded-lg transition-all shadow-md text-center cursor-pointer"
-                            >
-                              🛡️ Pre-Trip Safety Check
-                            </button>
+                            <div className="text-xs font-bold py-2 bg-slate-800/60 border border-slate-700 text-slate-500 rounded-lg flex flex-col items-center justify-center cursor-not-allowed px-2 text-center">🔒 Pre-Trip<span className="text-[9px] font-medium text-slate-600 mt-0.5">Opens {new Date(new Date(b.start_date).setDate(new Date(b.start_date).getDate() - 1)).toLocaleDateString()}</span></div>
                           )}
 
                           {/* Post-Trip Button */}
@@ -1066,6 +1131,8 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                             <div className="text-xs font-bold py-2 bg-indigo-950/40 border border-indigo-900/60 text-indigo-400 rounded-lg flex items-center justify-center gap-1.5 cursor-not-allowed">
                               <CheckCircle className="w-4 h-4 text-indigo-400" /> Post-Trip Logged
                             </div>
+                          ) : !isWithinInspectionWindow(b.end_date) ? (
+                            <div className="text-xs font-bold py-2 bg-slate-800/60 border border-slate-700 text-slate-500 rounded-lg flex flex-col items-center justify-center cursor-not-allowed px-2 text-center">🔒 Post-Trip<span className="text-[9px] font-medium text-slate-600 mt-0.5">Opens {new Date(new Date(b.end_date).setDate(new Date(b.end_date).getDate() - 1)).toLocaleDateString()}</span></div>
                           ) : (
                             <button
                               onClick={() => {
@@ -1089,7 +1156,61 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
                     })()}
                   </div>
                 </div>
-              ))
+              );
+                })
+            )}
+          </div>
+        )}
+
+        {/* ==================== COMPLETED TOURS TAB ==================== */}
+        {activeTab === 'completed' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-emerald-500" />
+                Completed Tours
+              </h2>
+              <span className="text-xs font-bold text-slate-400">
+                {completedBookings.length} Trip{completedBookings.length !== 1 ? 's' : ''}
+              </span>
+            </div>
+
+            {completedBookings.length === 0 ? (
+              <div className="bg-slate-950/60 border border-slate-800/80 p-8 rounded-xl text-center">
+                <p className="text-xs text-slate-500 font-medium">No completed tours yet.</p>
+                <p className="text-[10px] text-teal-500/80 mt-1 italic">Finished trips will appear here once marked complete.</p>
+              </div>
+            ) : (
+              [...completedBookings]
+                .sort((a, b) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime())
+                .map(b => {
+                  const bookingIns = inspectionsList.filter(ins => ins.invoice_no === b.invoice_no);
+                  const hasPre = bookingIns.some(ins => ins.inspection_type === 'pre-trip');
+                  const hasPost = bookingIns.some(ins => ins.inspection_type === 'post-trip');
+
+                  return (
+                    <div key={b.invoice_no} className="bg-slate-950/80 border border-emerald-900/30 rounded-xl p-4 shadow-xl flex flex-col gap-3 opacity-90">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[9px] font-bold uppercase bg-emerald-900/40 text-emerald-300 border border-emerald-800/60 px-2 py-0.5 rounded">{b.invoice_no}</span>
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded border bg-slate-800 text-slate-300 border-slate-700">{b.status}</span>
+                        </div>
+                        <h3 className="text-sm font-extrabold text-white mt-1.5 leading-snug">{b.client_name}</h3>
+                        <p className="text-xs text-slate-400 mt-0.5 font-medium">{b.route}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
+                        <div><p className="text-slate-500 font-bold uppercase text-[9px]">Tour Code</p><p className="text-slate-300 font-bold">{b.tour_reference}</p></div>
+                        <div><p className="text-slate-500 font-bold uppercase text-[9px]">Vehicle</p><p className="text-slate-300 font-bold">{b.is_rented_vehicle ? `${b.rented_vehicle_model} (RENTED)` : b.assigned_vehicle_reg}</p></div>
+                        <div><p className="text-slate-500 font-bold uppercase text-[9px]">Departed</p><p className="text-slate-300 font-medium">{new Date(b.start_date).toLocaleDateString()}</p></div>
+                        <div><p className="text-slate-500 font-bold uppercase text-[9px]">Returned</p><p className="text-slate-300 font-medium">{new Date(b.end_date).toLocaleDateString()}</p></div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className={`text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 ${hasPre ? 'bg-emerald-950/40 border border-emerald-900/60 text-emerald-400' : 'bg-slate-800/60 border border-slate-700 text-slate-500'}`}><CheckCircle className="w-3.5 h-3.5" />{hasPre ? 'Pre-Trip Done' : 'No Pre-Trip'}</div>
+                        <div className={`text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5 ${hasPost ? 'bg-indigo-950/40 border border-indigo-900/60 text-indigo-400' : 'bg-slate-800/60 border border-slate-700 text-slate-500'}`}><CheckCircle className="w-3.5 h-3.5" />{hasPost ? 'Post-Trip Done' : 'No Post-Trip'}</div>
+                      </div>
+                    </div>
+                  );
+                })
             )}
           </div>
         )}
@@ -2939,7 +3060,7 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
       </div>
 
       {/* Driver Footer Navigation Panel */}
-      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950 border-t border-slate-850 grid grid-cols-5 text-center">
+      <footer className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950 border-t border-slate-850 grid grid-cols-6 text-center">
         <button
           onClick={() => setActiveTab('tasks')}
           className={`py-2 text-[10px] font-bold flex flex-col items-center justify-center gap-1 ${
@@ -2948,6 +3069,15 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
         >
           <Compass className="w-5 h-5" />
           Tours
+        </button>
+        <button
+          onClick={() => setActiveTab('completed')}
+          className={`py-2 text-[10px] font-bold flex flex-col items-center justify-center gap-1 ${
+            activeTab === 'completed' ? 'text-emerald-400 bg-slate-900/60' : 'text-slate-500 hover:text-slate-300'
+          }`}
+        >
+          <Sparkles className="w-5 h-5" />
+          Done
         </button>
         <button
           onClick={() => setActiveTab('recon')}

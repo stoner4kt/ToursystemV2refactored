@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
-  Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera,
-  LayoutGrid, List, Search, SquarePen
+  Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera, Archive,
+  LayoutGrid, List, Search, SquarePen, Menu
 } from 'lucide-react';
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, BookingDeleteRequest,
@@ -54,8 +54,9 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'fleet' | 'rented' | 'drivers' | 'recons' | 'transfers' | 'wages' | 'fines' | 'expenses' | 'incidents' | 'inspections' | 'checklists' | 'rental_clients' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'bookings_archive' | 'fleet' | 'rented' | 'drivers' | 'recons' | 'transfers' | 'wages' | 'fines' | 'expenses' | 'incidents' | 'inspections' | 'checklists' | 'rental_clients' | 'settings'>('dashboard');
   const [region, setRegion] = useState<'Cape Town' | 'Joburg'>('Cape Town');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [otpEnabled, setOtpEnabled] = useState(true);
 
   // Data states
@@ -1091,12 +1092,24 @@ const handleApproveRecon = (id: string, notes: string) => {
     return Object.entries(wageDetails);
   };
 
+  const ARCHIVED_STATUSES = new Set(['completed', 'closed', 'cancelled', 'returned', 'damage_review']);
+  const activeBookings = bookings.filter(b => !ARCHIVED_STATUSES.has(b.status));
+  const archivedBookings = bookings.filter(b => ARCHIVED_STATUSES.has(b.status));
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 selection:bg-teal-500 selection:text-white">
       
       {/* Top Header */}
-      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-40 shadow-xs">
+      <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between sticky top-0 z-40 shadow-xs">
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all"
+            aria-label="Open admin navigation menu"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
           <div className="bg-teal-600 p-2 rounded-xl text-white font-extrabold tracking-tight">IN</div>
           <div>
             <h1 className="text-sm font-black text-slate-900 tracking-tight">INYATHI Admin Dashboard</h1>
@@ -1143,19 +1156,41 @@ const handleApproveRecon = (id: string, notes: string) => {
       </header>
 
       {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 overflow-hidden">
+        {isSidebarOpen && (
+          <button
+            type="button"
+            className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm"
+            aria-label="Close admin navigation menu overlay"
+            onClick={() => setIsSidebarOpen(false)}
+          />
+        )}
         
-        {/* Left Sidebar Menu */}
-        <aside className="w-64 bg-slate-900 text-slate-400 p-4 flex flex-col justify-between shrink-0 border-r border-slate-800">
+        {/* Slide-out Sidebar Menu */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 w-[min(88vw,22rem)] bg-slate-900 text-slate-400 p-4 flex flex-col justify-between shrink-0 border-r border-slate-800 shadow-2xl transition-transform duration-300 ease-out ${
+            isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+          aria-hidden={!isSidebarOpen}
+        >
           <div className="space-y-6">
-            <div className="px-3">
+            <div className="px-1 sm:px-3 flex items-center justify-between gap-3">
               <p className="text-[9px] uppercase font-black tracking-wider text-slate-500">Fleet Logistics</p>
+              <button
+                type="button"
+                onClick={() => setIsSidebarOpen(false)}
+                className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
+                aria-label="Close admin navigation menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
 
-            <nav className="space-y-1">
+            <nav className="grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto pr-1 max-h-[calc(100vh-13rem)]">
               {[
                 { id: 'dashboard', label: 'Month Calendar', icon: CalendarIcon },
                 { id: 'bookings', label: 'Bookings List', icon: ClipboardCheck },
+                { id: 'bookings_archive', label: 'Bookings Archive', icon: Archive },
                 { id: 'fleet', label: 'Owned Fleet', icon: Car },
                 { id: 'rented', label: 'Rented-In Vehicles', icon: Car },
                 { id: 'drivers', label: 'Manage Drivers', icon: Users },
@@ -1175,8 +1210,11 @@ const handleApproveRecon = (id: string, notes: string) => {
                 return (
                   <button
                     key={item.id}
-                    onClick={() => setActiveTab(item.id as any)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-semibold rounded-lg transition-all ${
+                    onClick={() => {
+                      setActiveTab(item.id as any);
+                      setIsSidebarOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3 py-3 text-xs font-semibold rounded-lg transition-all ${
                       isActive 
                         ? 'bg-teal-600 text-white font-extrabold shadow' 
                         : 'hover:bg-slate-800/60 hover:text-slate-200'
@@ -1198,7 +1236,7 @@ const handleApproveRecon = (id: string, notes: string) => {
             </div>
             <div className="flex justify-between">
               <span>Active Bookings:</span>
-              <strong className="text-white">{bookings.length}</strong>
+              <strong className="text-white">{activeBookings.length}</strong>
             </div>
             <div className="flex justify-between">
               <span>Service Alerts:</span>
@@ -1210,7 +1248,7 @@ const handleApproveRecon = (id: string, notes: string) => {
         </aside>
 
         {/* Content View */}
-        <main className="flex-1 p-6 overflow-y-auto bg-slate-50">
+        <main className="h-full p-4 sm:p-6 overflow-y-auto bg-slate-50 min-w-0">
 
           {/* ==================== DASHBOARD CALENDAR TAB ==================== */}
           {activeTab === 'dashboard' && (
@@ -1245,7 +1283,7 @@ const handleApproveRecon = (id: string, notes: string) => {
                 <h2 className="text-base font-bold text-slate-900">Bookings Manifest Archive</h2>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => downloadCSV(bookings, `bookings_manifest_${region.replace(' ', '_')}.csv`)}
+                    onClick={() => downloadCSV(activeBookings, `bookings_manifest_${region.replace(' ', '_')}.csv`)}
                     className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-slate-300 flex items-center gap-1 transition-colors"
                   >
                     <Download className="w-4 h-4" /> Export Sheet
@@ -1275,12 +1313,12 @@ const handleApproveRecon = (id: string, notes: string) => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {bookings.length === 0 ? (
+                    {activeBookings.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="p-6 text-center text-slate-400 italic">No bookings scheduled in this region.</td>
                       </tr>
                     ) : (
-                      [...bookings]
+                      [...activeBookings]
                         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                         .map(b => {
                         const preTrip = inspections.find(ins => ins.invoice_no === b.invoice_no && ins.inspection_type === 'pre-trip');
@@ -1443,6 +1481,72 @@ const handleApproveRecon = (id: string, notes: string) => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+
+          {/* ==================== BOOKINGS ARCHIVE TAB ==================== */}
+          {activeTab === 'bookings_archive' && (
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Bookings Archive</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Completed, closed, cancelled & returned bookings</p>
+                </div>
+                <button
+                  onClick={() => downloadCSV(archivedBookings, `bookings_archive_${region.replace(' ', '_')}.csv`)}
+                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-slate-300 flex items-center justify-center gap-1 transition-colors"
+                >
+                  <Download className="w-4 h-4" /> Export Archive
+                </button>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse min-w-[900px]">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 font-extrabold text-[10px] uppercase">
+                      <tr>
+                        <th className="p-3">Invoice / Ref</th>
+                        <th className="p-3">Client</th>
+                        <th className="p-3">Route</th>
+                        <th className="p-3">Dates</th>
+                        <th className="p-3">Driver</th>
+                        <th className="p-3">Vehicle</th>
+                        <th className="p-3">Status</th>
+                        <th className="p-3">Inspections</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {archivedBookings.length === 0 ? (
+                        <tr><td colSpan={8} className="p-6 text-center text-slate-400 italic">No archived bookings yet.</td></tr>
+                      ) : (
+                        [...archivedBookings]
+                          .sort((a, b) => new Date(b.end_date).getTime() - new Date(a.end_date).getTime())
+                          .map(b => {
+                            const preTrip = inspections.find(ins => ins.invoice_no === b.invoice_no && ins.inspection_type === 'pre-trip');
+                            const postTrip = inspections.find(ins => ins.invoice_no === b.invoice_no && ins.inspection_type === 'post-trip');
+
+                            return (
+                              <tr key={b.invoice_no} className="hover:bg-slate-50/50 bg-slate-50/30">
+                                <td className="p-3"><span className="font-extrabold text-slate-800">{b.invoice_no}</span><span className="block text-[10px] text-slate-400 font-medium">Ref: {b.tour_reference}</span></td>
+                                <td className="p-3 font-bold text-slate-900">{b.client_name}</td>
+                                <td className="p-3 text-slate-600 font-medium max-w-[160px]"><span className="truncate block">{b.route}</span></td>
+                                <td className="p-3"><span className="font-semibold block text-slate-700">{new Date(b.start_date).toLocaleDateString()} →</span><span className="text-[10px] text-slate-400">{new Date(b.end_date).toLocaleDateString()}</span></td>
+                                <td className="p-3 font-bold text-slate-700">{drivers.find(d => d.driver_id === b.assigned_driver_id)?.name || b.assigned_driver_id}</td>
+                                <td className="p-3 font-bold text-slate-700">{b.is_rented_vehicle ? `${b.rented_vehicle_model} (RENTED)` : b.assigned_vehicle_reg}</td>
+                                <td className="p-3"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${b.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : b.status === 'cancelled' ? 'bg-rose-50 text-rose-700 border-rose-200' : b.status === 'closed' ? 'bg-slate-100 text-slate-600 border-slate-300' : b.status === 'returned' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>{b.status}</span></td>
+                                <td className="p-3"><div className="flex gap-1 flex-wrap">
+                                  {preTrip ? <button onClick={() => setSelectedInspectionForModal(preTrip)} className="inline-flex items-center gap-0.5 text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-1.5 py-0.5 rounded font-black cursor-pointer"><Camera className="w-2.5 h-2.5" /> Pre-Trip</button> : <span className="text-[9px] text-slate-400 italic">No Pre</span>}
+                                  {postTrip ? <button onClick={() => setSelectedInspectionForModal(postTrip)} className="inline-flex items-center gap-0.5 text-[9px] bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 px-1.5 py-0.5 rounded font-black cursor-pointer"><Camera className="w-2.5 h-2.5" /> Post-Trip</button> : <span className="text-[9px] text-slate-400 italic">No Post</span>}
+                                </div></td>
+                              </tr>
+                            );
+                          })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
