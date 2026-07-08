@@ -7,7 +7,7 @@ This guide describes how to connect your existing Supabase database (containing 
 ## 1. Environment Variables Configuration
 
 Do **not** share your Supabase Secret keys in public forums or chat rooms. Instead, supply them securely during deployment as Environment Variables.
-
+And set your secrets in the supabase dashboard for edge functions 
 Your application expects the following environment variables:
 
 | Variable Name | Description | Source |
@@ -132,11 +132,12 @@ Ensure that your database (`stoner4kt/ToursystemV1`) matches the structure expec
 *   `reason` (Text)
 *   `status` (Text) - `'pending'`, `'approved'`, or `'rejected'`
 
----
-
+---More tables and columns have been add as features were added to the original build 
+---Check supabase/schema/**
 ## 3. Deploying to Vercel
 
 Vercel has native support for Next.js and builds everything automatically:
+Envs have to be set and so for edge functions in the supabase dashboard 
 
 1.  Push your code to a GitHub, GitLab, or Bitbucket repository.
 2.  Log in to [Vercel](https://vercel.com) and click **"Add New Project"**.
