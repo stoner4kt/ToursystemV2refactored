@@ -135,13 +135,28 @@ Ensure that your database (`stoner4kt/ToursystemV1`) matches the structure expec
 ---More tables and columns have been add as features were added to the original build 
 ---Check supabase/schema/**
 
-Deploy edge functions to supabase via dashboard in supabase/functions/**
+3Deploy edge functions to supabase via dashboard in supabase/functions/**
 
 And set secrets: (Will be shared separately) 
 
+RESEND_API_KEY: 
 
+ADMIN_EMAIL:
 
-## 3. Deploying to Vercel
+SENDWR_EMAIL:
+
+FINE_EMAIL_FROM: 
+
+CLOUDINARY_CLOUD_NAME:
+
+CLOUDINARY_API_KEY:
+
+CLOUDINARY_UPLOAF_PRESET:
+
+CLOUDINARY_API_SECRET:
+....
+
+## 4. Deploying to Vercel
 
 Vercel has native support for Next.js and builds everything automatically:
 Envs have to be set and so for edge functions in the supabase dashboard 
@@ -156,7 +171,7 @@ Envs have to be set and so for edge functions in the supabase dashboard
 
 ---
 
-## 4. Deploying to Netlify
+## 5. Deploying to Netlify
 
 To deploy on Netlify:
 
