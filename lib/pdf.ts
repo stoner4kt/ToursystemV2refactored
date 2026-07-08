@@ -1,5 +1,5 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
-import { Inspection, ReconSheet, TransferReconSheet, VehicleChecklist, IncidentReport, VehicleExpense, getDocumentUrl } from './storage';
+import { Inspection, ReconSheet, TransferReconSheet, VehicleChecklist, IncidentReport, VehicleExpense, RentalClient, getDocumentUrl } from './storage';
 
 // Helper to download files in the browser
 function downloadBlob(blob: Blob, filename: string) {
@@ -630,6 +630,67 @@ export async function downloadExpensePDF(expense: VehicleExpense, driverName: st
     downloadBlob(blob, `ExpenseRecord-${expense.vehicle_reg}-${expense.id}.pdf`);
   } catch (err) {
     console.error('PDF generation failed:', err);
+    window.print();
+  }
+}
+
+
+export async function downloadRentalClientPDF(client: RentalClient) {
+  try {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage([600, 800]);
+    const { height } = page.getSize();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const profileType = client.profile_type === 'external_driver' ? 'EXTERNAL DRIVER PROFILE' : 'CLIENT / RENTER PROFILE';
+
+    page.drawText('INYATHI FLEET MANAGEMENT', { x: 50, y: height - 50, size: 20, font: boldFont, color: rgb(0.05, 0.58, 0.53) });
+    page.drawText(profileType, { x: 50, y: height - 75, size: 14, font: boldFont, color: rgb(0.2, 0.2, 0.2) });
+    page.drawLine({ start: { x: 50, y: height - 90 }, end: { x: 550, y: height - 90 }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+
+    let y = height - 125;
+    const details = [
+      ['Full Name:', client.full_name || 'N/A'],
+      ['Phone:', client.phone || 'N/A'],
+      ['Email:', client.email || 'N/A'],
+      ['Address:', client.address || 'N/A'],
+      ['Linked Client / Company:', client.linked_client_company || 'N/A'],
+      ['Rental Agreement:', client.rental_agreement_filename || (client.rental_agreement_url ? 'Uploaded' : 'Not uploaded')],
+      ['Created:', client.created_at ? new Date(client.created_at).toLocaleString() : 'N/A'],
+      ['Last Updated:', client.updated_at ? new Date(client.updated_at).toLocaleString() : 'N/A'],
+    ];
+
+    for (const [label, value] of details) {
+      page.drawText(label, { x: 50, y, size: 10, font: boldFont });
+      page.drawText(String(value).substring(0, 70), { x: 190, y, size: 10, font });
+      y -= 22;
+    }
+
+    y -= 10;
+    page.drawText('NOTES', { x: 50, y, size: 11, font: boldFont, color: rgb(0.05, 0.58, 0.53) });
+    y -= 20;
+    const noteWords = (client.notes || 'No notes recorded.').split(' ');
+    let line = '';
+    for (const word of noteWords) {
+      if ((line + word).length > 85) {
+        page.drawText(line, { x: 50, y, size: 9, font });
+        line = `${word} `;
+        y -= 15;
+      } else {
+        line += `${word} `;
+      }
+    }
+    if (line) page.drawText(line, { x: 50, y, size: 9, font });
+
+    y -= 55;
+    page.drawLine({ start: { x: 50, y }, end: { x: 550, y }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
+    page.drawText('Generated for administrative records. ID/passport numbers are intentionally excluded.', { x: 50, y: y - 25, size: 8, font });
+
+    const pdfBytes = await pdfDoc.save();
+    const blob = new Blob([pdfBytes] as BlobPart[], { type: 'application/pdf' });
+    downloadBlob(blob, `RentalProfile-${client.full_name.replace(/[^a-z0-9]+/gi, '_')}.pdf`);
+  } catch (err) {
+    console.error('Rental client PDF generation failed:', err);
     window.print();
   }
 }

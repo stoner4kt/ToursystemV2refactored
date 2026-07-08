@@ -8,13 +8,16 @@ import {
 import { 
   Profile, Vehicle, Booking, Inspection, ReconSheet, TransferReconSheet, RentedVehicle, BookingDeleteRequest,
   VehicleExpense, TrafficFine, IncidentReport, BookingEditLog, VehicleChecklist, VehicleDirectChecklist,
-  bookingsApi, fleetApi, driversApi, inspectionsApi, reconApi, transferReconApi, supabase,  expensesApi, trafficFinesApi, incidentsApi, checklistsApi, directChecklistsApi, authApi,
+  RentalClient, RentalInspection,
+  bookingsApi, fleetApi, driversApi, inspectionsApi, reconApi, transferReconApi, supabase, expensesApi, trafficFinesApi, incidentsApi, checklistsApi, directChecklistsApi, authApi,
+  rentalClientsApi, rentalInspectionsApi,
   downloadCSV, uploadToCloudinary, getSignedUrlForView, generateUUID
 } from '@/lib/storage';
+import RentalClientForm from './RentalClientForm';
 import CalendarGrid from './CalendarGrid';
 import OTPModal from './OTPModal';
 import SignaturePad from './SignaturePad';
-import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF, downloadIncidentPDF, downloadExpensePDF } from '@/lib/pdf';
+import { downloadInspectionPDF, downloadReconPDF, downloadTransferReconPDF, downloadChecklistPDF, downloadIncidentPDF, downloadExpensePDF, downloadRentalClientPDF } from '@/lib/pdf';
 
 export const INSPECTION_CATEGORIES = {
   'Documents & Compliance': [
@@ -51,7 +54,7 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'fleet' | 'rented' | 'drivers' | 'recons' | 'transfers' | 'wages' | 'fines' | 'expenses' | 'incidents' | 'inspections' | 'checklists' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'bookings' | 'fleet' | 'rented' | 'drivers' | 'recons' | 'transfers' | 'wages' | 'fines' | 'expenses' | 'incidents' | 'inspections' | 'checklists' | 'rental_clients' | 'settings'>('dashboard');
   const [region, setRegion] = useState<'Cape Town' | 'Joburg'>('Cape Town');
   const [otpEnabled, setOtpEnabled] = useState(true);
 
@@ -60,6 +63,7 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [rentedVehicles, setRentedVehicles] = useState<RentedVehicle[]>([]);
   const [drivers, setDrivers] = useState<Profile[]>([]);
+  const [reviewingReconId, setReviewingReconId] = useState<string | null>(null);
   const [driverInvites, setDriverInvites] = useState<any[]>([]);
   const [weeklyRecons, setWeeklyRecons] = useState<ReconSheet[]>([]);
   const [transferRecons, setTransferRecons] = useState<TransferReconSheet[]>([]);
@@ -95,6 +99,15 @@ export default function AdminDashboard({ admin, onLogout }: AdminDashboardProps)
     status: 'completed'
   });
   const [deleteRequests, setDeleteRequests] = useState<BookingDeleteRequest[]>([]);
+
+  // Rental state
+  const [rentalClients, setRentalClients] = useState<RentalClient[]>([]);
+  const [showRentalClientModal, setShowRentalClientModal] = useState(false);
+  const [rentalClientEditTarget, setRentalClientEditTarget] = useState<RentalClient | null>(null);
+  const [rentalClientMode, setRentalClientMode] = useState<'self_drive' | 'external_driver'>('self_drive');
+  const [rentalClientSearch, setRentalClientSearch] = useState('');
+  const [rentalClientTypeFilter, setRentalClientTypeFilter] = useState<'all' | 'self_drive' | 'external_driver'>('all');
+  const [rentalInspections, setRentalInspections] = useState<RentalInspection[]>([]);
 
   // Inspections and Checklists states
   const [showLogInspectionModal, setShowLogInspectionModal] = useState(false);
@@ -167,6 +180,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
   const [showLogChecklistModal, setShowLogChecklistModal] = useState(false);
   const [newChecklistForm, setNewChecklistForm] = useState({
     driver_id: '',
+    vehicle_reg: '',
     week_start: new Date().toISOString().substring(0, 10),
     week_end: new Date(new Date().getTime() + 7 * 24 * 3600 * 1000).toISOString().substring(0, 10),
     checklist_data: {
@@ -190,9 +204,10 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     invoice_no: '', client_name: '', route: '', tour_reference: '',
     start_date: '',
     end_date: '',
-    assigned_driver_id: '', assigned_vehicle_reg: '', status: 'pending',
+    assigned_driver_id: '', assigned_vehicle_reg: '', status: 'invoiced',
     payment_status: 'unpaid', receipt_number: '', booking_documents: [], is_rented_vehicle: false,
-    rented_vehicle_id: '', rented_vehicle_reg: '', rented_vehicle_model: '', notes: ''
+    rented_vehicle_id: '', rented_vehicle_reg: '', rented_vehicle_model: '', notes: '',
+    rental_mode: 'staff_driver', rental_client_id: undefined,
   });
   const [editReason, setEditReason] = useState('');
   const [isEditMode, setIsEditMode] = useState(false);
@@ -215,6 +230,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteName, setInviteName] = useState('');
+  const [invitePhone, setInvitePhone] = useState('');
 
   // Fine form State
   const [fineForm, setFineForm] = useState({
@@ -243,6 +259,8 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     setChecklists(checklistsApi.getChecklists());
     setDirectChecklists(directChecklistsApi.getChecklists());
     setDeleteRequests(bookingsApi.getDeleteRequests());
+    setRentalClients(rentalClientsApi.getRentalClients());
+    setRentalInspections(rentalInspectionsApi.getRentalInspections());
   }, [region]);
 
   const handleAdminInspectionMediaUpload = async (key: string, e: React.ChangeEvent<HTMLInputElement>) => {
@@ -410,6 +428,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     const newChecklist: VehicleChecklist = {
       id: `chk-${Math.random().toString(36).substring(2, 9)}`,
       driver_id: newChecklistForm.driver_id,
+      vehicle_reg: newChecklistForm.vehicle_reg || '',
       week_start: newChecklistForm.week_start,
       week_end: newChecklistForm.week_end,
       status: 'submitted',
@@ -425,6 +444,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
     setShowLogChecklistModal(false);
     setNewChecklistForm({
       driver_id: '',
+      vehicle_reg: '',
       week_start: new Date().toISOString().substring(0, 10),
       week_end: new Date(new Date().getTime() + 7 * 24 * 3600 * 1000).toISOString().substring(0, 10),
       checklist_data: {
@@ -576,25 +596,33 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
   };
 
   // BOOKING HANDLERS
-  const handleOpenNewBooking = (date?: Date) => {
+  const handleOpenNewBooking = async (date?: Date) => {
     const startStr = date 
       ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 8, 0).toISOString().substring(0, 16)
       : new Date().toISOString().substring(0, 16);
     const endStr = date
       ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 18, 0).toISOString().substring(0, 16)
       : new Date(Date.now() + 24 * 3600 * 1000).toISOString().substring(0, 16);
+// In openNewBooking (around line 599), make it async:
+const { data } = await supabase?.rpc('next_invoice_no') ?? { data: null };
+const invoice_no = data || `INV-${Date.now()}`;
 
-    setBookingForm({
-      invoice_no: `INV-2026-${Math.floor(100 + Math.random() * 900)}`,
-      client_name: '', route: '', tour_reference: '', start_date: startStr, end_date: endStr,
-      assigned_driver_id: drivers[0]?.driver_id || '', assigned_vehicle_reg: vehicles[0]?.registration_no || '',
-      status: 'pending', payment_status: 'unpaid', receipt_number: '', booking_documents: [],
-      is_rented_vehicle: false, rented_vehicle_id: '', rented_vehicle_reg: '', rented_vehicle_model: '', notes: ''
-    });
-    setEditReason('');
-    setIsEditMode(false);
-    setShowBookingModal(true);
-  };
+  setBookingForm({
+    invoice_no,
+    client_name: '', route: '', tour_reference: '',
+    start_date: startStr, end_date: endStr,
+    assigned_driver_id: drivers[0]?.driver_id || '',
+    assigned_vehicle_reg: vehicles[0]?.registration_no || '',
+    status: 'invoiced', payment_status: 'unpaid',
+    receipt_number: '', booking_documents: [],
+    is_rented_vehicle: false, rented_vehicle_id: '',
+    rented_vehicle_reg: '', rented_vehicle_model: '', notes: '',
+    rental_mode: 'staff_driver', rental_client_id: undefined,
+  });
+  setEditReason('');
+  setIsEditMode(false);
+  setShowBookingModal(true);
+};
 
   const handleOpenEditBooking = (b: Booking) => {
     const editAction = () => {
@@ -675,22 +703,28 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
       return;
     }
 
-    const payload: Booking = {
-      ...(bookingForm as Booking),
-      start_date: new Date(bookingForm.start_date || '').toISOString(),
-      end_date: new Date(bookingForm.end_date || '').toISOString(),
-      location: region,
-      updated_at: new Date().toISOString()
-    };
+  const payload: Booking = {
+  ...(bookingForm as Booking),
+  tour_reference: bookingForm.route || bookingForm.tour_reference || '',
+  start_date: new Date(bookingForm.start_date || '').toISOString(),
+  end_date: new Date(bookingForm.end_date || '').toISOString(),
+  location: region,
+  updated_at: new Date().toISOString()
+};
 
-    const action = async () => {
-      await bookingsApi.saveBooking(payload, admin.id || admin.driver_id, editReason || 'Details modified');
-      setShowBookingModal(false);
-      refreshData();
-      alert('Booking saved and schedules compiled!');
-    };
-
-    action();
+    
+// AFTER
+const action = async () => {
+  try {
+    await bookingsApi.saveBooking(payload, admin.id || admin.driver_id, editReason || 'Details modified');
+    setShowBookingModal(false);
+    refreshData();
+    alert('✅ Booking saved successfully!');
+  } catch (err: any) {
+    alert(`❌ Failed to save booking: ${err.message || 'Unknown error'}\n\nPlease check the console for details.`);
+  }
+};
+action();
   };
 
   const requestBookingDelete = (bookingId: string, otpId?: string) => {
@@ -770,6 +804,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
 
     driversApi.createInvite({
       email: inviteEmail,
+      phone: invitePhone,
       full_name: inviteName,
       location: region,
       invited_by: admin.id || admin.driver_id,
@@ -778,6 +813,7 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
 
     setInviteEmail('');
     setInviteName('');
+    setInvitePhone('');
     refreshData();
     alert(`✉️ Invitation voucher successfully generated for ${inviteName}! They can now register using this email.`);
   };
@@ -796,12 +832,46 @@ const [selectedTransferReconForModal, setSelectedTransferReconForModal] = useSta
 
     executeWithOtpGuard(
       'driver_deactivate',
-      driverId,
+      match.id || generateUUID(),
       action,
-      `OTP required to ${currentStatus ? 'suspend' : 'reactivate'} driver`,
+      `OTP required to ${currentStatus ? 'suspend' : 'reactivate'} driver ${driverId}`,
       true
     );
   };
+
+  const openRentalClientModal = (mode: 'self_drive' | 'external_driver', client?: RentalClient) => {
+    setRentalClientMode(mode);
+    setRentalClientEditTarget(client || null);
+    setShowRentalClientModal(true);
+  };
+
+  const requestRentalClientDelete = (client: RentalClient) => {
+    const profileLabel = client.profile_type === 'external_driver' ? 'external driver' : 'rental client';
+    const reason = prompt(`Please enter the reason for deleting ${client.full_name}'s ${profileLabel} profile:`);
+    if (!reason) return;
+
+    executeWithOtpGuard(
+      'rental_client_delete',
+      client.id,
+      async () => {
+        await rentalClientsApi.deleteRentalClient(client.id);
+        refreshData();
+        alert(`Deletion request verified. ${client.full_name}'s profile was deleted.`);
+      },
+      `OTP required to delete ${client.full_name}'s ${profileLabel} profile. Reason: ${reason}`,
+      true
+    );
+  };
+
+  const filteredRentalClients = rentalClients.filter(client => {
+    const profileType = client.profile_type || 'self_drive';
+    const matchesType = rentalClientTypeFilter === 'all' || profileType === rentalClientTypeFilter;
+    const haystack = [client.full_name, client.email, client.phone, client.address, client.linked_client_company, client.notes]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return matchesType && haystack.includes(rentalClientSearch.toLowerCase());
+  });
 
   // RECON AUDITING
 const handleApproveRecon = (id: string, notes: string) => {
@@ -1089,6 +1159,7 @@ const handleApproveRecon = (id: string, notes: string) => {
                 { id: 'fleet', label: 'Owned Fleet', icon: Car },
                 { id: 'rented', label: 'Rented-In Vehicles', icon: Car },
                 { id: 'drivers', label: 'Manage Drivers', icon: Users },
+                { id: 'rental_clients', label: 'Rental Clients', icon: Users },
                 { id: 'inspections', label: 'Compliance Checks', icon: ShieldCheck },
                 { id: 'checklists', label: 'Vehicle Checklists', icon: ClipboardCheck },
                 { id: 'recons', label: 'Trip Recons', icon: FileText },
@@ -1209,7 +1280,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                         <td colSpan={8} className="p-6 text-center text-slate-400 italic">No bookings scheduled in this region.</td>
                       </tr>
                     ) : (
-                      bookings.map(b => {
+                      [...bookings]
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .map(b => {
                         const preTrip = inspections.find(ins => ins.invoice_no === b.invoice_no && ins.inspection_type === 'pre-trip');
                         const postTrip = inspections.find(ins => ins.invoice_no === b.invoice_no && ins.inspection_type === 'post-trip');
 
@@ -1279,8 +1352,25 @@ const handleApproveRecon = (id: string, notes: string) => {
                             <span className="font-semibold block">{new Date(b.start_date).toLocaleDateString()}</span>
                             <span className="text-[10px] text-slate-400">{new Date(b.start_date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                           </td>
-                          <td className="p-3 font-bold text-slate-700">
-                            {drivers.find(d => d.driver_id === b.assigned_driver_id)?.name || b.assigned_driver_id}
+                          <td className="p-3">
+                            {b.rental_mode && b.rental_mode !== 'staff_driver' ? (
+                              <div>
+                                <span className={`inline-block text-[9px] font-black px-1.5 py-0.5 rounded-full border mb-0.5 ${
+                                  b.rental_mode === 'self_drive'
+                                    ? 'bg-violet-50 text-violet-700 border-violet-200'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                                }`}>
+                                  {b.rental_mode === 'self_drive' ? '👤 Self-Drive' : '🔑 Ext. Driver'}
+                                </span>
+                                <span className="block text-[10px] text-slate-500 font-medium">
+                                  {rentalClients.find(c => c.id === b.rental_client_id)?.full_name || '— no renter linked —'}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="font-bold text-slate-700">
+                                {drivers.find(d => d.driver_id === b.assigned_driver_id)?.name || b.assigned_driver_id}
+                              </span>
+                            )}
                           </td>
                           <td className="p-3 font-bold text-slate-700">
                             {b.is_rented_vehicle ? `${b.rented_vehicle_model} (RENTED)` : b.assigned_vehicle_reg}
@@ -1554,6 +1644,19 @@ const handleApproveRecon = (id: string, notes: string) => {
                         onChange={(e) => setInviteEmail(e.target.value)}
                         className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-slate-800"
                       />
+                      <div>
+  <span className="text-slate-400 block mb-1">
+    Mobile Number <span className="text-rose-500">*</span>
+  </span>
+  <input
+    type="tel"
+    required
+    placeholder="e.g. +27 82 123 4567"
+    value={invitePhone}
+    onChange={(e) => setInvitePhone(e.target.value)}
+    className="w-full bg-slate-50 border border-slate-200 rounded p-1.5 text-slate-800"
+  />
+</div>
                     </div>
                     <button
                       type="submit"
@@ -1613,14 +1716,26 @@ const handleApproveRecon = (id: string, notes: string) => {
                               {d.is_active ? 'Active' : 'Suspended'}
                             </span>
                           </td>
-                          <td className="p-3 text-right">
-                            <button
-                              onClick={() => handleDeactivateDriver(d.driver_id, d.is_active)}
-                              className={`font-bold ${d.is_active ? 'text-rose-600 hover:text-rose-800' : 'text-emerald-600 hover:text-emerald-800'}`}
-                            >
-                              {d.is_active ? 'Suspend' : 'Activate'}
-                            </button>
-                          </td>
+                          <td className="p-3 text-right flex gap-2 justify-end">
+  <button
+    onClick={() => {
+      const newPhone = prompt(`Update phone for ${d.name}:`, d.phone || '');
+      if (newPhone !== null) {
+        driversApi.saveDriver({ ...d, phone: newPhone });
+        refreshData();
+      }
+    }}
+    className="font-bold text-slate-500 hover:text-slate-800 text-xs"
+  >
+    Edit Phone
+  </button>
+  <button
+    onClick={() => handleDeactivateDriver(d.driver_id, d.is_active)}
+    className={`font-bold ${d.is_active ? 'text-rose-600 hover:text-rose-800' : 'text-emerald-600 hover:text-emerald-800'}`}
+  >
+    {d.is_active ? 'Suspend' : 'Activate'}
+  </button>
+</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1628,6 +1743,31 @@ const handleApproveRecon = (id: string, notes: string) => {
                 </div>
 </div>
               </div>
+            </div>
+          )}
+
+
+          {/* ==================== RENTAL CLIENTS DASHBOARD TAB ==================== */}
+          {activeTab === 'rental_clients' && (
+            <div className="space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900">Rental Clients & External Drivers</h2>
+                  <p className="text-xs text-slate-500">View, add, export, download PDF profiles, and delete rental profiles with OTP verification.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => downloadCSV(filteredRentalClients, 'rental_clients_and_external_drivers.csv')} className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold py-1.5 px-3 rounded-lg border border-slate-300 flex items-center gap-1 transition-colors"><Download className="w-4 h-4" /> Export Sheet</button>
+                  <button onClick={() => openRentalClientModal('self_drive')} className="bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 transition-colors"><Plus className="w-4 h-4" /> Add Client</button>
+                  <button onClick={() => openRentalClientModal('external_driver')} className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold py-1.5 px-3 rounded-lg flex items-center gap-1 transition-colors"><Plus className="w-4 h-4" /> Add External Driver</button>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl border border-slate-200 p-3 flex flex-col md:flex-row gap-2">
+                <div className="relative flex-1"><Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" /><input value={rentalClientSearch} onChange={e => setRentalClientSearch(e.target.value)} placeholder="Search by name, contact, company, address, or notes..." className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-800 focus:outline-none focus:border-teal-500" /></div>
+                <select value={rentalClientTypeFilter} onChange={e => setRentalClientTypeFilter(e.target.value as any)} className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-bold text-slate-700"><option value="all">All Profiles</option><option value="self_drive">Clients / Renters</option><option value="external_driver">External Drivers</option></select>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-xs border border-slate-200 overflow-hidden"><div className="overflow-x-auto"><table className="w-full text-left text-xs min-w-[900px]"><thead className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase font-bold text-slate-500"><tr><th className="p-3">Profile</th><th className="p-3">Type</th><th className="p-3">Contact</th><th className="p-3">Address</th><th className="p-3">Linked Company</th><th className="p-3">Agreement</th><th className="p-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{filteredRentalClients.length === 0 ? (<tr><td colSpan={7} className="p-6 text-center text-slate-400 italic">No rental clients or external drivers found.</td></tr>) : filteredRentalClients.map(client => { const profileType = client.profile_type || 'self_drive'; return (<tr key={client.id} className="hover:bg-slate-50/60"><td className="p-3"><span className="font-bold block text-slate-900">{client.full_name}</span><span className="text-[10px] text-slate-400">Created {new Date(client.created_at).toLocaleDateString()}</span></td><td className="p-3"><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${profileType === 'external_driver' ? 'bg-amber-50 text-amber-700' : 'bg-violet-50 text-violet-700'}`}>{profileType === 'external_driver' ? 'External Driver' : 'Client / Renter'}</span></td><td className="p-3"><span className="block font-semibold text-slate-700">{client.phone || '—'}</span><span className="text-[10px] text-slate-400">{client.email || '—'}</span></td><td className="p-3 text-slate-600 max-w-[180px] truncate">{client.address || '—'}</td><td className="p-3 text-slate-600">{client.linked_client_company || '—'}</td><td className="p-3">{client.rental_agreement_url ? <button onClick={async () => window.open(await getSignedUrlForView(client.rental_agreement_url!), '_blank')} className="text-teal-600 hover:text-teal-800 font-bold">View</button> : <span className="text-slate-400">—</span>}</td><td className="p-3"><div className="flex justify-end gap-2"><button onClick={() => openRentalClientModal(profileType, client)} className="text-slate-600 hover:text-slate-900 font-bold">Edit</button><button onClick={() => downloadRentalClientPDF(client)} className="text-teal-600 hover:text-teal-800 font-bold">PDF</button><button onClick={() => requestRentalClientDelete(client)} className="text-rose-600 hover:text-rose-800 font-bold">Delete</button></div></td></tr>); })}</tbody></table></div></div>
             </div>
           )}
 
@@ -1640,7 +1780,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                 {weeklyRecons.length === 0 ? (
                   <p className="text-xs text-slate-400 italic bg-white p-6 border border-slate-200 rounded-xl text-center">No weekly trip recon sheets submitted yet.</p>
                 ) : (
-                  weeklyRecons.map(rec => {
+                  [...weeklyRecons]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map(rec => {
                     const drv = drivers.find(d => d.driver_id === rec.driver_id);
                     const driverName = drv ? drv.name : rec.driver_id;
 
@@ -1695,27 +1837,93 @@ const handleApproveRecon = (id: string, notes: string) => {
                           </div>
                         </div>
 
+                        
                         {/* Edit request approval banner */}
                         {rec.edit_request_status === 'pending' && (
-                          <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex justify-between items-center text-xs">
-                            <div>
-                              <p className="font-black text-amber-800 uppercase text-[9px]">Pending Edit Authorization Request</p>
-                              <p className="text-slate-600 mt-0.5">Reason: &quot;{rec.edit_request_reason}&quot;</p>
-                            </div>
-                            <div className="flex gap-1">
+                          <div className="border border-amber-200 rounded-lg overflow-hidden">
+                            {/* Header row */}
+                            <div className="bg-amber-50 p-3 flex justify-between items-center text-xs">
+                              <div>
+                                <p className="font-black text-amber-800 uppercase text-[9px]">⏳ Pending Edit Authorization Request</p>
+                                <p className="text-slate-600 mt-0.5">Reason: &quot;{rec.edit_request_reason}&quot;</p>
+                              </div>
                               <button
-                                onClick={() => handleReviewEditRequest(rec.id, 'weekly', 'rejected')}
-                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1 px-2 rounded"
+                                onClick={() => setReviewingReconId(reviewingReconId === rec.id ? null : rec.id)}
+                                className="text-amber-700 font-bold border border-amber-300 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors text-[10px] whitespace-nowrap ml-3"
                               >
-                                Reject
-                              </button>
-                              <button
-                                onClick={() => handleReviewEditRequest(rec.id, 'weekly', 'approved')}
-                                className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1 px-3.5 rounded shadow-xs"
-                              >
-                                Approve Edit
+                                {reviewingReconId === rec.id ? '▲ Hide Sheet' : '▼ Review Sheet'}
                               </button>
                             </div>
+
+                            {/* Expandable full recon detail */}
+                            {reviewingReconId === rec.id && (
+                              <div className="bg-white border-t border-amber-100 p-4 space-y-3 text-xs">
+                                <p className="text-[10px] font-black uppercase text-slate-400 border-b pb-1.5">
+                                  Full Recon Sheet — Review Before Acting
+                                </p>
+
+                                {/* Identity & dates */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded border border-slate-200">
+                                  <div><span className="text-slate-400 block text-[9px]">Tour Ref</span><strong>{rec.tour_reference || 'N/A'}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Vehicle</span><strong>{rec.vehicle_reg}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Week Start</span><strong>{rec.week_start}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Week End</span><strong>{rec.week_end}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Start KM</span><strong>{rec.start_km}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">End KM</span><strong>{rec.end_km}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Total KM</span><strong>{rec.total_distance_km}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Hours</span><strong>{rec.total_hours}</strong></div>
+                                </div>
+
+                                {/* Financials */}
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 bg-slate-50 p-2.5 rounded border border-slate-200">
+                                  <div><span className="text-slate-400 block text-[9px]">Trip Budget</span><strong>R {Number(rec.trip_budget || 0).toFixed(2)}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Driver Food</span><strong>R {Number(rec.driver_food || 0).toFixed(2)}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Driver Rate</span><strong>R {Number(rec.driver_rate || 0).toFixed(2)}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Flights</span><strong>R {Number(rec.flights_to_from || 0).toFixed(2)}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Accommodation</span><strong>R {Number(rec.accommodation || 0).toFixed(2)}</strong></div>
+                                  <div className="col-span-2 md:col-span-3">
+                                    <span className="text-slate-400 block text-[9px]">Total Profit / Loss</span>
+                                    <strong className={Number(rec.total_profit_loss || 0) >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
+                                      R {Number(rec.total_profit_loss || 0).toFixed(2)}
+                                    </strong>
+                                  </div>
+                                </div>
+
+                                {/* Wellness */}
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2 bg-slate-50 p-2.5 rounded border border-slate-200">
+                                  <div><span className="text-slate-400 block text-[9px]">Fatigue Level</span><strong>{rec.fatigue_level}/10</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Stress Level</span><strong>{rec.stress_level}/10</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Vehicle Issues</span><strong className="text-rose-600">{rec.vehicle_issues || 'None'}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Accidents</span><strong className="text-rose-600">{rec.accidents_incidents || 'None'}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Traffic Violations</span><strong>{rec.traffic_violations || 'None'}</strong></div>
+                                  <div><span className="text-slate-400 block text-[9px]">Safety Concerns</span><strong>{rec.safety_concerns || 'None'}</strong></div>
+                                </div>
+
+                                {/* Driver notes */}
+                                {rec.driver_notes && (
+                                  <div className="bg-slate-50 p-2 rounded border border-slate-200">
+                                    <span className="text-[9px] text-slate-400 block font-bold uppercase mb-0.5">Driver Notes</span>
+                                    <p className="text-slate-700">{rec.driver_notes}</p>
+                                  </div>
+                                )}
+
+                                {/* Action buttons */}
+                                <div className="flex gap-2 justify-end pt-1 border-t border-slate-100">
+                                  <button
+                                    onClick={() => { setReviewingReconId(null); handleReviewEditRequest(rec.id, 'weekly', 'rejected'); }}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1.5 px-3 rounded-lg text-xs"
+                                  >
+                                    Reject Request
+                                  </button>
+                                  <button
+                                    onClick={() => { setReviewingReconId(null); handleReviewEditRequest(rec.id, 'weekly', 'approved'); }}
+                                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-4 rounded-lg text-xs shadow-xs"
+                                  >
+                                    🔐 Approve Edit
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -1759,7 +1967,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                 {transferRecons.length === 0 ? (
                   <p className="text-xs text-slate-400 italic bg-white p-6 border border-slate-200 rounded-xl text-center">No transfer sheets submitted yet.</p>
                 ) : (
-                  transferRecons.map(rec => {
+                  [...transferRecons]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map(rec => {
                     const drv = drivers.find(d => d.driver_id === rec.driver_id);
                     const driverName = drv ? drv.name : rec.driver_id;
                     const totalWage = rec.transfers.reduce((sum, curr) => sum + curr.amount, 0);
@@ -1817,25 +2027,73 @@ const handleApproveRecon = (id: string, notes: string) => {
 
                         {/* Edit request banner */}
                         {rec.edit_request_status === 'pending' && (
-                          <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg flex justify-between items-center text-xs">
-                            <div>
-                              <p className="font-black text-amber-800 uppercase text-[9px]">Edit Authorization Request</p>
-                              <p className="text-slate-600 mt-0.5">Reason: &quot;{rec.edit_request_reason}&quot;</p>
-                            </div>
-                            <div className="flex gap-1">
+                          <div className="border border-amber-200 rounded-lg overflow-hidden">
+                            <div className="bg-amber-50 p-3 flex justify-between items-center text-xs">
+                              <div>
+                                <p className="font-black text-amber-800 uppercase text-[9px]">⏳ Edit Authorization Request</p>
+                                <p className="text-slate-600 mt-0.5">Reason: &quot;{rec.edit_request_reason}&quot;</p>
+                              </div>
                               <button
-                                onClick={() => handleReviewEditRequest(rec.id, 'transfer', 'rejected')}
-                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1 px-2.5 rounded"
+                                onClick={() => setReviewingReconId(reviewingReconId === rec.id ? null : rec.id)}
+                                className="text-amber-700 font-bold border border-amber-300 px-3 py-1 rounded-lg hover:bg-amber-100 transition-colors text-[10px] whitespace-nowrap ml-3"
                               >
-                                Reject
-                              </button>
-                              <button
-                                onClick={() => handleReviewEditRequest(rec.id, 'transfer', 'approved')}
-                                className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1 px-3 rounded shadow-xs"
-                              >
-                                Approve Edit
+                                {reviewingReconId === rec.id ? '▲ Hide Sheet' : '▼ Review Sheet'}
                               </button>
                             </div>
+
+                            {reviewingReconId === rec.id && (
+                              <div className="bg-white border-t border-amber-100 p-4 space-y-3 text-xs">
+                                <p className="text-[10px] font-black uppercase text-slate-400 border-b pb-1.5">
+                                  Transfer Sheet — Review Before Acting
+                                </p>
+
+                                {/* Transfers table */}
+                                <div className="overflow-x-auto rounded border border-slate-200">
+                                  <table className="w-full text-[10px]">
+                                    <thead className="bg-slate-50 text-slate-500 uppercase">
+                                      <tr>
+                                        <th className="p-2 text-left font-bold">Date</th>
+                                        <th className="p-2 text-left font-bold">Ref</th>
+                                        <th className="p-2 text-left font-bold">Type</th>
+                                        <th className="p-2 text-left font-bold">Description</th>
+                                        <th className="p-2 text-left font-bold">Amount</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {rec.transfers.map((t, i) => (
+                                        <tr key={i} className="border-t border-slate-100">
+                                          <td className="p-2 text-slate-600">{t.date}</td>
+                                          <td className="p-2 text-slate-600 font-mono">{t.invoice_or_tour_ref}</td>
+                                          <td className="p-2">{t.tla_type || 'N/A'}</td>
+                                          <td className="p-2 text-slate-500">{t.description || t.passenger_name || `${t.pickup_location} → ${t.dropoff_location}`}</td>
+                                          <td className="p-2 font-bold text-teal-600">R {t.amount}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+
+                                <div className="bg-slate-50 p-2 rounded border border-slate-200 flex justify-between">
+                                  <span className="text-slate-400 text-[9px] uppercase font-bold">Total Wage</span>
+                                  <strong className="text-teal-600">R {rec.transfers.reduce((s, t) => s + Number(t.amount || 0), 0).toFixed(2)}</strong>
+                                </div>
+
+                                <div className="flex gap-2 justify-end pt-1 border-t border-slate-100">
+                                  <button
+                                    onClick={() => { setReviewingReconId(null); handleReviewEditRequest(rec.id, 'transfer', 'rejected'); }}
+                                    className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-1.5 px-3 rounded-lg text-xs"
+                                  >
+                                    Reject Request
+                                  </button>
+                                  <button
+                                    onClick={() => { setReviewingReconId(null); handleReviewEditRequest(rec.id, 'transfer', 'approved'); }}
+                                    className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-1.5 px-4 rounded-lg text-xs shadow-xs"
+                                  >
+                                    🔐 Approve Edit
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -2089,7 +2347,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                           <td colSpan={8} className="p-4 text-center text-slate-400 italic">No fines logged currently.</td>
                         </tr>
                       ) : (
-                        trafficFines.map(f => {
+                        [...trafficFines]
+                          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                          .map(f => {
                           const drv = drivers.find(d => d.driver_id === f.driver_id);
                           const driverName = drv ? drv.name : f.driver_id;
                           return (
@@ -2202,7 +2462,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                         <td colSpan={7} className="p-4 text-center text-slate-400 italic">No receipts reported by drivers currently.</td>
                       </tr>
                     ) : (
-                      vehicleExpenses.map(exp => (
+                      [...vehicleExpenses]
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .map(exp => (
                         <tr key={exp.id} className="hover:bg-slate-50/50">
                           <td className="p-3">
                             <span className="font-bold text-slate-900 block">{exp.description}</span>
@@ -2282,7 +2544,9 @@ const handleApproveRecon = (id: string, notes: string) => {
                 {incidentReports.length === 0 ? (
                   <p className="text-xs text-slate-400 italic bg-white p-6 border border-slate-200 rounded-xl text-center col-span-2">No accident incident records logged yet.</p>
                 ) : (
-                  incidentReports.map(inc => (
+                  [...incidentReports]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map(inc => (
                     <div key={inc.id} className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs space-y-3">
                       <div className="flex justify-between items-start">
                         <div>
@@ -3405,20 +3669,99 @@ const handleApproveRecon = (id: string, notes: string) => {
                 </div>
               </div>
 
+              {/* Rental Type Selector */}
+              <div>
+                <span className="text-slate-400 block mb-1">Rental Type</span>
+                <div className="flex gap-2">
+                  {([
+                    { value: 'staff_driver', label: '🚗 INYATHI Driver' },
+                    { value: 'self_drive',   label: '👤 Client Self-Drive' },
+                    { value: 'external_driver', label: '🔑 External Driver' },
+                  ] as const).map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setBookingForm(prev => ({
+                        ...prev,
+                        rental_mode: opt.value,
+                        assigned_driver_id: opt.value === 'staff_driver' ? prev.assigned_driver_id : '',
+                        rental_client_id: opt.value !== 'staff_driver' ? prev.rental_client_id : undefined,
+                      }))}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all ${
+                        (bookingForm.rental_mode ?? 'staff_driver') === opt.value
+                          ? 'bg-teal-50 text-teal-700 border-teal-300 shadow-xs'
+                          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Assignments */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className="text-slate-400 block mb-1">Assign Driver</span>
-                  <select
-                    value={bookingForm.assigned_driver_id}
-                    onChange={(e) => setBookingForm(prev => ({ ...prev, assigned_driver_id: e.target.value }))}
-                    className="w-full bg-slate-50 border border-slate-200 p-2 rounded text-slate-800"
-                  >
-                    <option value="">Select Staff Driver...</option>
-                    {drivers.map(d => (
-                      <option key={d.driver_id} value={d.driver_id}>{d.name} ({d.driver_id})</option>
-                    ))}
-                  </select>
+                  {(bookingForm.rental_mode ?? 'staff_driver') === 'staff_driver' ? (
+                    <>
+                      <span className="text-slate-400 block mb-1">Assign Driver</span>
+                      <select
+                        value={bookingForm.assigned_driver_id}
+                        onChange={(e) => setBookingForm(prev => ({ ...prev, assigned_driver_id: e.target.value }))}
+                        className="w-full bg-slate-50 border border-slate-200 p-2 rounded text-slate-800"
+                      >
+                        <option value="">Select Staff Driver...</option>
+                        {drivers.map(d => (
+                          <option key={d.driver_id} value={d.driver_id}>{d.name} ({d.driver_id})</option>
+                        ))}
+                      </select>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-slate-400 block mb-1">
+                        {bookingForm.rental_mode === 'self_drive' ? 'Renter / Client' : 'External Driver'}
+                      </span>
+                      <div className="flex gap-1.5">
+                        <select
+                          value={bookingForm.rental_client_id || ''}
+                          onChange={(e) => setBookingForm(prev => ({ ...prev, rental_client_id: e.target.value || undefined }))}
+                          className="flex-1 bg-slate-50 border border-slate-200 p-2 rounded text-slate-800 text-xs"
+                        >
+                          <option value="">— Select or create —</option>
+                          {rentalClients.map(c => (
+                            <option key={c.id} value={c.id}>{c.full_name}{c.phone ? ` · ${c.phone}` : ''}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => openRentalClientModal(bookingForm.rental_mode as 'self_drive' | 'external_driver')}
+                          className="bg-teal-50 hover:bg-teal-100 border border-teal-200 text-teal-700 px-2 rounded text-xs font-bold"
+                          title="Create new renter"
+                        >
+                          + New
+                        </button>
+                      </div>
+                      {bookingForm.rental_client_id && (() => {
+                        const rc = rentalClients.find(c => c.id === bookingForm.rental_client_id);
+                        return rc ? (
+                          <div className="mt-1.5 bg-violet-50 border border-violet-100 rounded p-2 text-[10px] text-violet-800 space-y-0.5">
+                            <p className="font-bold">{rc.full_name}</p>
+                            {rc.phone && <p>{rc.phone}</p>}
+                            {rc.email && <p>{rc.email}</p>}
+                            {rc.rental_agreement_url && (
+                              <button
+                                type="button"
+                                onClick={async () => { const s = await getSignedUrlForView(rc.rental_agreement_url!); window.open(s, '_blank'); }}
+                                className="text-teal-600 hover:underline font-bold"
+                              >
+                                📄 View Agreement
+                              </button>
+                            )}
+                          </div>
+                        ) : null;
+                      })()}
+                    </>
+                  )}
                 </div>
                 
                 <div>
@@ -3569,11 +3912,29 @@ const handleApproveRecon = (id: string, notes: string) => {
                     onChange={(e) => setBookingForm(prev => ({ ...prev, status: e.target.value as any }))}
                     className="w-full bg-white border border-slate-200 p-1 rounded text-slate-800 font-bold"
                   >
-                    <option value="pending">Pending</option>
-                    <option value="confirmed">Confirmed</option>
-                    <option value="invoiced">Invoiced</option>
-                    <option value="completed">Completed</option>
-                    <option value="cancelled">Cancelled</option>
+                    {(bookingForm.rental_mode ?? 'staff_driver') === 'staff_driver' ? (
+                      <>
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="invoiced">Invoiced</option>
+                        <option value="active">Active</option>
+                        <option value="in-transit">In Transit</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="documents_pending">📄 Documents Pending</option>
+                        <option value="inspection_pending">🔍 Inspection Pending</option>
+                        <option value="ready_for_handover">✅ Ready for Handover</option>
+                        <option value="vehicle_out">🚗 Vehicle Out</option>
+                        <option value="return_inspection_pending">🔄 Return Inspection Pending</option>
+                        <option value="returned">🏁 Returned</option>
+                        <option value="damage_review">⚠️ Damage Review</option>
+                        <option value="closed">🔒 Closed</option>
+                        <option value="cancelled">❌ Cancelled</option>
+                      </>
+                    )}
                   </select>
                 </div>
                 <div>
@@ -5522,6 +5883,24 @@ const handleApproveRecon = (id: string, notes: string) => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* ==================== RENTAL CLIENT FORM MODAL ==================== */}
+      {showRentalClientModal && (
+        <RentalClientForm
+          mode={rentalClientMode}
+          editTarget={rentalClientEditTarget}
+          
+// AFTER — refresh AFTER setting the form so the new rental_client is in localStorage
+// before the subsequent saveBooking call reads it
+onSave={async (client) => {
+  await rentalClientsApi.saveRentalClient({ ...client, profile_type: rentalClientMode });  // pushes to Supabase
+  setBookingForm(prev => ({ ...prev, rental_client_id: client.id }));
+  setShowRentalClientModal(false);
+  refreshData();  // moved to last — state update is already queued above
+}}
+          onClose={() => setShowRentalClientModal(false)}
+        />
       )}
 
       {/* ==================== OTP AUTH MODAL GATE ==================== */}

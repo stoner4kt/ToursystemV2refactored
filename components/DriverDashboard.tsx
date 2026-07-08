@@ -57,6 +57,9 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [assignedBookings, setAssignedBookings] = useState<Booking[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [checklistVehicleOptions, setChecklistVehicleOptions] = useState<
+  { label: string; value: string }[]
+>([]);
   
   // Inspection State
   const [showInspectionModal, setShowInspectionModal] = useState(false);
@@ -156,6 +159,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     injuries: false
   });
   const [checklistForm, setChecklistForm] = useState<Partial<VehicleChecklist>>({
+    vehicle_reg: '',   
     week_start: '',
     week_end: '',
     checklist_data: {
@@ -243,6 +247,23 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     const myFines = trafficFinesApi.getFines().filter(f => f.driver_id === driver.driver_id);
     setDriverFines(myFines);
 
+    // Build options: fleet active vehicles + active rented vehicles
+const rentedVehs = fleetApi.getRentedVehicles().filter(r => r.status === 'active');
+
+const fleetOptions = allVehs
+  .filter(v => v.status === 'active')
+  .map(v => ({ label: `${v.registration_no} — ${v.make} ${v.model}`, value: v.registration_no }));
+
+const rentedOptions = rentedVehs
+  .map(r => ({ label: `${r.reg_no} (Rented: ${r.make} ${r.model})`, value: r.reg_no }));
+
+const combined = [...fleetOptions, ...rentedOptions];
+setChecklistVehicleOptions(combined);
+
+// Seed default selection
+if (combined.length > 0 && !checklistForm.vehicle_reg) {
+  setChecklistForm(prev => ({ ...prev, vehicle_reg: combined[0].value }));
+}
     // Seed default selection for checklists
     if (allVehs.length > 0) {
       setReconForm(prev => ({ ...prev, vehicle_reg: allVehs[0].registration_no }));
@@ -722,11 +743,16 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
     if (!checklistForm.mileage) {
       alert('Please fill current mileage.');
       return;
+      if (!checklistForm.vehicle_reg) {
+  alert('Please select a vehicle.');
+  return;
+      }
     }
 
     const newChecklist: VehicleChecklist = {
       id: `chk-${Math.random().toString(36).substring(2, 9)}`,
       driver_id: driver.driver_id,
+      vehicle_reg: checklistForm.vehicle_reg || '',
       week_start: checklistForm.week_start || '',
       week_end: checklistForm.week_end || '',
       status: 'submitted',
@@ -881,18 +907,55 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
 
         <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-5xl w-full mx-auto pb-24 md:pb-8">
         
+        
         {/* ==================== TASKS TAB ==================== */}
-        {activeTab === 'tasks' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-base font-bold flex items-center gap-2">
-                <Compass className="w-5 h-5 text-teal-500 animate-spin-slow" />
-                My Assigned Tours
-              </h2>
-              <span className="text-xs font-bold text-slate-400">
-                {assignedBookings.length} Active Trip{assignedBookings.length !== 1 ? 's' : ''}
-              </span>
-            </div>
+{activeTab === 'tasks' && (
+  <div className="space-y-4">
+    {/* MY TASKS STATS GRID - Dynamic */}
+    <div className="grid grid-cols-2 gap-3">
+      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
+        <div className="text-4xl font-black text-orange-400">
+          {assignedBookings.filter(b => new Date(b.start_date) > new Date()).length}
+        </div>
+        <div className="text-xs font-bold text-slate-400 mt-1">Upcoming</div>
+      </div>
+      
+      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
+        <div className="text-4xl font-black text-teal-400">
+          {assignedBookings.filter(b => {
+            const now = new Date();
+            const start = new Date(b.start_date);
+            const end = new Date(b.end_date);
+            return now >= start && now <= end;
+          }).length}
+        </div>
+        <div className="text-xs font-bold text-slate-400 mt-1">Active Now</div>
+      </div>
+      
+      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
+        <div className="text-4xl font-black text-emerald-400">
+          {assignedBookings.filter(b => new Date(b.end_date) < new Date()).length}
+        </div>
+        <div className="text-xs font-bold text-slate-400 mt-1">Completed</div>
+      </div>
+      
+      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
+        <div className="text-4xl font-black text-white">
+          {assignedBookings.length}
+        </div>
+        <div className="text-xs font-bold text-slate-400 mt-1">Total</div>
+      </div>
+    </div>
+
+    <div className="flex items-center justify-between mb-2">
+      <h2 className="text-base font-bold flex items-center gap-2">
+        <Compass className="w-5 h-5 text-teal-500 animate-spin-slow" />
+        My Assigned Tours
+      </h2>
+      <span className="text-xs font-bold text-slate-400">
+        {assignedBookings.length} Active Trip{assignedBookings.length !== 1 ? 's' : ''}
+      </span>
+    </div>
 
             {assignedBookings.length === 0 ? (
               <div className="bg-slate-950/60 border border-slate-800/80 p-8 rounded-xl text-center">
@@ -900,7 +963,9 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                 <p className="text-[10px] text-teal-500/80 mt-1 italic">Contact dispatch to check vehicle scheduling.</p>
               </div>
             ) : (
-              assignedBookings.map(b => (
+              [...assignedBookings]
+                .sort((a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime())
+                .map(b => (
                 <div key={b.invoice_no} className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-xl flex flex-col gap-3">
                   <div className="flex justify-between items-start">
                     <div>
@@ -910,9 +975,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                       <h3 className="text-sm font-extrabold text-white mt-1.5 leading-snug">{b.client_name}</h3>
                       <p className="text-xs text-slate-400 mt-0.5 font-medium">{b.route}</p>
                     </div>
-                    <span className="text-xs font-bold text-teal-400">
-                      {b.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
-                    </span>
+                    
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-[11px] bg-slate-900/60 p-2.5 rounded-lg border border-slate-800">
@@ -1053,7 +1116,9 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
               </div>
             ) : (
               <div className="space-y-3">
-                {inspectionsList.map(ins => (
+                {[...inspectionsList]
+                  .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                  .map(ins => (
                   <div key={ins.id} className="bg-slate-950 p-4 border border-slate-800 rounded-xl space-y-3 shadow-lg text-xs">
                     <div className="flex justify-between items-start">
                       <div>
@@ -1482,7 +1547,9 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                 {recons.length === 0 ? (
                   <p className="text-xs text-slate-500 italic text-center py-6">No reconciliation sheets logged yet.</p>
                 ) : (
-                  recons.map(rec => (
+                  [...recons]
+                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                    .map(rec => (
                     <div key={rec.id} className="bg-slate-950/90 border border-slate-800 rounded-xl p-4 shadow flex flex-col gap-2">
                       <div className="flex justify-between items-center">
                         <div>
@@ -1548,7 +1615,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                           </button>
                         )}
 
-                        {rec.status === 'submitted' && rec.edit_request_status === 'none' && (
+                        {rec.status === 'submitted' && rec.edit_request_status === 'none' && !rec.was_edited && (
                           <button
                             onClick={() => setActiveReconForEditRequest(rec.id)}
                             className="text-[10px] font-bold text-amber-400 hover:bg-slate-900 border border-slate-800 px-2.5 py-1.5 rounded-lg transition-colors"
@@ -1556,6 +1623,11 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                             Request Edit
                           </button>
                         )}
+                        {rec.was_edited && rec.status === 'submitted' && (
+  <span className="text-[10px] text-slate-500 italic px-2.5 py-1.5">
+    Edit already used — contact admin for further changes.
+  </span>
+)}
                       </div>
 
                       {/* Request Edit Dialog inline */}
@@ -2042,7 +2114,9 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
 
                   return (
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {previousSheets.map(ts => {
+                      {[...previousSheets]
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .map(ts => {
                         const totalWage = ts.transfers.reduce((sum, curr) => sum + Number(curr.amount || 0), 0);
                         return (
                           <div key={ts.id} className="bg-slate-950 border border-slate-800 rounded-xl p-4 shadow-xs flex flex-col justify-between gap-3">
@@ -2126,7 +2200,7 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                 </button>
                               )}
 
-                              {ts.status === 'submitted' && ts.edit_request_status === 'none' && (
+                            {ts.status === 'submitted' && ts.edit_request_status === 'none' && !ts.was_edited && (
                                 <button
                                   onClick={() => {
                                     setActiveReconForEditRequest(ts.id);
@@ -2136,6 +2210,11 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                                   Request Edit
                                 </button>
                               )}
+                              {ts.was_edited && ts.status === 'submitted' && (
+  <span className="text-[10px] text-slate-500 italic px-2.5 py-1.5">
+    Edit already used — contact admin for further changes.
+  </span>
+)}
 
                               {ts.edit_request_status === 'pending' && (
                                 <span className="text-[10px] font-bold text-amber-400 bg-amber-950/30 border border-amber-900/60 px-2.5 py-1.5 rounded-lg">
@@ -2173,7 +2252,23 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
             <p className="text-[10px] text-slate-400">
               Submit your standard 12-point weekly safety checklist audit for compliance records. Use OK or WARN (Action Required) to log actual condition.
             </p>
-
+{/* Vehicle Selection */}
+<div>
+  <span className="text-[10px] text-slate-400 block mb-1">
+    Vehicle <span className="text-rose-400">*</span>
+  </span>
+  <select
+    required
+    value={checklistForm.vehicle_reg || ''}
+    onChange={(e) => setChecklistForm(prev => ({ ...prev, vehicle_reg: e.target.value }))}
+    className="w-full bg-slate-950 border border-slate-800 rounded p-1.5 text-xs text-white"
+  >
+    <option value="" disabled>Select a vehicle...</option>
+    {checklistVehicleOptions.map(opt => (
+      <option key={opt.value} value={opt.value}>{opt.label}</option>
+    ))}
+  </select>
+</div>
             <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3">
               <form onSubmit={submitPeriodicChecklist} className="space-y-3 text-xs">
                 <div className="grid grid-cols-2 gap-2 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
@@ -2539,7 +2634,9 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                 <div className="pt-2">
                   <h3 className="text-xs font-bold text-slate-400 mb-2">My Weekly Audited Checklists</h3>
                   <div className="space-y-1.5">
-                    {driverChecklists.map(c => (
+                    {[...driverChecklists]
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                      .map(c => (
                       <div key={c.id} className="bg-slate-950 p-2.5 border border-slate-800 rounded-lg flex justify-between items-center text-[11px]">
                         <div>
                           <p className="font-extrabold text-white">Period: {c.week_start} - {c.week_end}</p>
@@ -2572,7 +2669,9 @@ export default function DriverDashboard({ driver, onLogout }: DriverDashboardPro
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {driverFines.map(f => (
+                    {[...driverFines]
+                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                      .map(f => (
                       <div key={f.id} className="bg-slate-950 p-3.5 border border-slate-800 rounded-xl space-y-2 text-[11px]">
                         <div className="flex justify-between items-start">
                           <div>

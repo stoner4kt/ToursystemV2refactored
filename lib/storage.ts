@@ -56,8 +56,16 @@ export interface Booking {
   end_date: string; // ISO string
   assigned_driver_id: string; // profiles.driver_id
   assigned_vehicle_reg: string; // vehicles.registration_no (empty if rented)
-  status: 'pending' | 'confirmed' | 'invoiced' | 'completed' | 'cancelled';
-  payment_status: 'paid' | 'unpaid';
+  
+// AFTER — keep 'pending' only as a UI-side display alias, never sent to DB
+// The transformPayloadForPush already converts it, so this is safe:
+status: 'pending' | 'invoiced' | 'confirmed' | 'active' | 'in-transit' | 'completed' | 'cancelled'
+      | 'documents_pending' | 'inspection_pending' | 'ready_for_handover'
+      | 'vehicle_out' | 'return_inspection_pending' | 'returned'
+      | 'damage_review' | 'closed';
+// (No change to the union itself, but change the DEFAULT so the form never initializes with 'pending')
+// AFTER
+payment_status: 'paid' | 'unpaid' | 'partially_paid';
   receipt_number?: string;
   booking_documents: Array<{
     id: string;
@@ -79,6 +87,62 @@ export interface Booking {
   rented_vehicle_model?: string;
   location: 'Cape Town' | 'Joburg';
   notes?: string;
+  created_at: string;
+  updated_at: string;
+  // Rental mode fields
+  rental_mode: 'staff_driver' | 'self_drive' | 'external_driver';
+  rental_client_id?: string;
+}
+
+// ── Rental Client ────────────────────────────────────────────────────────────
+export interface RentalClient {
+  id: string;
+  full_name: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  profile_type?: 'self_drive' | 'external_driver';
+  linked_client_company?: string;
+  rental_agreement_url?: string;
+  rental_agreement_filename?: string;
+  rental_agreement_uploaded_at?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export type FuelLevel = 'empty' | '1/4' | '1/2' | '3/4' | 'full';
+export type ReturnStatus = 'returned_clean' | 'returned_with_damage' | 'late_return' | 'pending_claim';
+
+// ── Rental Inspection (Handover / Return) ────────────────────────────────────
+export interface RentalInspection {
+  id: string;
+  booking_id: string;
+  invoice_no: string;
+  vehicle_reg: string;
+  rental_client_id?: string;
+  inspection_type: 'handover' | 'return';
+  odometer_reading?: number;
+  fuel_level?: FuelLevel;
+  checklist_json: Record<string, string>;
+  damage_notes?: string;
+  damage_photos: string[];
+  // Return-only charge fields
+  extra_mileage_km?: number;
+  extra_mileage_charge?: number;
+  fuel_charge?: number;
+  cleaning_charge?: number;
+  damage_charge?: number;
+  total_charges?: number;
+  return_status?: ReturnStatus;
+  client_signature?: string;
+  staff_signature?: string;
+  notes?: string;
+  has_critical_fault: boolean;
+  alert_sent: boolean;
+  pdf_url?: string;
+  logged_by_admin_id?: string;
+  submitted_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -153,6 +217,7 @@ export interface ReconSheet {
   edit_request_status: 'none' | 'pending' | 'approved' | 'rejected';
   edit_request_reason?: string;
   edit_request_rejection_reason?: string;
+  was_edited?: boolean;
 
   status: 'draft' | 'submitted' | 'reviewed';
   submitted_at?: string;
@@ -189,6 +254,7 @@ export interface TransferReconSheet {
   edit_request_status: 'none' | 'pending' | 'approved' | 'rejected';
   edit_request_reason?: string;
   edit_request_rejection_reason?: string;
+  was_edited?: boolean;
 
   submitted_at?: string;
   reviewed_by?: string;
@@ -200,6 +266,7 @@ export interface TransferReconSheet {
 export interface DriverInvite {
   email: string;
   full_name: string;
+  phone: string;
   location: 'Cape Town' | 'Joburg';
   invited_by: string;
   invited_at: string;
@@ -307,6 +374,7 @@ export interface IncidentReport {
 export interface VehicleChecklist {
   id: string;
   driver_id: string;
+  vehicle_reg: string;
   week_start: string;
   week_end: string;
   status: 'draft' | 'submitted';
@@ -400,7 +468,9 @@ export const STORAGE_KEYS = {
   DIRECT_CHECKLISTS: 'inyathi_direct_checklists',
   AUTH_USER: 'inyathi_auth_user',
   REGION: 'inyathi_region',
-  OTP_ENABLED: 'inyathi_otp_enabled'
+  OTP_ENABLED: 'inyathi_otp_enabled',
+  RENTAL_CLIENTS: 'inyathi_rental_clients',
+  RENTAL_INSPECTIONS: 'inyathi_rental_inspections',
 };
 
 export const TABLE_MAP: Record<string, string> = {
@@ -418,7 +488,9 @@ export const TABLE_MAP: Record<string, string> = {
   invites: 'driver_invites',
   logs: 'booking_edit_log',
   checklists: 'vehicle_checklists',
-  direct_checklists: 'vehicle_checklists'
+  direct_checklists: 'vehicle_checklists',
+  rental_clients: 'rental_clients',
+  rental_inspections: 'rental_inspections',
 };
 
 export const TABLE_COLUMNS: Record<string, string[]> = {
@@ -432,7 +504,8 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     'itinerary_uploaded_by', 'itinerary_uploaded_at', 'locked_at', 'locked_reason', 'last_modified_by',
     'last_modified_at', 'modification_reason', 'maintenance_alert_sent', 'maintenance_alert_sent_at',
     'start_time', 'end_time', 'rental_period', 'is_rented_vehicle', 'rented_vehicle_id',
-    'rented_vehicle_reg', 'rented_vehicle_model', 'location'
+    'rented_vehicle_reg', 'rented_vehicle_model', 'location',
+    'rental_mode', 'rental_client_id'
   ],
   inspections: [
     'id', 'invoice_no', 'vehicle_reg', 'driver_id', 'inspection_type', 'checklist_json',
@@ -452,7 +525,7 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     'edit_request_approved_by', 'edit_request_approved_at', 'edit_request_rejected_reason',
     'edit_request_rejected_at', 'edit_request_rejection_reason', 'slip_image_urls'
   ],
-  driver_invites: ['email', 'full_name', 'invited_by', 'invited_at', 'used_at', 'location'],
+  driver_invites: ['email', 'full_name', 'phone', 'invited_by', 'invited_at', 'used_at', 'location'],
   transfer_recon_sheets: [
     'id', 'driver_id', 'week_start', 'week_end', 'transfers', 'status', 'submitted_at',
     'reviewed_by', 'reviewed_at', 'created_at', 'updated_at',
@@ -494,7 +567,21 @@ export const TABLE_COLUMNS: Record<string, string[]> = {
     'id', 'vehicle_reg', 'driver_id', 'checklist_date', 'exterior', 'interior', 'mechanical',
     'fluids', 'tires', 'brakes', 'lights', 'safety_gear', 'notes', 'pdf_url', 'status',
     'created_at', 'updated_at'
-  ]
+  ],
+  rental_clients: [
+    'id', 'full_name', 'phone', 'email', 'address', 'profile_type',
+    'linked_client_company', 'rental_agreement_url', 'rental_agreement_filename',
+    'rental_agreement_uploaded_at', 'notes', 'created_at', 'updated_at'
+  ],
+  rental_inspections: [
+    'id', 'booking_id', 'invoice_no', 'vehicle_reg', 'rental_client_id',
+    'inspection_type', 'odometer_reading', 'fuel_level', 'checklist_json',
+    'damage_notes', 'damage_photos', 'extra_mileage_km', 'extra_mileage_charge',
+    'fuel_charge', 'cleaning_charge', 'damage_charge', 'total_charges',
+    'return_status', 'client_signature', 'staff_signature', 'notes',
+    'has_critical_fault', 'alert_sent', 'pdf_url', 'logged_by_admin_id',
+    'submitted_at', 'created_at', 'updated_at'
+  ],
 };
 
 export function filterPayloadForTable(dbTableName: string, payload: any): any {
@@ -556,7 +643,17 @@ export function filterPayloadForTable(dbTableName: string, payload: any): any {
       if (isNullableTextForeignKey && val === '') {
         val = null;
       }
-
+const isNullableTimestamp =
+  key === 'rental_agreement_uploaded_at' ||
+  key === 'completed_at' ||
+  key === 'receipt_uploaded_at' ||
+  key === 'itinerary_uploaded_at' ||
+  key === 'locked_at' ||
+  key === 'last_modified_at' ||
+  key === 'maintenance_alert_sent_at';
+if (isNullableTimestamp && val === '') {
+  val = null;
+}
       if (val !== undefined) {
         filtered[key] = val;
       }
@@ -636,12 +733,13 @@ export function transformPayloadForPush(dbTableName: string, data: any): any {
     const endDateStr = data.end_date ? data.end_date.split('T')[0] : '';
     prepared = {
       ...prepared,
-      tour_reference: data.tour_reference || data.route || '',
+      // lib/storage.ts line 717 — make this more defensive:
+tour_reference: (data.tour_reference || '').trim() || (data.route || '').trim() || '',
       start_date: startDateStr,
       end_date: endDateStr,
       start_time: data.start_date || null,
       end_time: data.end_date || null,
-      status: data.status === 'pending' ? 'invoiced' : data.status,
+      status: data.status === 'pending' ? 'invoiced' : (data.status || 'invoiced'),
       receipt_number: data.receipt_number && data.receipt_number.trim() !== '' ? data.receipt_number : null
     };
   }
@@ -716,7 +814,8 @@ export function transformPayloadForPull(tableName: string, data: any[]): any[] {
       route: row.tour_reference || row.route || '',
       start_date: row.start_time || row.start_date,
       end_date: row.end_time || row.end_date,
-      status: row.status === 'invoiced' && row.payment_status === 'unpaid' ? 'pending' : row.status
+      status: (row.status === 'invoiced' && row.payment_status === 'unpaid') ? 'pending' : row.status,
+      rental_mode: row.rental_mode || 'staff_driver',
     }));
   }
 
@@ -791,45 +890,36 @@ export function transformPayloadForPull(tableName: string, data: any[]): any[] {
   return withBookingResolved;
 }
 
-export async function pushToSupabase(tableName: string, data: any, matchColumn: string, matchValue: any) {
-  if (!isSupabaseConfigured || !supabase) {
-    console.log(`Supabase not configured or client null. Skipping push to ${tableName}.`);
-    return;
-  }
+// lib/storage.ts — change pushToSupabase signature + body
+
+export async function pushToSupabase(
+  tableName: string, data: any, matchColumn: string, matchValue: any
+): Promise<boolean> {
+  if (!isSupabaseConfigured || !supabase) return true;
+  console.log('[DEBUG] pushToSupabase called:', tableName, matchValue, 'configured:', isSupabaseConfigured, 'supabase:', !!supabase);
+
   try {
     const dbTableName = TABLE_MAP[tableName] || tableName;
     const transformed = transformPayloadForPush(dbTableName, data);
-    console.log(`[Supabase Push] Attempting upsert on '${dbTableName}' for matching ${matchColumn} = ${matchValue}`);
     const { error } = await supabase.from(dbTableName).upsert(transformed, { onConflict: matchColumn });
-    if (error) {
-      console.warn(`[Supabase Push] Upsert failed for '${dbTableName}', trying manual fallback. Error:`, error.message || error);
-      // Fallback manual upsert
-      const { data: existing, error: selectError } = await supabase.from(dbTableName).select(matchColumn).eq(matchColumn, matchValue).maybeSingle();
-      if (selectError) {
-        console.error(`[Supabase Push] Fallback select error on '${dbTableName}':`, selectError.message || selectError);
-      }
-      if (existing) {
-        console.log(`[Supabase Push] Row exists in '${dbTableName}', performing update.`);
-        const { error: updateError } = await supabase.from(dbTableName).update(transformed).eq(matchColumn, matchValue);
-        if (updateError) {
-          console.error(`[Supabase Push] Fallback update failed on '${dbTableName}':`, updateError.message || updateError);
-        } else {
-          console.log(`[Supabase Push] Fallback update succeeded on '${dbTableName}'.`);
-        }
-      } else {
-        console.log(`[Supabase Push] Row does not exist in '${dbTableName}', performing insert.`);
-        const { error: insertError } = await supabase.from(dbTableName).insert([transformed]);
-        if (insertError) {
-          console.error(`[Supabase Push] Fallback insert failed on '${dbTableName}':`, insertError.message || insertError);
-        } else {
-          console.log(`[Supabase Push] Fallback insert succeeded on '${dbTableName}'.`);
-        }
-      }
+
+    if (!error) return true;
+
+    // Fallback
+    const { data: existing } = await supabase
+      .from(dbTableName).select(matchColumn).eq(matchColumn, matchValue).maybeSingle();
+
+    if (existing) {
+      const { error: upErr } = await supabase.from(dbTableName).update(transformed).eq(matchColumn, matchValue);
+      if (upErr) throw new Error(upErr.message);
     } else {
-      console.log(`[Supabase Push] Upsert succeeded on '${dbTableName}'.`);
+      const { error: insErr } = await supabase.from(dbTableName).insert([transformed]);
+      if (insErr) throw new Error(insErr.message);
     }
+    return true;
   } catch (error: any) {
-    console.error(`[Supabase Push] Exception writing to Supabase table ${tableName}:`, error.message || error);
+    console.error(`[Supabase Push] Exception on table ${tableName}:`, error.message || error);
+    return false;      // ← was a swallowed exception
   }
 }
 
@@ -883,6 +973,8 @@ const TABLE_PRIMARY_KEYS: Record<string, string> = {
   checklists:             'id',
   direct_checklists:      'id',
   delete_requests:        'id',
+  rental_clients:         'id',
+  rental_inspections:     'id',
 };
 
 export async function syncAllFromSupabase() {
@@ -901,7 +993,9 @@ export async function syncAllFromSupabase() {
       { name: 'incidents',         key: STORAGE_KEYS.INCIDENTS },
       { name: 'checklists',        key: STORAGE_KEYS.CHECKLISTS },
       { name: 'direct_checklists', key: STORAGE_KEYS.DIRECT_CHECKLISTS },
-      { name: 'delete_requests',   key: STORAGE_KEYS.DELETES }
+      { name: 'delete_requests',   key: STORAGE_KEYS.DELETES },
+      { name: 'rental_clients',    key: STORAGE_KEYS.RENTAL_CLIENTS },
+      { name: 'rental_inspections', key: STORAGE_KEYS.RENTAL_INSPECTIONS },
     ];
 
     for (const t of tables) {
@@ -1015,6 +1109,12 @@ export function initializeStorage() {
   }
   if (window.localStorage.getItem(STORAGE_KEYS.OTP_ENABLED) === null) {
     window.localStorage.setItem(STORAGE_KEYS.OTP_ENABLED, 'true'); // Always on in production
+  }
+  if (!window.localStorage.getItem(STORAGE_KEYS.RENTAL_CLIENTS)) {
+    setLocalStorageItem(STORAGE_KEYS.RENTAL_CLIENTS, []);
+  }
+  if (!window.localStorage.getItem(STORAGE_KEYS.RENTAL_INSPECTIONS)) {
+    setLocalStorageItem(STORAGE_KEYS.RENTAL_INSPECTIONS, []);
   }
 }
 
@@ -1348,6 +1448,7 @@ export const driversApi = {
            email: invite.email,
            name: invite.full_name,
            fullName: invite.full_name,
+           phone: invite.phone,
            location: invite.location
          }
        }).catch(err => console.error("Error triggering driver-invite function:", err));
@@ -1439,8 +1540,31 @@ export const bookingsApi = {
         await pushToSupabase('rented_vehicles', rv, 'id', rv.id);
       }
     }
+// Add this block immediately before the final pushToSupabase('bookings', ...) call:
 
-    await pushToSupabase('bookings', preparedBooking, 'id', preparedBooking.id);
+if (preparedBooking.rental_client_id) {
+  const rentalClients = getLocalStorageItem<RentalClient[]>(STORAGE_KEYS.RENTAL_CLIENTS, []);
+  const rc = rentalClients.find(c => c.id === preparedBooking.rental_client_id);
+  if (rc) {
+    await pushToSupabase('rental_clients', rc, 'id', rc.id);
+  } else {
+    // FK would be dangling — null it out rather than fail the booking write
+    console.warn('[saveBooking] rental_client_id', preparedBooking.rental_client_id,
+      'not found in local storage — clearing to avoid FK violation');
+    preparedBooking = { ...preparedBooking, rental_client_id: undefined };
+  }
+}
+
+
+// AFTER
+const pushed = await pushToSupabase('bookings', preparedBooking, 'id', preparedBooking.id);
+if (!pushed) {
+  // Roll back localStorage to avoid ghost entries
+  const rollback = getLocalStorageItem<Booking[]>(STORAGE_KEYS.BOOKINGS, []);
+  const rolledBack = rollback.filter(b => b.id !== preparedBooking.id);
+  if (idx === -1) setLocalStorageItem(STORAGE_KEYS.BOOKINGS, rolledBack); // new booking only
+  throw new Error('Failed to save booking to database. Please try again.');
+}
 
     // Call Supabase Edge Function to check vehicle maintenance 2 days before
     if (isSupabaseConfigured && supabase) {
@@ -1517,6 +1641,58 @@ export const bookingsApi = {
     const logs = getLocalStorageItem<BookingEditLog[]>(STORAGE_KEYS.LOGS, []);
     return bookingId ? logs.filter(l => l.booking_id === bookingId) : logs;
   }
+};
+
+// Rental Clients API Layer
+export const rentalClientsApi = {
+  getRentalClients: (): RentalClient[] => {
+    initializeStorage();
+    return getLocalStorageItem<RentalClient[]>(STORAGE_KEYS.RENTAL_CLIENTS, []);
+  },
+  saveRentalClient: async (client: RentalClient): Promise<RentalClient> => {
+  console.log('[DEBUG] saveRentalClient called, isSupabaseConfigured:', isSupabaseConfigured);
+  const list = rentalClientsApi.getRentalClients();
+    const idx = list.findIndex(c => c.id === client.id);
+    const now = new Date().toISOString();
+    const prepared: RentalClient = { ...client, updated_at: now, created_at: client.created_at || now };
+    if (idx >= 0) {
+      list[idx] = prepared;
+    } else {
+      list.push(prepared);
+    }
+    setLocalStorageItem(STORAGE_KEYS.RENTAL_CLIENTS, list);
+    await pushToSupabase('rental_clients', prepared, 'id', prepared.id);
+    return prepared;
+  },
+  deleteRentalClient: async (id: string): Promise<void> => {
+    const list = rentalClientsApi.getRentalClients().filter(c => c.id !== id);
+    setLocalStorageItem(STORAGE_KEYS.RENTAL_CLIENTS, list);
+    await deleteFromSupabase('rental_clients', 'id', id);
+  },
+};
+
+// Rental Inspections API Layer
+export const rentalInspectionsApi = {
+  getRentalInspections: (): RentalInspection[] => {
+    initializeStorage();
+    return getLocalStorageItem<RentalInspection[]>(STORAGE_KEYS.RENTAL_INSPECTIONS, []);
+  },
+  getForBooking: (bookingId: string): RentalInspection[] =>
+    rentalInspectionsApi.getRentalInspections().filter(i => i.booking_id === bookingId),
+  saveRentalInspection: async (insp: RentalInspection): Promise<RentalInspection> => {
+    const list = rentalInspectionsApi.getRentalInspections();
+    const idx = list.findIndex(i => i.id === insp.id);
+    const now = new Date().toISOString();
+    const prepared: RentalInspection = { ...insp, updated_at: now, created_at: insp.created_at || now };
+    if (idx >= 0) {
+      list[idx] = prepared;
+    } else {
+      list.push(prepared);
+    }
+    setLocalStorageItem(STORAGE_KEYS.RENTAL_INSPECTIONS, list);
+    await pushToSupabase('rental_inspections', prepared, 'id', prepared.id);
+    return prepared;
+  },
 };
 
 // Driver Inspections API Layer
@@ -1664,9 +1840,11 @@ export const reconApi = {
       const recon = list[idx];
       recon.edit_request_status = action;
       if (action === 'approved') {
-        recon.status = 'draft'; // Put back into draft for editing
+        recon.status = 'draft';
+        recon.was_edited = true;
       } else {
         recon.edit_request_rejection_reason = adminNotes;
+        recon.was_edited = true;
       }
       recon.updated_at = new Date().toISOString();
       list[idx] = recon;
@@ -1725,9 +1903,11 @@ export const transferReconApi = {
       const recon = list[idx];
       recon.edit_request_status = action;
       if (action === 'approved') {
-        recon.status = 'draft'; // Put back into draft for editing
+        recon.status = 'draft';
+        recon.was_edited = true;// Put back into draft for editing
       } else {
         recon.edit_request_rejection_reason = adminNotes;
+        recon.was_edited = true;
       }
       recon.updated_at = new Date().toISOString();
       list[idx] = recon;
