@@ -907,18 +907,55 @@ if (combined.length > 0 && !checklistForm.vehicle_reg) {
 
         <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-5xl w-full mx-auto pb-24 md:pb-8">
         
+        
         {/* ==================== TASKS TAB ==================== */}
-        {activeTab === 'tasks' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-base font-bold flex items-center gap-2">
-                <Compass className="w-5 h-5 text-teal-500 animate-spin-slow" />
-                My Assigned Tours
-              </h2>
-              <span className="text-xs font-bold text-slate-400">
-                {assignedBookings.length} Active Trip{assignedBookings.length !== 1 ? 's' : ''}
-              </span>
-            </div>
+{activeTab === 'tasks' && (
+  <div className="space-y-4">
+    {/* MY TASKS STATS GRID - Dynamic */}
+    <div className="grid grid-cols-2 gap-3">
+      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
+        <div className="text-4xl font-black text-orange-400">
+          {assignedBookings.filter(b => new Date(b.start_date) > new Date()).length}
+        </div>
+        <div className="text-xs font-bold text-slate-400 mt-1">Upcoming</div>
+      </div>
+      
+      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
+        <div className="text-4xl font-black text-teal-400">
+          {assignedBookings.filter(b => {
+            const now = new Date();
+            const start = new Date(b.start_date);
+            const end = new Date(b.end_date);
+            return now >= start && now <= end;
+          }).length}
+        </div>
+        <div className="text-xs font-bold text-slate-400 mt-1">Active Now</div>
+      </div>
+      
+      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
+        <div className="text-4xl font-black text-emerald-400">
+          {assignedBookings.filter(b => new Date(b.end_date) < new Date()).length}
+        </div>
+        <div className="text-xs font-bold text-slate-400 mt-1">Completed</div>
+      </div>
+      
+      <div className="bg-slate-950/80 border border-slate-800 rounded-xl p-4 text-center hover:border-slate-700 transition-colors">
+        <div className="text-4xl font-black text-white">
+          {assignedBookings.length}
+        </div>
+        <div className="text-xs font-bold text-slate-400 mt-1">Total</div>
+      </div>
+    </div>
+
+    <div className="flex items-center justify-between mb-2">
+      <h2 className="text-base font-bold flex items-center gap-2">
+        <Compass className="w-5 h-5 text-teal-500 animate-spin-slow" />
+        My Assigned Tours
+      </h2>
+      <span className="text-xs font-bold text-slate-400">
+        {assignedBookings.length} Active Trip{assignedBookings.length !== 1 ? 's' : ''}
+      </span>
+    </div>
 
             {assignedBookings.length === 0 ? (
               <div className="bg-slate-950/60 border border-slate-800/80 p-8 rounded-xl text-center">
