@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { authApi, isSupabaseConfigured } from '@/lib/storage';
 import type { Profile } from '@/lib/storage';
+import Image from 'next/image';
+import logoSrc from '@/app/assets/823.png';
 
 interface AuthContainerProps {
   onLoginSuccess: (profile: Profile) => void;
@@ -69,11 +71,16 @@ export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none" />
 
       {/* Brand header */}
-      <div className="text-center mb-8 z-10">
+      <div className="text-center mb-8 z-10 flex flex-col items-center">
+        <div className="mb-4 flex items-center justify-center">
+          <div className="relative w-28 h-28 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-teal-500/30 bg-white/5 backdrop-blur-sm">
+            <Image src={logoSrc} alt="INYATHI Logo" fill className="object-contain p-1" priority draggable={false} />
+          </div>
+        </div>
         <span className="text-[10px] uppercase font-extrabold tracking-widest text-teal-400 bg-teal-950/80 px-3 py-1 rounded-full border border-teal-800">
           🔒 Professional Fleet System
         </span>
-        <h1 className="text-4xl font-extrabold text-white tracking-tight mt-3">INYATHI</h1>
+        <h1 className="text-3xl font-extrabold text-white tracking-tight mt-3">INYATHI</h1>
         <p className="text-xs text-slate-400 mt-1 max-w-sm">
           High-performance fleet logistics, cost reconciliations, and pre-trip driver compliance.
         </p>
