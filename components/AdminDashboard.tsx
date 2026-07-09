@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
+import logoSrc from '@/app/assets/823.png';
 import { 
   Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera, Archive,
   LayoutGrid, List, Search, SquarePen, Menu
@@ -1110,8 +1112,8 @@ const handleApproveRecon = (id: string, notes: string) => {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="w-7 h-7 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center shrink-0">
-            <img src="/assets/823.png" alt="INYATHI Logo" className="w-full h-full object-contain p-0.5" />
+          <div className="w-7 h-7 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center shrink-0 relative">
+            <Image src={logoSrc} alt="INYATHI Logo" fill className="object-contain p-0.5" />
           </div>
           <div>
             <h1 className="text-[10px] font-black tracking-widest text-slate-400 leading-none">INYATHI ADMIN</h1>
@@ -1162,8 +1164,8 @@ const handleApproveRecon = (id: string, notes: string) => {
             {/* Sidebar Header with Logo */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center shrink-0 shadow">
-                  <img src="/assets/823.png" alt="INYATHI Logo" className="w-full h-full object-contain p-0.5" />
+                <div className="w-8 h-8 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center shrink-0 shadow relative">
+                  <Image src={logoSrc} alt="INYATHI Logo" fill className="object-contain p-0.5" />
                 </div>
                 <div>
                   <h2 className="text-xs font-black tracking-widest text-teal-400 uppercase leading-none">INYATHI</h2>
