@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { authApi, isSupabaseConfigured } from '@/lib/storage';
 import type { Profile } from '@/lib/storage';
+import Image from 'next/image';
+import logoSrc from '@/app/assets/823.png';
 
 interface AuthContainerProps {
   onLoginSuccess: (profile: Profile) => void;
@@ -70,15 +72,9 @@ export default function AuthContainer({ onLoginSuccess }: AuthContainerProps) {
 
       {/* Brand header */}
       <div className="text-center mb-8 z-10 flex flex-col items-center">
-        {/* Logo */}
         <div className="mb-4 flex items-center justify-center">
           <div className="relative w-28 h-28 rounded-2xl overflow-hidden shadow-2xl ring-2 ring-teal-500/30 bg-white/5 backdrop-blur-sm">
-            <img
-              src="/assets/823.png"
-              alt="INYATHI Logo"
-              className="w-full h-full object-contain p-1"
-              draggable={false}
-            />
+            <Image src={logoSrc} alt="INYATHI Logo" fill className="object-contain p-1" priority draggable={false} />
           </div>
         </div>
         <span className="text-[10px] uppercase font-extrabold tracking-widest text-teal-400 bg-teal-950/80 px-3 py-1 rounded-full border border-teal-800">
