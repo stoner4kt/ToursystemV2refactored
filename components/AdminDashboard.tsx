@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
+import logoSrc from '@/app/assets/823.png';
 import { 
   Calendar as CalendarIcon, ClipboardCheck, Car, Users, Landmark, AlertOctagon, Info, FileText, LogOut, Check, X, ShieldCheck, MapPin, Plus, Trash2, Download, AlertTriangle, Eye, RefreshCw, FileUp, CheckCircle, Camera, Archive,
   LayoutGrid, List, Search, SquarePen, Menu
@@ -1099,94 +1101,89 @@ const handleApproveRecon = (id: string, notes: string) => {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-800 selection:bg-teal-500 selection:text-white">
       
-      {/* Top Header */}
-      <header className="bg-white border-b border-slate-200 px-4 sm:px-6 py-4 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between sticky top-0 z-40 shadow-xs">
-        <div className="flex items-center gap-3">
+      {/* MOBILE HEADER BAR - only visible on mobile */}
+      <header className="md:hidden bg-slate-950 border-b border-slate-800 px-4 py-3 sticky top-0 z-40 flex items-center justify-between">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all"
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-900 rounded-lg transition-colors mr-1 cursor-pointer"
             aria-label="Open admin navigation menu"
           >
             <Menu className="w-5 h-5" />
           </button>
-          <div className="bg-teal-600 p-2 rounded-xl text-white font-extrabold tracking-tight">IN</div>
+          <div className="w-7 h-7 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center shrink-0 relative">
+            <Image src={logoSrc} alt="INYATHI Logo" fill className="object-contain p-0.5" />
+          </div>
           <div>
-            <h1 className="text-sm font-black text-slate-900 tracking-tight">INYATHI Admin Dashboard</h1>
-            <p className="text-[10px] font-semibold text-slate-500">Supervisory Back-Office</p>
+            <h1 className="text-[10px] font-black tracking-widest text-slate-400 leading-none">INYATHI ADMIN</h1>
+            <p className="text-xs font-bold text-teal-400 leading-tight mt-0.5">{admin.name}</p>
           </div>
         </div>
-
-        {/* Region and Auth selectors */}
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          
-          {/* Region selector */}
-          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200">
+        <div className="flex items-center gap-2">
+          <div className="flex bg-slate-800 p-0.5 rounded-lg border border-slate-700">
             <button
               onClick={() => handleRegionSwitch('Cape Town')}
-              className={`px-3 py-1.5 rounded-md transition-all ${
-                region === 'Cape Town' ? 'bg-white text-teal-600 font-extrabold shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Cape Town
-            </button>
+              className={`px-2 py-1 rounded-md transition-all text-[10px] font-bold ${region === 'Cape Town' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+            >CT</button>
             <button
               onClick={() => handleRegionSwitch('Joburg')}
-              className={`px-3 py-1.5 rounded-md transition-all ${
-                region === 'Joburg' ? 'bg-white text-teal-600 font-extrabold shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              Joburg
-            </button>
+              className={`px-2 py-1 rounded-md transition-all text-[10px] font-bold ${region === 'Joburg' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+            >JHB</button>
           </div>
-
-          <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
-            <span className="text-[11px] bg-teal-50 text-teal-600 py-1 px-2.5 rounded-full border border-teal-200">
-              {admin.name}
-            </span>
-            <button
-              onClick={onLogout}
-              className="p-1.5 hover:bg-slate-100 rounded-lg text-rose-500 hover:text-rose-700 transition-all"
-              title="Sign out"
-            >
-              <LogOut className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            onClick={onLogout}
+            className="p-1.5 text-rose-400 hover:bg-slate-900 rounded-lg transition-colors cursor-pointer"
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
         </div>
       </header>
 
-      {/* Main Container */}
-      <div className="flex-1 overflow-hidden">
+      {/* Main flex container — sidebar + content */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* BACKDROP for mobile drawer */}
         {isSidebarOpen && (
           <button
             type="button"
-            className="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm"
+            className="md:hidden fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-sm"
             aria-label="Close admin navigation menu overlay"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
-        
-        {/* Slide-out Sidebar Menu */}
-        <aside
-          className={`fixed inset-y-0 left-0 z-50 w-[min(88vw,22rem)] bg-slate-900 text-slate-400 p-4 flex flex-col justify-between shrink-0 border-r border-slate-800 shadow-2xl transition-transform duration-300 ease-out ${
-            isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}
-          aria-hidden={!isSidebarOpen}
-        >
+
+        {/* SIDEBAR — mobile: slide-out drawer | desktop: persistent sticky */}
+        <aside className={`
+          fixed inset-y-0 left-0 z-50 w-64 bg-[#0a1424] border-r border-slate-800/85 p-5 flex flex-col justify-between transition-transform duration-300 ease-in-out shrink-0
+          md:sticky md:top-0 md:h-screen md:translate-x-0
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+        `}>
           <div className="space-y-6">
-            <div className="px-1 sm:px-3 flex items-center justify-between gap-3">
-              <p className="text-[9px] uppercase font-black tracking-wider text-slate-500">Fleet Logistics</p>
+            {/* Sidebar Header with Logo */}
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center shrink-0 shadow relative">
+                  <Image src={logoSrc} alt="INYATHI Logo" fill className="object-contain p-0.5" />
+                </div>
+                <div>
+                  <h2 className="text-xs font-black tracking-widest text-teal-400 uppercase leading-none">INYATHI</h2>
+                  <p className="text-xs font-semibold text-slate-400 leading-none mt-1">{admin.name}</p>
+                  <p className="text-[9px] font-bold uppercase text-slate-500 tracking-wider mt-0.5">ADMIN PORTAL</p>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsSidebarOpen(false)}
-                className="p-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white transition-all"
-                aria-label="Close admin navigation menu"
+                className="md:hidden text-slate-400 hover:text-white p-1 text-xs font-bold cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                ✕
               </button>
             </div>
 
-            <nav className="grid grid-cols-1 sm:grid-cols-2 gap-2 overflow-y-auto pr-1 max-h-[calc(100vh-13rem)]">
+            {/* Nav */}
+            <nav className="space-y-1 overflow-y-auto max-h-[60vh] scrollbar-none">
               {[
                 { id: 'dashboard', label: 'Month Calendar', icon: CalendarIcon },
                 { id: 'bookings', label: 'Bookings List', icon: ClipboardCheck },
@@ -1203,7 +1200,6 @@ const handleApproveRecon = (id: string, notes: string) => {
                 { id: 'fines', label: 'Traffic Fines', icon: AlertOctagon },
                 { id: 'expenses', label: 'Vehicle Expenses', icon: Landmark },
                 { id: 'incidents', label: 'Incident Reports', icon: AlertTriangle }
-                
               ].map(item => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -1214,10 +1210,10 @@ const handleApproveRecon = (id: string, notes: string) => {
                       setActiveTab(item.id as any);
                       setIsSidebarOpen(false);
                     }}
-                    className={`w-full flex items-center gap-3 px-3 py-3 text-xs font-semibold rounded-lg transition-all ${
-                      isActive 
-                        ? 'bg-teal-600 text-white font-extrabold shadow' 
-                        : 'hover:bg-slate-800/60 hover:text-slate-200'
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-teal-600 text-white font-extrabold shadow-md'
+                        : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'
                     }`}
                   >
                     <Icon className="w-4 h-4 shrink-0" />
@@ -1228,27 +1224,58 @@ const handleApproveRecon = (id: string, notes: string) => {
             </nav>
           </div>
 
-          {/* Quick Stats sidebar footer */}
-          <div className="bg-slate-950 p-3 rounded-xl border border-slate-800 text-[11px] space-y-1.5">
-            <div className="flex justify-between">
-              <span>Region Filter:</span>
-              <strong className="text-teal-400">{region}</strong>
+          {/* Sidebar footer — region + stats + logout */}
+          <div className="border-t border-slate-800 pt-4 mt-auto">
+            {/* Region switcher */}
+            <div className="flex bg-slate-950/60 p-0.5 rounded-xl border border-slate-800/50 mb-3">
+              <button
+                onClick={() => handleRegionSwitch('Cape Town')}
+                className={`flex-1 px-2 py-1.5 rounded-lg transition-all text-[10px] font-extrabold ${region === 'Cape Town' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+              >Cape Town</button>
+              <button
+                onClick={() => handleRegionSwitch('Joburg')}
+                className={`flex-1 px-2 py-1.5 rounded-lg transition-all text-[10px] font-extrabold ${region === 'Joburg' ? 'bg-teal-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'}`}
+              >Joburg</button>
             </div>
-            <div className="flex justify-between">
-              <span>Active Bookings:</span>
-              <strong className="text-white">{activeBookings.length}</strong>
+            {/* Quick stats */}
+            <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/50 text-[10px] space-y-1 mb-3">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-bold">Active Bookings:</span>
+                <strong className="text-white">{activeBookings.length}</strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-bold">Service Alerts:</span>
+                <strong className="text-amber-400">{vehicles.filter(v => (v.next_service_km - v.current_mileage) <= 2000).length} vehicles</strong>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span>Service Alerts:</span>
-              <strong className="text-amber-500">
-                {vehicles.filter(v => (v.next_service_km - v.current_mileage) <= 2000).length} vehicles
-              </strong>
-            </div>
+            <button
+              onClick={onLogout}
+              className="w-full flex items-center justify-center gap-2 py-2 text-xs font-extrabold bg-rose-950/20 hover:bg-rose-900/30 text-rose-400 border border-rose-900/40 rounded-lg transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
+            </button>
           </div>
         </aside>
 
+        {/* MAIN VIEWPORT */}
+        <div className="flex-1 flex flex-col min-w-0">
+
+          {/* DESKTOP-ONLY TOP HEADER */}
+          <header className="hidden md:flex bg-slate-950 border-b border-slate-800 p-4 justify-between items-center z-10 sticky top-0">
+            <div>
+              <h1 className="text-xs font-black tracking-widest text-slate-500">INYATHI ADMIN PORTAL</h1>
+              <p className="text-xs font-extrabold text-teal-400 uppercase mt-0.5">{activeTab.toUpperCase().replace('_', ' ')} VIEW</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-bold bg-slate-900 px-3 py-1.5 rounded-full border border-slate-800 text-teal-400">
+                {admin.name}
+              </span>
+            </div>
+          </header>
+
         {/* Content View */}
-        <main className="h-full p-4 sm:p-6 overflow-y-auto bg-slate-50 min-w-0">
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto bg-slate-50 min-w-0">
 
           {/* ==================== DASHBOARD CALENDAR TAB ==================== */}
           {activeTab === 'dashboard' && (
@@ -3689,7 +3716,8 @@ const handleApproveRecon = (id: string, notes: string) => {
           
 
         </main>
-      </div>
+        </div> {/* end flex-1 flex-col min-w-0 */}
+      </div> {/* end flex flex-1 overflow-hidden */}
 
       {/* ==================== BOOKING ADD/EDIT MODAL ==================== */}
       {showBookingModal && (
