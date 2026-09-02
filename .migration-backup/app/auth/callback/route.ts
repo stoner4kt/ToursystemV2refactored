@@ -7,6 +7,8 @@ import { cookies } from 'next/headers';
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
+  const tokenHash = searchParams.get('token_hash');
+  const type = searchParams.get('type');
   const next = searchParams.get('next') ?? '/reset-password';
 
   if (code) {
@@ -36,6 +38,13 @@ export async function GET(request: NextRequest) {
       });
       return NextResponse.redirect(`${origin}${next}#${sessionParams.toString()}`);
     }
+  }
+
+  if (tokenHash && type === 'recovery') {
+    const resetUrl = new URL(`${origin}${next}`);
+    resetUrl.searchParams.set('token_hash', tokenHash);
+    resetUrl.searchParams.set('type', type);
+    return NextResponse.redirect(resetUrl);
   }
 
   // Exchange failed — send to reset page which shows the invalid link UI

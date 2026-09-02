@@ -13,10 +13,21 @@ export default function AuthCallbackPage() {
     async function exchangeCode() {
       const params = new URLSearchParams(window.location.search);
       const code = params.get('code');
+      const tokenHash = params.get('token_hash');
+      const type = params.get('type');
       const next = params.get('next') || '/reset-password';
 
-      if (!isSupabaseConfigured || !supabase || !code) {
+      if (!isSupabaseConfigured || !supabase || (!code && !(tokenHash && type === 'recovery'))) {
         if (!cancelled) navigate('/reset-password?error=invalid_link');
+        return;
+      }
+
+      if (!code && tokenHash && type === 'recovery') {
+        const resetParams = new URLSearchParams({
+          token_hash: tokenHash,
+          type,
+        });
+        window.location.replace(`${next}?${resetParams.toString()}`);
         return;
       }
 
