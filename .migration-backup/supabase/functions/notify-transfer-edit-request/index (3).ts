@@ -1,12 +1,10 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -38,7 +36,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const resendApiKey = Deno.env.get('RESEND_APIKEY') ?? Deno.env.get('RESEND_API_KEY') ?? '';
+    const resendApiKey = Deno.env.get('RESEND_API_KEY') ?? '';
     if (!resendApiKey) {
       return new Response(
         JSON.stringify({ success: false, error: 'Resend API key is not configured' }),
@@ -49,13 +47,14 @@ serve(async (req: Request) => {
     const adminEmailRaw = Deno.env.get('ADMIN_EMAIL') ?? '';
     const toEmails = adminEmailRaw.split(',').map((e) => e.trim()).filter(Boolean);
     if (toEmails.length === 0) {
-      toEmails.push('reeqieric41@gmail.com');
+      console.error('[notify-transfer-edit-request] ADMIN_EMAIL secret is not configured in Supabase.');
+      return new Response(
+        JSON.stringify({ error: 'ADMIN_EMAIL is not configured.' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
-    const fromEmail =
-      Deno.env.get('SENDER_EMAIL') ??
-      Deno.env.get('FROM_EMAIL') ??
-      'Inyathi Alerts <onboarding@resend.dev>';
+    const fromEmail = Deno.env.get('SENDER_EMAIL') ?? 'INYATHI Alerts <noreply@inyathitours.com>';
 
     const timestamp = new Date().toLocaleString('en-ZA', {
       timeZone: 'Africa/Johannesburg',

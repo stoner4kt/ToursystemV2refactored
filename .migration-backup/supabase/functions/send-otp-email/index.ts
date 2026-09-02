@@ -1,4 +1,3 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
@@ -21,7 +20,7 @@ function generateOTP(): string {
   return String(array[0] % 1000000).padStart(6, '0');
 }
 
-serve(async (req: Request) => {
+Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') {
     return new Response(JSON.stringify({ error: 'Method not allowed' }), {
@@ -30,6 +29,25 @@ serve(async (req: Request) => {
   }
 
   try {
+    // Verify caller is an authenticated Supabase user
+    const authHeader = req.headers.get('Authorization') ?? '';
+    if (!authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Missing or invalid Authorization header.' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const callerClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user: callerUser }, error: callerAuthErr } = await callerClient.auth.getUser();
+    if (callerAuthErr || !callerUser) {
+      return new Response(JSON.stringify({ error: 'Unauthorized.' }), {
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     const { resource_type, resource_id, admin_id, context_label } = await req.json();
 
     if (!resource_type || !resource_id) {

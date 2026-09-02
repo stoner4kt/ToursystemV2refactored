@@ -1145,7 +1145,7 @@ export const authApi = {
         const { data: profileData, error: profileErr } = await supabase
           .from('profiles')
           .select('*')
-          .eq('email', email.toLowerCase())
+          .eq('id', data.user.id)
           .maybeSingle();
 
         if (profileData) {
@@ -1182,7 +1182,6 @@ export const authApi = {
       }
 
       setLocalStorageItem(STORAGE_KEYS.AUTH_USER, profile);
-      await pushToSupabase('profiles', profile, 'id', profile.id);
       const profiles = getLocalStorageItem<Profile[]>(STORAGE_KEYS.PROFILES, []);
       const idx = profiles.findIndex(p => p.email.toLowerCase() === email.toLowerCase());
       if (idx !== -1) {
@@ -1232,7 +1231,7 @@ resetPassword: async (email: string): Promise<void> => {
 const { error } = await supabase.auth.resetPasswordForEmail(
   email.toLowerCase(),
   {
-    redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`,
+    redirectTo: 'https://fleet.inyathitours.com/auth/callback',
   }
 );
     if (error) {
@@ -2141,12 +2140,6 @@ export interface CloudinaryUploadResult {
 }
 
 export async function uploadToCloudinary(file: File, folder: string = 'inspections'): Promise<CloudinaryUploadResult> {
-  const defaultFallback: CloudinaryUploadResult = {
-    url: `https://res.cloudinary.com/demo/image/upload/v1/samples/sample.jpg`,
-    public_id: `samples/sample`,
-    resource_type: `image`
-  };
-
   if (!isSupabaseConfigured || !supabase) {
     // offline fallback mode: return a temporary valid URL
     return {
@@ -2181,7 +2174,7 @@ export async function uploadToCloudinary(file: File, folder: string = 'inspectio
     formData.append('signature', sigData.signature);
     formData.append('upload_preset', sigData.upload_preset);
     formData.append('folder', sigData.folder);
-    formData.append('type', sigData.type || 'upload');
+    formData.append('type', sigData.type);
 
     const uploadUrl = `https://api.cloudinary.com/v1_1/${sigData.cloud_name}/${resourceType}/upload`;
     const res = await fetch(uploadUrl, {
@@ -2202,7 +2195,7 @@ export async function uploadToCloudinary(file: File, folder: string = 'inspectio
     };
   } catch (error) {
     console.error('Cloudinary upload failed:', error);
-    return defaultFallback;
+    throw error;
   }
 }
 

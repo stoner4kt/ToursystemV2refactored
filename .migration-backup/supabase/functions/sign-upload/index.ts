@@ -68,13 +68,11 @@ Deno.serve(async (req) => {
     const timestamp = Math.round(Date.now() / 1000);
 
     // Parameters signed — sorted alphabetically.
-    // type=upload forces public delivery, overriding any 'authenticated' preset setting.
-    // This means secure_url values are directly accessible without signed delivery URLs.
-    const paramsStr = `folder=${folder}&timestamp=${timestamp}&type=upload&upload_preset=${UPLOAD_PRESET}`;
+    const paramsStr = `folder=${folder}&timestamp=${timestamp}&type=authenticated&upload_preset=${UPLOAD_PRESET}`;
     const signature = await sha1(`${paramsStr}${API_SECRET}`);
 
     console.log(
-      `[sign-upload] user=${user.id} folder=${folder} preset=${UPLOAD_PRESET} type=upload ts=${timestamp}`,
+      `[sign-upload] user=${user.id} folder=${folder} preset=${UPLOAD_PRESET} type=authenticated ts=${timestamp}`,
     );
 
     return respond({
@@ -84,7 +82,7 @@ Deno.serve(async (req) => {
       cloud_name: CLOUD_NAME,
       upload_preset: UPLOAD_PRESET,
       folder,
-      type: "upload",
+      type: "authenticated",
     });
   } catch (err) {
     console.error("[sign-upload] unexpected error:", err);
