@@ -31,6 +31,11 @@ export default function AuthCallbackPage() {
         return;
       }
 
+      if (!code) {
+        navigate('/reset-password?error=invalid_link');
+        return;
+      }
+
       const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (!cancelled) {
         if (error || !data.session) {
