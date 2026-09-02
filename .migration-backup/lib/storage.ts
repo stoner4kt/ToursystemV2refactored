@@ -1227,13 +1227,12 @@ export const authApi = {
   // After the logout method, around line ~1373
 resetPassword: async (email: string): Promise<void> => {
   if (isSupabaseConfigured && supabase) {
-    // REPLACE WITH:
-const { error } = await supabase.auth.resetPasswordForEmail(
-  email.toLowerCase(),
-  {
-    redirectTo: 'https://fleet.inyathitours.com/auth/callback',
-  }
-);
+    const { error } = await supabase.auth.resetPasswordForEmail(
+      email.toLowerCase(),
+      {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      }
+    );
     if (error) {
       throw new Error(error.message || 'Failed to send password reset email.');
     }
