@@ -429,7 +429,7 @@ export const supabase = isSupabaseConfigured
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        detectSessionInUrl: false,
+        detectSessionInUrl: true,
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
       },
     })
@@ -1232,7 +1232,7 @@ resetPassword: async (email: string): Promise<void> => {
 const { error } = await supabase.auth.resetPasswordForEmail(
   email.toLowerCase(),
   {
-    redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`,
+    redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/auth/callback`,
   }
 );
     if (error) {
