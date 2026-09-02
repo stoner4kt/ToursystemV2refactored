@@ -1,0 +1,1 @@
+- [Flat Next.js imports](flat-next-port.md) — flat Vercel exports need explicit source staging before the frontend copy helper can migrate them.
