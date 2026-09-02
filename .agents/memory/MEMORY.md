@@ -1,1 +1,2 @@
 - [Flat Next.js imports](flat-next-port.md) — flat Vercel exports need explicit source staging before the frontend copy helper can migrate them.
+- [Supabase recovery handoff](supabase-recovery-handoff.md) — server-side PKCE exchange must forward a browser session for client-side password updates.

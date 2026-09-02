@@ -25,9 +25,16 @@ export async function GET(request: NextRequest) {
         },
       }
     );
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error && data.session) {
+      // The server exchange stores cookies, but the client-side Supabase
+      // instance also needs a browser session to call updateUser().
+      const sessionParams = new URLSearchParams({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        type: 'recovery',
+      });
+      return NextResponse.redirect(`${origin}${next}#${sessionParams.toString()}`);
     }
   }
 

@@ -26,6 +26,26 @@ function ResetPasswordContent() {
         return;
       }
 
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const accessToken = hashParams.get('access_token');
+      const refreshToken = hashParams.get('refresh_token');
+      const hashType = hashParams.get('type');
+
+      if (accessToken && refreshToken && hashType === 'recovery') {
+        const { error } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+        if (error) {
+          setInvalidLink(true);
+        } else {
+          window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`);
+          setSessionReady(true);
+        }
+        setChecking(false);
+        return;
+      }
+
       // PKCE flow — Supabase sends ?token_hash=xxx&type=recovery
       const searchParams = new URLSearchParams(window.location.search);
       const tokenHash = searchParams.get('token_hash');

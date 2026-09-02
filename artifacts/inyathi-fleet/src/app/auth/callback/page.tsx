@@ -20,9 +20,18 @@ export default function AuthCallbackPage() {
         return;
       }
 
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
       if (!cancelled) {
-        navigate(error ? '/reset-password?error=invalid_link' : next);
+        if (error || !data.session) {
+          navigate('/reset-password?error=invalid_link');
+        } else {
+          const sessionParams = new URLSearchParams({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+            type: 'recovery',
+          });
+          window.location.replace(`${next}#${sessionParams.toString()}`);
+        }
       }
     }
 
