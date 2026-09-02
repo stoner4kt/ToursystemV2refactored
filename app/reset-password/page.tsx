@@ -27,7 +27,19 @@ function ResetPasswordContent() {
         return;
       }
 
-      // PKCE flow — Supabase sends ?token_hash=xxx&type=recovery
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setSessionReady(true);
+        setChecking(false);
+        return;
+      }
+
+      if (searchParams.get('error')) {
+        setInvalidLink(true);
+        setChecking(false);
+        return;
+      }
+
       const tokenHash = searchParams.get('token_hash');
       const type = searchParams.get('type');
 
@@ -45,8 +57,6 @@ function ResetPasswordContent() {
         return;
       }
 
-      // Implicit flow — Supabase sends #access_token=xxx&type=recovery in hash
-      // onAuthStateChange picks this up automatically
       const { data: { subscription } } = supabase.auth.onAuthStateChange(
         (event, session) => {
           if ((event === 'SIGNED_IN' || event === 'PASSWORD_RECOVERY') && session) {
@@ -56,20 +66,12 @@ function ResetPasswordContent() {
         }
       );
 
-      // Check if a recovery session already exists
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setSessionReady(true);
-        setChecking(false);
-      } else {
-        // Give the hash parser 2 s, then mark as invalid
-        setTimeout(() => {
-          setChecking(prev => {
-            if (prev) setInvalidLink(true);
-            return false;
-          });
-        }, 2000);
-      }
+      setTimeout(() => {
+        setChecking(prev => {
+          if (prev) setInvalidLink(true);
+          return false;
+        });
+      }, 2000);
 
       return () => subscription.unsubscribe();
     }
