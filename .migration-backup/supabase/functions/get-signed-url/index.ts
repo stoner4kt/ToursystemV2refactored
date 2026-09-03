@@ -39,7 +39,15 @@ async function createDeliverySignature(deliveryPath: string, apiSecret: string) 
 }
 
 function encodePublicId(publicId: string) {
-  return publicId.split('/').map((part) => encodeURIComponent(part)).join('/');
+  return publicId.split('/').map((part) => {
+    // Cloudinary's SDK decodes an already URL-encoded public ID before
+    // encoding it for delivery. This prevents %20 from becoming %2520.
+    try {
+      return encodeURIComponent(decodeURIComponent(part));
+    } catch {
+      return encodeURIComponent(part);
+    }
+  }).join('/');
 }
 
 function normalizeVersion(value: unknown) {
