@@ -42,6 +42,12 @@ function encodePublicId(publicId: string) {
   return publicId.split('/').map((part) => encodeURIComponent(part)).join('/');
 }
 
+function normalizeVersion(value: unknown) {
+  if (typeof value !== 'string') return '';
+  const version = value.trim().replace(/^v/i, '');
+  return /^\d+$/.test(version) ? `v${version}` : '';
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
@@ -66,6 +72,7 @@ Deno.serve(async (req: Request) => {
       ? body.resourceType.trim().toLowerCase()
       : '';
     const asAttachment = body?.asAttachment === true;
+    const requestedVersion = normalizeVersion(body?.version);
 
     if (!publicId || publicId.length > 512 || /[\u0000-\u001f\u007f]/.test(publicId)) {
       return json({ error: 'publicId is required and must be valid' }, 400);
@@ -76,21 +83,30 @@ Deno.serve(async (req: Request) => {
     if (body?.asAttachment !== undefined && typeof body.asAttachment !== 'boolean') {
       return json({ error: 'asAttachment must be a boolean' }, 400);
     }
+    if (body?.version !== undefined && !requestedVersion) {
+      return json({ error: 'version must be a positive integer' }, 400);
+    }
 
     const cloudName = requiredEnv('CLOUDINARY_CLOUD_NAME');
     const apiSecret = requiredEnv('CLOUDINARY_API_SECRET');
     const encodedPublicId = encodePublicId(publicId);
     const deliveryPath = asAttachment ? `fl_attachment/${encodedPublicId}` : encodedPublicId;
     const signature = await createDeliverySignature(deliveryPath, apiSecret);
-    const signedUrl = [
+    // Cloudinary's SDK force_version behavior uses v1 for foldered public IDs
+    // when no explicit version is provided. Preserve a version from the
+    // original upload URL when available, otherwise match that behavior.
+    const version = requestedVersion || (publicId.includes('/') ? 'v1' : '');
+    const urlParts = [
       `https://res.cloudinary.com/${encodeURIComponent(cloudName)}`,
       resourceType,
       'authenticated',
       `s--${signature}--`,
-      deliveryPath,
-    ].join('/');
+    ];
+    if (asAttachment) urlParts.push('fl_attachment');
+    if (version) urlParts.push(version);
+    urlParts.push(encodedPublicId);
 
-    return json({ signedUrl });
+    return json({ signedUrl: urlParts.join('/') });
   } catch (error) {
     console.error('[get-signed-url] Failed to generate delivery URL:', error instanceof Error ? error.message : 'unknown error');
     return json({ error: 'Unable to generate Cloudinary signed URL' }, 500);

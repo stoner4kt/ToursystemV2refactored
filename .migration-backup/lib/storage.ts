@@ -2202,6 +2202,7 @@ type CloudinaryUrlInfo = {
   resourceType: 'image' | 'video' | 'raw';
   deliveryType: 'upload' | 'authenticated';
   publicId: string;
+  version?: string;
 };
 
 function getCloudinaryUrlInfo(value: string): CloudinaryUrlInfo | null {
@@ -2224,7 +2225,8 @@ function getCloudinaryUrlInfo(value: string): CloudinaryUrlInfo | null {
     if (publicIdParts[0]?.match(/^s--[^/]+--$/)) {
       publicIdParts = publicIdParts.slice(1);
     }
-    if (publicIdParts[0]?.match(/^v\d+$/)) {
+    const version = publicIdParts[0]?.match(/^v\d+$/)?.[0];
+    if (version) {
       publicIdParts = publicIdParts.slice(1);
     }
 
@@ -2234,7 +2236,7 @@ function getCloudinaryUrlInfo(value: string): CloudinaryUrlInfo | null {
       if (dotIndex !== -1) publicId = publicId.slice(0, dotIndex);
     }
 
-    return { resourceType, deliveryType, publicId };
+    return { resourceType, deliveryType, publicId, version };
   } catch {
     return null;
   }
@@ -2249,6 +2251,7 @@ export async function getSignedUrlForView(
 
   let publicId = '';
   let resourceType: 'image' | 'video' | 'raw' | '' = '';
+  let version = '';
   let fallbackUrl = '';
 
   if (typeof input === 'object') {
@@ -2288,6 +2291,7 @@ export async function getSignedUrlForView(
   if (cloudinaryInfo?.deliveryType === 'authenticated') {
     publicId ||= cloudinaryInfo.publicId;
     resourceType ||= cloudinaryInfo.resourceType;
+    version = cloudinaryInfo.version || '';
   } else if (fallbackUrl && !cloudinaryInfo) {
     return fallbackUrl;
   }
@@ -2301,6 +2305,7 @@ export async function getSignedUrlForView(
       body: {
         publicId,
         resourceType: resourceType || 'raw',
+        ...(version ? { version } : {}),
         ...(options?.asAttachment === undefined ? {} : { asAttachment: options.asAttachment }),
       },
     });
