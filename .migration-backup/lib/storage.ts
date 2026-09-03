@@ -2205,6 +2205,14 @@ type CloudinaryUrlInfo = {
   version?: string;
 };
 
+// ── FIXED getCloudinaryUrlInfo ────────────────────────────────────────────────
+// Bug fixed: path segments from the URL were not URL-decoded before being used
+// as the publicId. This caused the edge function to receive a percent-encoded
+// publicId (e.g. "my%20doc.pdf") which was then double-encoded to "my%2520doc.pdf"
+// before signing — producing a signature Cloudinary always rejected for documents.
+// Images worked by accident because auto-generated names (UUIDs, slugs) never
+// contain characters that encodeURIComponent would change.
+
 function getCloudinaryUrlInfo(value: string): CloudinaryUrlInfo | null {
   try {
     const parsed = new URL(value);
@@ -2230,7 +2238,15 @@ function getCloudinaryUrlInfo(value: string): CloudinaryUrlInfo | null {
       publicIdParts = publicIdParts.slice(1);
     }
 
-    let publicId = publicIdParts.join('/');
+    // FIX: Decode each path segment so the publicId is the raw string Cloudinary
+    // used when the file was stored (e.g. "my doc.pdf", not "my%20doc.pdf").
+    // The edge function receives this raw value, computes SHA1(rawPublicId + secret),
+    // and re-encodes only for the URL — matching Cloudinary's own algorithm.
+    const decodedParts = publicIdParts.map((part) => {
+      try { return decodeURIComponent(part); } catch { return part; }
+    });
+
+    let publicId = decodedParts.join('/');
     if (resourceType === 'image' || resourceType === 'video') {
       const dotIndex = publicId.lastIndexOf('.');
       if (dotIndex !== -1) publicId = publicId.slice(0, dotIndex);
