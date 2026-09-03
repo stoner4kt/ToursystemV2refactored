@@ -2198,81 +2198,118 @@ export async function uploadToCloudinary(file: File, folder: string = 'inspectio
   }
 }
 
-// Get secure viewing/download URL for Cloudinary files via get-signed-url Edge function
-export async function getSignedUrlForView(input: string | any): Promise<string> {
-  if (!isSupabaseConfigured || !supabase || !input) {
-    return typeof input === 'object' ? input.url || '' : input || '';
-  }
+type CloudinaryUrlInfo = {
+  resourceType: 'image' | 'video' | 'raw';
+  deliveryType: 'upload' | 'authenticated';
+  publicId: string;
+};
+
+function getCloudinaryUrlInfo(value: string): CloudinaryUrlInfo | null {
   try {
-    let publicId = '';
-    let resourceType = 'raw';
-    let fallbackUrl = '';
+    const parsed = new URL(value);
+    if (!parsed.hostname.endsWith('.cloudinary.com')) return null;
 
-    if (typeof input === 'object') {
-      publicId = input.public_id || input.publicId || '';
-      resourceType = input.resource_type || input.resourceType || 'raw';
-      fallbackUrl = input.url || input.secure_url || '';
-    } else if (typeof input === 'string') {
-      fallbackUrl = input;
-      if (input.trim().startsWith('{')) {
-        try {
-          const parsed = JSON.parse(input);
-          if (parsed.public_id || parsed.publicId) {
-            publicId = parsed.public_id || parsed.publicId;
-            resourceType = parsed.resource_type || parsed.resourceType || 'raw';
-            fallbackUrl = parsed.url || parsed.secure_url || fallbackUrl;
-          }
-        } catch (_) {}
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    const resourceTypes = new Set(['image', 'video', 'raw']);
+    const deliveryTypes = new Set(['upload', 'authenticated']);
+    const resourceIndex = parts.findIndex((part, index) =>
+      resourceTypes.has(part) && deliveryTypes.has(parts[index + 1] || ''),
+    );
+    if (resourceIndex === -1) return null;
+
+    const resourceType = parts[resourceIndex] as CloudinaryUrlInfo['resourceType'];
+    const deliveryType = parts[resourceIndex + 1] as CloudinaryUrlInfo['deliveryType'];
+    let publicIdParts = parts.slice(resourceIndex + 2);
+
+    if (publicIdParts[0]?.match(/^s--[^/]+--$/)) {
+      publicIdParts = publicIdParts.slice(1);
+    }
+    if (publicIdParts[0]?.match(/^v\d+$/)) {
+      publicIdParts = publicIdParts.slice(1);
+    }
+
+    let publicId = publicIdParts.join('/');
+    if (resourceType === 'image' || resourceType === 'video') {
+      const dotIndex = publicId.lastIndexOf('.');
+      if (dotIndex !== -1) publicId = publicId.slice(0, dotIndex);
+    }
+
+    return { resourceType, deliveryType, publicId };
+  } catch {
+    return null;
+  }
+}
+
+// Get the original public URL, or sign only genuinely authenticated Cloudinary assets.
+export async function getSignedUrlForView(
+  input: string | any,
+  options?: { asAttachment?: boolean },
+): Promise<string> {
+  if (!input) return '';
+
+  let publicId = '';
+  let resourceType: 'image' | 'video' | 'raw' | '' = '';
+  let fallbackUrl = '';
+
+  if (typeof input === 'object') {
+    publicId = typeof input.public_id === 'string'
+      ? input.public_id
+      : typeof input.publicId === 'string' ? input.publicId : '';
+    const objectResourceType = input.resource_type || input.resourceType;
+    resourceType = objectResourceType === 'image' || objectResourceType === 'video' || objectResourceType === 'raw'
+      ? objectResourceType
+      : '';
+    fallbackUrl = getDocumentUrl(input);
+  } else {
+    fallbackUrl = input;
+    if (input.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(input);
+        if (parsed && typeof parsed === 'object') {
+          publicId = typeof parsed.public_id === 'string'
+            ? parsed.public_id
+            : typeof parsed.publicId === 'string' ? parsed.publicId : '';
+          const parsedResourceType = parsed.resource_type || parsed.resourceType;
+          resourceType = parsedResourceType === 'image' || parsedResourceType === 'video' || parsedResourceType === 'raw'
+            ? parsedResourceType
+            : '';
+          fallbackUrl = getDocumentUrl(parsed) || fallbackUrl;
+        }
+      } catch {
+        // Keep the original string as the fallback URL.
       }
     }
+  }
 
-    if (fallbackUrl && fallbackUrl.includes('cloudinary.com') && fallbackUrl.includes('/upload/')) {
-      return fallbackUrl;
-    }
+  const cloudinaryInfo = fallbackUrl ? getCloudinaryUrlInfo(fallbackUrl) : null;
+  if (cloudinaryInfo?.deliveryType === 'upload') {
+    return fallbackUrl;
+  }
+  if (cloudinaryInfo?.deliveryType === 'authenticated') {
+    publicId ||= cloudinaryInfo.publicId;
+    resourceType ||= cloudinaryInfo.resourceType;
+  } else if (fallbackUrl && !cloudinaryInfo) {
+    return fallbackUrl;
+  }
 
-    if (!publicId && typeof fallbackUrl === 'string' && fallbackUrl.includes('cloudinary.com')) {
-      const parts = fallbackUrl.split('/');
-      const uploadIdx = parts.indexOf('upload');
-      if (uploadIdx !== -1 && uploadIdx + 2 < parts.length) {
-        const resTypeCandidate = parts[uploadIdx - 1];
-        if (['image', 'video', 'raw'].includes(resTypeCandidate)) {
-          resourceType = resTypeCandidate;
-        } else {
-          resourceType = 'auto';
-        }
+  if (!publicId || !isSupabaseConfigured || !supabase) {
+    return fallbackUrl;
+  }
 
-        let publicIdParts = parts.slice(uploadIdx + 2);
-        if (parts[uploadIdx + 1].match(/^v\d+$/)) {
-          publicIdParts = parts.slice(uploadIdx + 2);
-        } else {
-          publicIdParts = parts.slice(uploadIdx + 1);
-        }
-
-        let fullPublicId = publicIdParts.join('/');
-        if (resourceType === 'image' || resourceType === 'video') {
-          const dotIdx = fullPublicId.lastIndexOf('.');
-          if (dotIdx !== -1) {
-            fullPublicId = fullPublicId.substring(0, dotIdx);
-          }
-        }
-        publicId = fullPublicId;
-      }
-    }
-
-    if (publicId) {
-      const { data, error } = await supabase.functions.invoke('get-signed-url', {
-        body: { publicId, resourceType }
-      });
-      if (!error && data?.signedUrl) {
-        return data.signedUrl;
-      }
-    }
-
-    return fallbackUrl || (typeof input === 'string' ? input : '');
+  try {
+    const { data, error } = await supabase.functions.invoke('get-signed-url', {
+      body: {
+        publicId,
+        resourceType: resourceType || 'raw',
+        ...(options?.asAttachment === undefined ? {} : { asAttachment: options.asAttachment }),
+      },
+    });
+    if (!error && data?.signedUrl) return data.signedUrl;
   } catch (err) {
     console.warn('Could not fetch signed viewing URL from Edge function:', err);
   }
-  return typeof input === 'object' ? input.url || '' : input || '';
+
+  return fallbackUrl;
 }
 
 // Export database tables/sheets as standard CSV files for offline spreadsheets
